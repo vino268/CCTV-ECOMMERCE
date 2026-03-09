@@ -13,11 +13,12 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import AdminAccountMenu from '@/components/admin-account-menu';
+import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/admin/customers', label: 'Customers', icon: Users },
@@ -31,12 +32,49 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
+  const isLoginPage = pathname === '/admin/login';
+  const isPublicPage = isLoginPage || pathname === '/admin/forgot-password' || pathname === '/admin';
+
+  // Auth guard — skip for login and forgot-password pages
+  useEffect(() => {
+    if (isPublicPage) {
+      setAuthChecked(true);
+      return;
+    }
+
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      router.replace('/admin/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [isPublicPage, router]);
+
   const handleLogout = () => {
-    router.push('/');
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminInfo');
+    // Clear cookie
+    document.cookie = 'adminToken=; path=/; max-age=0';
+    router.replace('/admin/login');
   };
+
+  // Public pages render without the sidebar chrome
+  if (isPublicPage) {
+    return <>{children}</>;
+  }
+
+  // Show nothing until auth is verified
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -76,7 +114,9 @@ export default function AdminLayout({
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium">{item.label}</span>
+                  )}
                 </div>
               </Link>
             );
@@ -104,9 +144,7 @@ export default function AdminLayout({
             TN Automation Admin Panel
           </h1>
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-bold">
-              A
-            </div>
+            <AdminAccountMenu />
           </div>
         </header>
 

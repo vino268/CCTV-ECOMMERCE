@@ -1,7 +1,6 @@
 'use client';
 
 import { useCart } from '@/lib/contexts/cart-context';
-import { products } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Trash2, ArrowLeft, ShoppingBag } from 'lucide-react';
@@ -17,11 +16,8 @@ export default function CartPage() {
   const tax = cartTotal * 0.08;
   const total = cartTotal + shippingCost + tax;
 
-  // Enrich cart items with product data
-  const cartItems = cart.map((item) => {
-    const product = products.find((p) => p.id === item.productId);
-    return { ...item, product };
-  });
+  // Cart items already contain product data from the cart context
+  const cartItems = cart;
 
   if (cart.length === 0) {
     return (

@@ -1,8 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CartItem, Product } from '../types';
-import { products } from '../data';
 
 interface CartContextType {
   cart: CartItem[];
@@ -16,33 +15,70 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function getUserId(): string | null {
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      const user = JSON.parse(stored);
+      return user._id || null;
+    }
+  } catch {}
+  return null;
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
 
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
+  // Load cart from MongoDB on mount (if user is logged in)
+  const loadCart = useCallback(async () => {
+    const userId = getUserId();
+    if (!userId) {
+      setMounted(true);
+      return;
     }
-    setMounted(true);
+
+    try {
+      const res = await fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const items = await res.json();
+        const mapped: CartItem[] = items.map((item: any) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          product: item.product || undefined,
+        }));
+        setCart(mapped);
+      }
+    } catch (err) {
+      console.error('Error loading cart from API:', err);
+    } finally {
+      setMounted(true);
+    }
   }, []);
 
-  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('cart', JSON.stringify(cart));
-    }
-  }, [cart, mounted]);
+    loadCart();
+
+    // Reload cart when user logs in/out
+    const handleAuthChange = () => {
+      loadCart();
+    };
+    window.addEventListener('user-auth-change', handleAuthChange);
+    return () => window.removeEventListener('user-auth-change', handleAuthChange);
+  }, [loadCart]);
 
   const addToCart = (product: Product, quantity: number) => {
+    const pid = product._id || product.id;
+    const userId = getUserId();
+
     setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.productId === product.id);
+      const existingItem = prevCart.find((item) => item.productId === pid);
 
       if (existingItem) {
         return prevCart.map((item) =>
-          item.productId === product.id
+          item.productId === pid
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
@@ -51,16 +87,47 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return [
         ...prevCart,
         {
-          productId: product.id,
+          productId: pid,
           quantity,
           product,
         },
       ];
     });
+
+    // Sync to MongoDB
+    if (userId) {
+      fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          productId: pid,
+          quantity,
+          product: {
+            name: product.name,
+            price: product.price,
+            image: product.image,
+            category: product.category,
+            inStock: product.inStock,
+          },
+        }),
+      }).catch((err) => console.error('Error syncing cart add:', err));
+    }
   };
 
   const removeFromCart = (productId: string) => {
+    const userId = getUserId();
+
     setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
+
+    // Sync to MongoDB
+    if (userId) {
+      fetch('/api/cart', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, productId, quantity: 0 }),
+      }).catch((err) => console.error('Error syncing cart remove:', err));
+    }
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
@@ -69,21 +136,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const userId = getUserId();
+
     setCart((prevCart) =>
       prevCart.map((item) =>
         item.productId === productId ? { ...item, quantity } : item
       )
     );
+
+    // Sync to MongoDB
+    if (userId) {
+      fetch('/api/cart', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, productId, quantity }),
+      }).catch((err) => console.error('Error syncing cart update:', err));
+    }
   };
 
   const clearCart = () => {
+    const userId = getUserId();
+
     setCart([]);
+
+    // Sync to MongoDB
+    if (userId) {
+      fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      }).catch((err) => console.error('Error syncing cart clear:', err));
+    }
   };
 
   const getCartTotal = () => {
     return cart.reduce((total, item) => {
-      const product = item.product || products.find((p) => p.id === item.productId);
-      return total + (product?.price || 0) * item.quantity;
+      return total + (item.product?.price || 0) * item.quantity;
     }, 0);
   };
 

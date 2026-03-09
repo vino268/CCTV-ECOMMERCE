@@ -5,23 +5,38 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Check } from 'lucide-react';
-import { products } from '@/lib/data';
 import { useRouter } from 'next/navigation';
 
 export default function CheckoutPage() {
   const { cart, getCartTotal, clearCart } = useCart();
   const router = useRouter();
-  const [step, setStep] = useState<'info' | 'payment' | 'complete'>('info');
+  type CheckoutStep = 'info' | 'payment' | 'complete';
+  const [step, setStep] = useState<CheckoutStep>('info');
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
 
-  // Auth guard: redirect to /account if not logged in
+  // Auth guard + auto-fill from user profile
   useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (!user) {
+    const stored = localStorage.getItem('user');
+    if (!stored) {
       localStorage.setItem('redirectAfterLogin', '/checkout');
       router.push('/account');
+      return;
     }
+
+    const user = JSON.parse(stored);
+    const nameParts = (user.name || '').trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    setFormData((prev) => ({
+      ...prev,
+      firstName: prev.firstName || firstName,
+      lastName: prev.lastName || lastName,
+      email: prev.email || user.email || '',
+      phone: prev.phone || user.phone || '',
+      address: prev.address || user.address || '',
+    }));
   }, [router]);
 
   const [formData, setFormData] = useState({
@@ -42,11 +57,8 @@ export default function CheckoutPage() {
   const tax = cartTotal * 0.08;
   const total = cartTotal + shippingCost + tax;
 
-  // Enrich cart items with product data
-  const cartItems = cart.map((item) => {
-    const product = products.find((p) => p.id === item.productId);
-    return { ...item, product };
-  });
+  // Cart items already contain product data from the cart context
+  const cartItems = cart;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -74,41 +86,56 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     setIsProcessing(true);
-    // Simulate order processing
-    setTimeout(() => {
-      const newOrderNumber = '#TN' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      setOrderNumber(newOrderNumber);
 
-      // Build order and save to localStorage
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const order = {
-        id: newOrderNumber,
-        customerId: user.email || '',
-        items: cartItems.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          productName: item.product?.name || '',
-          productPrice: item.product?.price || 0,
-        })),
-        total: parseFloat(total.toFixed(2)),
-        status: 'pending' as const,
-        createdAt: new Date().toISOString(),
-        deliveryInfo: {
-          address: formData.address,
-          city: formData.city,
-          zipCode: formData.zipCode,
+    const newOrderNumber =
+      '#TN' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: newOrderNumber,
+          userId: stored._id || '',
+          customerName: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
           phone: formData.phone,
-        },
-      };
+          products: cartItems.map((item) => ({
+            productId: item.productId,
+            productName: item.product?.name || '',
+            productPrice: item.product?.price || 0,
+            quantity: item.quantity,
+          })),
+          totalAmount: parseFloat(total.toFixed(2)),
+          paymentMethod: paymentMethod === 'cod' ? 'COD' : 'Online',
+          paymentStatus: paymentMethod === 'cod' ? 'Unpaid' : 'Paid',
+          orderStatus: 'Pending',
+          deliveryInfo: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            email: formData.email,
+            phone: formData.phone,
+            street: formData.address,
+            city: formData.city,
+            state: formData.state,
+            zip: formData.zipCode,
+          },
+        }),
+      });
 
-      const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-      existingOrders.push(order);
-      localStorage.setItem('orders', JSON.stringify(existingOrders));
+      if (!res.ok) throw new Error('Failed to save order');
 
+      setOrderNumber(newOrderNumber);
       clearCart();
       setStep('complete');
+    } catch (err) {
+      console.error('Error placing order:', err);
+      alert('Something went wrong while placing your order. Please try again.');
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
   if (step === 'complete') {

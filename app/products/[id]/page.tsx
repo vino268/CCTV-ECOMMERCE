@@ -1,6 +1,5 @@
 'use client';
 
-import { products } from '@/lib/data';
 import { Product } from '@/lib/types';
 import { ProductCard } from '@/components/product-card';
 import { Button } from '@/components/ui/button';
@@ -8,34 +7,60 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { Star, ShoppingCart, Truck, Shield, RotateCcw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { notFound, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function ProductDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
   const { addToCart } = useCart();
   const router = useRouter();
 
-  // Load admin products from localStorage
+  // Fetch product from MongoDB API
   useEffect(() => {
-    const stored = localStorage.getItem('admin_products');
-    if (stored) {
-      setAdminProducts(JSON.parse(stored));
+    async function fetchProduct() {
+      try {
+        const res = await fetch(`/api/products/${params.id}`, { cache: 'no-store' });
+        if (!res.ok) {
+          setNotFound(true);
+          return;
+        }
+        const data = await res.json();
+        setProduct(data);
+
+        // Fetch related products from API
+        const allRes = await fetch('/api/products', { cache: 'no-store' });
+        if (allRes.ok) {
+          const allProducts: Product[] = await allRes.json();
+          const pid = data._id || data.id;
+          const related = allProducts
+            .filter(
+              (p) =>
+                p.category === data.category &&
+                (p._id || p.id) !== pid
+            )
+            .slice(0, 3);
+          setRelatedProducts(related);
+        }
+      } catch (err) {
+        console.error('Error fetching product:', err);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
     }
-    setMounted(true);
-  }, []);
 
-  const allProducts = [...products, ...adminProducts];
-  const product = allProducts.find((p) => p.id === params.id);
+    fetchProduct();
+  }, [params.id]);
 
-  // Before localStorage has loaded, show a loading state for non-static products
-  if (!product && !mounted) {
+  if (loading) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground">Loading product...</p>
@@ -43,13 +68,18 @@ export default function ProductDetailPage({
     );
   }
 
-  if (!product) {
-    notFound();
+  if (notFound || !product) {
+    return (
+      <div className="bg-background min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Product Not Found</h1>
+          <Link href="/products">
+            <Button>Browse Products</Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
-
-  const relatedProducts = allProducts
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 3);
 
   const handleAddToCart = () => {
     addToCart(product, quantity);
@@ -260,7 +290,7 @@ export default function ProductDetailPage({
             </h2>
             <div className="grid md:grid-cols-3 gap-6">
               {relatedProducts.map((relatedProduct) => (
-                <ProductCard key={relatedProduct.id} product={relatedProduct} />
+                <ProductCard key={relatedProduct._id || relatedProduct.id} product={relatedProduct} />
               ))}
             </div>
           </div>

@@ -14,6 +14,7 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const { addToCart } = useCart();
   const [isAdding, setIsAdding] = useState(false);
+  const productId = product._id || product.id;
 
   const handleAddToCart = () => {
     setIsAdding(true);
@@ -24,7 +25,7 @@ export function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="group relative bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-105 transition-all duration-300">
       {/* Image Container */}
-      <Link href={`/products/${product.id}`}>
+      <Link href={`/products/${productId}`}>
         <div className="relative w-full aspect-square bg-muted overflow-hidden">
           {product.image ? (
             <img
@@ -55,7 +56,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
       {/* Content */}
       <div className="p-4">
-        <Link href={`/products/${product.id}`}>
+        <Link href={`/products/${productId}`}>
           <h3 className="font-semibold text-foreground line-clamp-2 hover:text-primary transition-colors">
             {product.name}
           </h3>

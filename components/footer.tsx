@@ -130,8 +130,8 @@ export function Footer() {
         {/* Divider */}
         <div className="border-t border-secondary-foreground/20 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center text-sm opacity-75">
-            <p>&copy; 2024 TN Automation. All rights reserved.</p>
-            <div className="flex gap-6 mt-4 md:mt-0">
+            <p>&copy; 2026 TN Automation. All rights reserved.</p>
+            <div className="flex gap-6 mt-4 md:mt-0 items-center">
               <Link href="#" className="hover:opacity-100 transition-opacity">
                 Privacy Policy
               </Link>
@@ -140,6 +140,12 @@ export function Footer() {
               </Link>
               <Link href="#" className="hover:opacity-100 transition-opacity">
                 Sitemap
+              </Link>
+              <Link
+                href="/admin/login"
+                className="text-xs text-secondary-foreground/40 hover:text-blue-500 transition-colors"
+              >
+                Admin
               </Link>
             </div>
           </div>

@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/contexts/cart-context';
-import { ShoppingCart, User, Menu, X, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X, Search } from 'lucide-react';
 import { useState } from 'react';
+import { AccountMenu } from '@/components/account-menu';
 
 export function Navbar() {
   const { getCartCount } = useCart();
@@ -95,13 +96,8 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Account Icon */}
-            <Link
-              href="/account"
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-            >
-              <User className="w-5 h-5 text-foreground" />
-            </Link>
+            {/* Account Menu */}
+            <AccountMenu />
 
             {/* Cart Icon with Badge */}
             <Link

@@ -1,4 +1,5 @@
 export interface Product {
+  _id?: string;
   id: string;
   name: string;
   price: number;
@@ -11,6 +12,7 @@ export interface Product {
   };
   description: string;
   inStock: boolean;
+  createdAt?: string;
 }
 
 export interface Service {

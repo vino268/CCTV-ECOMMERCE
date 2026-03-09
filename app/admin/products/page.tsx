@@ -1,264 +1,447 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { products } from '@/lib/data';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Edit2, Trash2, Plus, Upload, X } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, RefreshCw, Upload, Link } from 'lucide-react';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
+
+interface ProductFormData {
+  name: string;
+  price: string;
+  category: string;
+  description: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page Component                                                    */
+/* ------------------------------------------------------------------ */
 
 export default function AdminProductsPage() {
-  const [showForm, setShowForm] = useState(false);
-  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
-  const [formData, setFormData] = useState({
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Add form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addFormData, setAddFormData] = useState<ProductFormData>({
     name: '',
     price: '',
     category: '',
     description: '',
   });
-  const [imageSource, setImageSource] = useState<'upload' | 'url'>('upload');
-  const [imageUrl, setImageUrl] = useState('');
-  const [imagePreview, setImagePreview] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [addImageSource, setAddImageSource] = useState<'upload' | 'url'>('upload');
+  const [addImageUrl, setAddImageUrl] = useState('');
+  const [addImagePreview, setAddImagePreview] = useState('');
+  const [addInStock, setAddInStock] = useState(true);
+  const addFileRef = useRef<HTMLInputElement>(null);
 
-  // Load admin products from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem('admin_products');
-    if (stored) {
-      setAdminProducts(JSON.parse(stored));
+  // Edit modal
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editFormData, setEditFormData] = useState<ProductFormData>({
+    name: '',
+    price: '',
+    category: '',
+    description: '',
+  });
+  const [editInStock, setEditInStock] = useState(true);
+  const [editImageSource, setEditImageSource] = useState<'upload' | 'url'>('upload');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editImagePreview, setEditImagePreview] = useState('');
+  const editFileRef = useRef<HTMLInputElement>(null);
+
+  /* ---------------------------------------------------------------- */
+  /*  Fetch Products                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/products', { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setProducts(data);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchProducts();
   }, []);
 
-  const allProducts = [...products, ...adminProducts];
+  /* ---------------------------------------------------------------- */
+  /*  Image helpers                                                   */
+  /* ---------------------------------------------------------------- */
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleFileRead = (
+    file: File,
+    setPreview: (v: string) => void,
+    setUrl: (v: string) => void
+  ) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setImagePreview(base64);
-      setImageUrl('');
+      setPreview(reader.result as string);
+      setUrl('');
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageUrlChange = (url: string) => {
-    setImageUrl(url);
-    setImagePreview(url);
-    // Clear file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  /* ---------------------------------------------------------------- */
+  /*  Add Product                                                     */
+  /* ---------------------------------------------------------------- */
+
+  const resetAddForm = () => {
+    setAddFormData({ name: '', price: '', category: '', description: '' });
+    setAddImagePreview('');
+    setAddImageUrl('');
+    setAddImageSource('upload');
+    setAddInStock(true);
+    if (addFileRef.current) addFileRef.current.value = '';
   };
 
-  const clearImage = () => {
-    setImagePreview('');
-    setImageUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({ name: '', price: '', category: '', description: '' });
-    setImagePreview('');
-    setImageUrl('');
-    setImageSource('upload');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleAddProduct = (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!addFormData.name || !addFormData.price || !addFormData.category) return;
 
-    if (!formData.name || !formData.price || !formData.category) return;
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: addFormData.name,
+          price: parseFloat(addFormData.price),
+          category: addFormData.category,
+          description: addFormData.description,
+          image: addImagePreview,
+          rating: 0,
+          reviews: 0,
+          inStock: addInStock,
+        }),
+      });
 
-    const newProduct: Product = {
-      id: Date.now().toString(),
-      name: formData.name,
-      price: parseFloat(formData.price),
-      category: formData.category,
-      description: formData.description || '',
-      rating: 0,
-      reviews: 0,
-      image: imagePreview,
-      specs: {},
-      inStock: true,
-    };
-
-    const updated = [...adminProducts, newProduct];
-    setAdminProducts(updated);
-    localStorage.setItem('admin_products', JSON.stringify(updated));
-
-    resetForm();
-    setShowForm(false);
+      if (res.ok) {
+        await fetchProducts();
+        resetAddForm();
+        setShowAddForm(false);
+      }
+    } catch (err) {
+      console.error('Error adding product:', err);
+    }
   };
 
-  const handleDeleteAdminProduct = (id: string) => {
-    const updated = adminProducts.filter((p) => p.id !== id);
-    setAdminProducts(updated);
-    localStorage.setItem('admin_products', JSON.stringify(updated));
+  /* ---------------------------------------------------------------- */
+  /*  Update Product                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const openEditModal = (product: Product) => {
+    setEditProduct(product);
+    setEditFormData({
+      name: product.name,
+      price: String(product.price),
+      category: product.category,
+      description: product.description || '',
+    });
+    setEditInStock(product.inStock);
+    setEditImagePreview(product.image || '');
+    setEditImageUrl(product.image || '');
+    setEditImageSource('url');
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Products</h1>
-          <p className="text-muted-foreground">Manage your product inventory</p>
-        </div>
-        <Button onClick={() => setShowForm(!showForm)} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Product
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editProduct) return;
+    const id = editProduct._id || editProduct.id;
+
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editFormData.name,
+          price: parseFloat(editFormData.price),
+          category: editFormData.category,
+          description: editFormData.description,
+          image: editImagePreview,
+          inStock: editInStock,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchProducts();
+        setEditProduct(null);
+      }
+    } catch (err) {
+      console.error('Error updating product:', err);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /*  Delete Product                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchProducts();
+      }
+    } catch (err) {
+      console.error('Error deleting product:', err);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /*  Shared image input component                                    */
+  /* ---------------------------------------------------------------- */
+
+  const ImageInput = ({
+    source,
+    setSource,
+    url,
+    setUrl,
+    preview,
+    setPreview,
+    fileRef,
+  }: {
+    source: 'upload' | 'url';
+    setSource: (v: 'upload' | 'url') => void;
+    url: string;
+    setUrl: (v: string) => void;
+    preview: string;
+    setPreview: (v: string) => void;
+    fileRef: React.RefObject<HTMLInputElement | null>;
+  }) => (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        Product Image
+      </label>
+      <div className="flex gap-2 mb-3">
+        <Button
+          type="button"
+          size="sm"
+          variant={source === 'upload' ? 'default' : 'outline'}
+          onClick={() => setSource('upload')}
+          className="gap-1"
+        >
+          <Upload className="w-3 h-3" /> Upload
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={source === 'url' ? 'default' : 'outline'}
+          onClick={() => setSource('url')}
+          className="gap-1"
+        >
+          <Link className="w-3 h-3" /> URL
         </Button>
       </div>
 
-      {/* Add Product Form */}
-      {showForm && (
+      {source === 'upload' ? (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFileRead(file, setPreview, setUrl);
+          }}
+          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+        />
+      ) : (
+        <input
+          type="text"
+          placeholder="https://example.com/image.jpg"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setPreview(e.target.value);
+          }}
+          className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
+      )}
+
+      {preview && (
+        <div className="mt-3 relative inline-block">
+          <img
+            src={preview}
+            alt="Preview"
+            className="w-24 h-24 object-cover rounded-md border border-border"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setPreview('');
+              setUrl('');
+              if (fileRef.current) fileRef.current.value = '';
+            }}
+            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  /* ---------------------------------------------------------------- */
+  /*  Render                                                          */
+  /* ---------------------------------------------------------------- */
+
+  return (
+    <div className="space-y-6">
+      {/* ===== Header ===== */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Products</h1>
+          <p className="text-muted-foreground">
+            Manage your product inventory ({products.length} items)
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchProducts} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </Button>
+          <Button
+            onClick={() => {
+              resetAddForm();
+              setShowAddForm(!showAddForm);
+            }}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" /> Add Product
+          </Button>
+        </div>
+      </div>
+
+      {/* ===== Add Product Form ===== */}
+      {showAddForm && (
         <Card className="p-6 border border-border">
-          <h2 className="text-lg font-bold text-foreground mb-4">
-            Add New Product
-          </h2>
+          <h2 className="text-lg font-bold mb-4">Add New Product</h2>
+
           <form onSubmit={handleAddProduct} className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Product Name
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Product Name *
                 </label>
                 <input
                   type="text"
-                  value={formData.name}
+                  placeholder="e.g. Hikvision 2MP Dome Camera"
+                  value={addFormData.name}
                   onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                    setAddFormData({ ...addFormData, name: e.target.value })
                   }
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Enter product name"
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Price
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Price *
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  value={formData.price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="0.00"
+                  value={addFormData.price}
+                  onChange={(e) =>
+                    setAddFormData({ ...addFormData, price: e.target.value })
+                  }
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Category
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Category *
               </label>
               <input
                 type="text"
-                value={formData.category}
+                placeholder="e.g. Dome Cameras"
+                value={addFormData.category}
                 onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
+                  setAddFormData({ ...addFormData, category: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="e.g., Dome Cameras"
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Description
               </label>
               <textarea
-                value={formData.description}
+                placeholder="Product description..."
+                value={addFormData.description}
                 onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
+                  setAddFormData({
+                    ...addFormData,
+                    description: e.target.value,
+                  })
                 }
-                rows={4}
-                className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Enter product description"
+                rows={3}
+                className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
 
-            {/* Image Section */}
+            <ImageInput
+              source={addImageSource}
+              setSource={setAddImageSource}
+              url={addImageUrl}
+              setUrl={setAddImageUrl}
+              preview={addImagePreview}
+              setPreview={setAddImagePreview}
+              fileRef={addFileRef}
+            />
+
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Product Image
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Stock Status
               </label>
-
-              {/* Toggle between upload and URL */}
-              <div className="flex gap-2 mb-3">
-                <Button
-                  type="button"
-                  variant={imageSource === 'upload' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setImageSource('upload')}
-                  className="gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload File
-                </Button>
-                <Button
-                  type="button"
-                  variant={imageSource === 'url' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setImageSource('url')}
-                >
-                  Paste URL
-                </Button>
-              </div>
-
-              {imageSource === 'upload' ? (
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-1 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={imageUrl}
-                  onChange={(e) => handleImageUrlChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="https://example.com/image.jpg"
-                />
-              )}
-
-              {/* Image Preview */}
-              {imagePreview && (
-                <div className="mt-3 relative inline-block">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-32 h-32 object-cover rounded-lg border border-border"
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="addInStock"
+                    checked={addInStock}
+                    onChange={() => setAddInStock(true)}
+                    className="accent-primary"
                   />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
+                  In Stock
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="addInStock"
+                    checked={!addInStock}
+                    onChange={() => setAddInStock(false)}
+                    className="accent-primary"
+                  />
+                  Out of Stock
+                </label>
+              </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3 pt-2">
               <Button type="submit">Save Product</Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  resetForm();
-                  setShowForm(false);
+                  resetAddForm();
+                  setShowAddForm(false);
                 }}
               >
                 Cancel
@@ -268,106 +451,250 @@ export default function AdminProductsPage() {
         </Card>
       )}
 
-      {/* Products Table */}
-      <Card className="border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Image
-                </th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Product Name
-                </th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Category
-                </th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Price
-                </th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Rating
-                </th>
-                <th className="text-left px-6 py-4 font-semibold text-foreground">
-                  Stock
-                </th>
-                <th className="text-center px-6 py-4 font-semibold text-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {allProducts.map((product) => {
-                const isAdmin = adminProducts.some((p) => p.id === product.id);
-                return (
-                  <tr
-                    key={product.id}
-                    className="border-b border-border hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-12 h-12 object-cover rounded border border-border"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 bg-gradient-to-br from-primary/10 to-secondary/10 rounded flex items-center justify-center text-lg border border-border">
-                          📷
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-foreground font-medium">
-                      {product.name}
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground text-sm">
-                      {product.category}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-foreground">
-                      ${product.price.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground">
-                      {product.rating} ★
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          product.inStock
-                            ? 'bg-green-500/20 text-green-700'
-                            : 'bg-red-500/20 text-red-700'
-                        }`}
-                      >
-                        {product.inStock ? 'In Stock' : 'Out'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button className="p-2 hover:bg-muted rounded transition-colors text-primary">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteAdminProduct(product.id)}
-                            className="p-2 hover:bg-muted rounded transition-colors text-destructive"
+      {/* ===== Products Table ===== */}
+      <Card className="border overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-muted-foreground">
+            Loading products...
+          </div>
+        ) : products.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground">
+            No products found. Add your first product above.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Image
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Name
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Category
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Price
+                  </th>
+                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                    Stock
+                  </th>
+                  <th className="p-4 text-center text-sm font-medium text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((product) => {
+                  const id = product._id || product.id;
+                  return (
+                    <tr
+                      key={id}
+                      className="border-b last:border-b-0 hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="p-4">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-12 h-12 object-cover rounded-md border border-border"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground text-xs">
+                            No img
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 font-medium text-foreground">
+                        {product.name}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {product.category}
+                      </td>
+                      <td className="p-4 font-medium text-foreground">
+                        ${product.price}
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            product.inStock
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {product.inStock ? 'In Stock' : 'Out of Stock'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditModal(product)}
+                            className="gap-1"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {!isAdmin && (
-                          <button className="p-2 hover:bg-muted rounded transition-colors text-destructive">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteProduct(id)}
+                            className="gap-1 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
+
+      {/* ===== Edit Modal ===== */}
+      {editProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">
+                Edit Product
+              </h2>
+              <button
+                onClick={() => setEditProduct(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProduct} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, name: e.target.value })
+                  }
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Price *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editFormData.price}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        price: e.target.value,
+                      })
+                    }
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Category *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.category}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      description: e.target.value,
+                    })
+                  }
+                  rows={3}
+                  className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Stock Status
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="inStock"
+                      checked={editInStock}
+                      onChange={() => setEditInStock(true)}
+                      className="accent-primary"
+                    />
+                    In Stock
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="inStock"
+                      checked={!editInStock}
+                      onChange={() => setEditInStock(false)}
+                      className="accent-primary"
+                    />
+                    Out of Stock
+                  </label>
+                </div>
+              </div>
+
+              <ImageInput
+                source={editImageSource}
+                setSource={setEditImageSource}
+                url={editImageUrl}
+                setUrl={setEditImageUrl}
+                preview={editImagePreview}
+                setPreview={setEditImagePreview}
+                fileRef={editFileRef}
+              />
+
+              <div className="flex gap-3 pt-2">
+                <Button type="submit">Update Product</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditProduct(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

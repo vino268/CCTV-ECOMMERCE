@@ -1,11 +1,39 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ProductCard } from '@/components/product-card';
 import { CategoryCard } from '@/components/category-card';
-import { products, categories, whyChooseUs } from '@/lib/data';
+import { Product, Category } from '@/lib/types';
 import { ArrowRight, Shield, Clock, Award, Zap } from 'lucide-react';
 
+const categories: Category[] = [
+  { id: '1', name: 'Dome Cameras', icon: '📷', image: '/images/dome-cameras.jpg' },
+  { id: '2', name: 'Bullet Cameras', icon: '🔫', image: '/images/bullet-cameras.jpg' },
+  { id: '3', name: 'PTZ Cameras', icon: '🎯', image: '/images/ptz-cameras.jpg' },
+  { id: '4', name: 'Thermal Cameras', icon: '🌡️', image: '/images/thermal-cameras.jpg' },
+  { id: '5', name: 'Recorders & Storage', icon: '💾', image: '/images/recorders.jpg' },
+  { id: '6', name: 'Accessories', icon: '🔧', image: '/images/accessories.jpg' },
+];
+
+const whyChooseUs = [
+  { title: '20+ Years Experience', description: 'Over two decades of industry expertise in CCTV and security systems.' },
+  { title: 'Expert Technical Support', description: 'Dedicated support team available 24/7 to assist you.' },
+  { title: 'Premium Quality Products', description: 'Only the highest-grade CCTV equipment from trusted brands.' },
+  { title: 'Competitive Pricing', description: 'Best value for money with flexible financing options.' },
+];
+
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    fetch('/api/products', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => setProducts(data))
+      .catch((err) => console.error('Error fetching products:', err));
+  }, []);
+
   const featuredProducts = products.slice(0, 6);
 
   return (
@@ -96,7 +124,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {featuredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product._id || product.id} product={product} />
             ))}
           </div>
         </div>
