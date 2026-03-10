@@ -66,11 +66,11 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-border bg-muted/50">
+                    <tr className="border-b border-border/60 bg-muted/30">
                       <th className="text-left px-6 py-4 font-semibold">
                         Product
                       </th>
@@ -92,11 +92,11 @@ export default function CartPage() {
                     {cartItems.map((item) => (
                       <tr
                         key={item.productId}
-                        className="border-b border-border hover:bg-muted/30 transition-colors"
+                        className="border-b border-border/40 hover:bg-muted/20 transition-colors"
                       >
                         <td className="px-6 py-4">
                           <div className="flex gap-4 items-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-primary/10 to-secondary/10 rounded flex items-center justify-center text-2xl">
+                            <div className="w-16 h-16 bg-gradient-to-br from-primary/10 via-muted to-accent/10 rounded-xl flex items-center justify-center text-2xl">
                               📷
                             </div>
                             <div>
@@ -192,7 +192,7 @@ export default function CartPage() {
 
           {/* Cart Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-lg p-6 sticky top-20 space-y-4">
+            <div className="bg-card border border-border/60 rounded-2xl p-6 sticky top-20 space-y-4 shadow-sm">
               <h2 className="text-xl font-bold text-foreground">
                 Order Summary
               </h2>

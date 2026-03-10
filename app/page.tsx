@@ -39,15 +39,16 @@ export default function Home() {
   return (
     <div className="bg-background">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/10 to-secondary/10 py-20 md:py-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative bg-gradient-to-br from-secondary via-secondary/95 to-primary/80 text-secondary-foreground py-20 md:py-32 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,var(--primary)_0%,transparent_50%)] opacity-20" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
             <div className="space-y-6">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-white">
                 Professional CCTV & Security Solutions
               </h1>
-              <p className="text-lg text-muted-foreground max-w-lg">
+              <p className="text-lg text-secondary-foreground/80 max-w-lg">
                 Protect what matters most with TN Automation's advanced security camera systems and professional installation services.
               </p>
               <div className="flex gap-4 pt-4">
@@ -57,17 +58,21 @@ export default function Home() {
                   </Button>
                 </Link>
                 <Link href="/services">
-                  <Button size="lg" variant="outline">
+                  <Button size="lg" variant="outline" className="text-black border-white bg-white hover:bg-white/90">
                     View Services
                   </Button>
                 </Link>
               </div>
             </div>
 
-            {/* Right Content - Decorative */}
+            {/* Right Content - Hero Image */}
             <div className="hidden md:flex items-center justify-center">
-              <div className="w-full h-64 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl flex items-center justify-center text-6xl border border-primary/20">
-                📹
+              <div className="w-full rounded-3xl overflow-hidden border border-white/20 shadow-2xl shadow-black/20">
+                <img
+                  src="/images/imagehome.png"
+                  alt="Professional CCTV & Security Systems"
+                  className="w-full h-auto object-cover"
+                />
               </div>
             </div>
           </div>
@@ -88,7 +93,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-4 gap-6">
             {whyChooseUs.map((feature, index) => (
-              <div key={index} className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow">
+              <div key={index} className="bg-card border border-border/60 rounded-xl p-6 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 transition-all duration-300">
                 <div className="mb-4">
                   {index === 0 && <Award className="w-8 h-8 text-primary" />}
                   {index === 1 && <Clock className="w-8 h-8 text-primary" />}
@@ -131,9 +136,9 @@ export default function Home() {
       </section>
 
       {/* Categories Section */}
-      <section className="py-16 md:py-24 bg-muted/30">
+      <section className="py-16 md:py-24 bg-gradient-to-b from-muted/20 to-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-12">
+          <div className="mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
               Browse by Category
             </h2>
@@ -142,7 +147,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {categories.map((category) => (
               <CategoryCard key={category.id} category={category} />
             ))}
@@ -151,7 +156,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section id="contact" className="py-16 md:py-24 bg-primary text-primary-foreground">
+      <section id="contact" className="py-16 md:py-24 bg-gradient-to-br from-primary via-primary to-secondary text-primary-foreground">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to Secure Your Property?

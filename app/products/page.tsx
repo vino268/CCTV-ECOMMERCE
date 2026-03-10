@@ -77,7 +77,7 @@ export default function ProductsPage() {
   return (
     <div className="bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 py-12">
+      <div className="bg-gradient-to-r from-primary/5 via-background to-accent/5 py-12 border-b border-border/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
             Our Products
@@ -107,7 +107,7 @@ export default function ProductsPage() {
                     placeholder="Search products..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                    className="w-full pl-10 pr-4 py-2 border border-border/60 rounded-xl bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                   />
                 </div>
               </div>

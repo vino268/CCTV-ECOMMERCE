@@ -92,7 +92,7 @@ export default function ServicesPage() {
   return (
     <div className="bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 py-12">
+      <div className="bg-gradient-to-r from-primary/5 via-background to-accent/5 py-12 border-b border-border/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
             Our Services
@@ -129,11 +129,11 @@ export default function ServicesPage() {
             services.map((service) => (
               <div
                 key={service._id}
-                className="bg-card border border-border rounded-2xl hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                className="bg-card border border-border/60 rounded-2xl hover:shadow-lg hover:border-primary/30 transition-all duration-300"
               >
                 <div className="p-6 sm:p-8 flex flex-col h-full">
                   {/* Icon */}
-                  <div className="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-5">
+                  <div className="w-14 h-14 bg-gradient-to-br from-primary/15 to-primary/5 text-primary rounded-xl flex items-center justify-center mb-5">
                     <Wrench className="w-7 h-7" />
                   </div>
 
@@ -180,7 +180,7 @@ export default function ServicesPage() {
             {testimonials.map((testimonial, index) => (
               <div
                 key={index}
-                className="bg-card border border-border rounded-2xl p-6 hover:shadow-md transition-shadow"
+                className="bg-card border border-border/60 rounded-2xl p-6 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
               >
                 <div className="flex gap-1 mb-4">
                   {[...Array(5)].map((_, i) => (
@@ -206,7 +206,7 @@ export default function ServicesPage() {
         </div>
 
         {/* ====== Service Process ====== */}
-        <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl border border-primary/20 p-12">
+        <div className="bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 rounded-2xl border border-primary/15 p-12">
           <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
             Our Service Process
           </h2>
@@ -230,7 +230,7 @@ export default function ServicesPage() {
       </div>
 
       {/* ====== CTA Section ====== */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground mt-16">
+      <section className="py-16 md:py-24 bg-gradient-to-br from-primary via-primary to-secondary text-primary-foreground mt-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to Get Started?

@@ -23,7 +23,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <div className="group relative bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-105 transition-all duration-300">
+    <div className="group relative bg-card border border-border/60 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 transition-all duration-300">
       {/* Image Container */}
       <Link href={`/products/${productId}`}>
         <div className="relative w-full aspect-square bg-muted overflow-hidden">
@@ -34,7 +34,7 @@ export function ProductCard({ product }: ProductCardProps) {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+            <div className="w-full h-full bg-gradient-to-br from-primary/10 via-muted to-accent/10 flex items-center justify-center">
               <span className="text-4xl">📷</span>
             </div>
           )}
@@ -43,13 +43,13 @@ export function ProductCard({ product }: ProductCardProps) {
 
       {/* Badge */}
       {!product.inStock && (
-        <div className="absolute top-3 right-3 bg-destructive text-destructive-foreground px-3 py-1 rounded-full text-xs font-semibold">
+        <div className="absolute top-3 right-3 bg-destructive/90 text-destructive-foreground px-3 py-1 rounded-full text-xs font-semibold shadow-md">
           Out of Stock
         </div>
       )}
 
       {product.inStock && (
-        <div className="absolute top-3 right-3 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold">
+        <div className="absolute top-3 right-3 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold shadow-md">
           In Stock
         </div>
       )}
@@ -70,8 +70,8 @@ export function ProductCard({ product }: ProductCardProps) {
                 key={i}
                 className={`w-3.5 h-3.5 ${
                   i < Math.floor(product.rating)
-                    ? 'fill-primary text-primary'
-                    : 'text-muted-foreground'
+                    ? 'fill-accent text-accent'
+                    : 'text-muted-foreground/40'
                 }`}
               />
             ))}

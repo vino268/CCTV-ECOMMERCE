@@ -19,8 +19,8 @@ export function Navbar() {
     { href: '/', label: 'Home' },
     { href: '/products', label: 'Products' },
     { href: '/services', label: 'Services' },
-    { href: '/#about', label: 'About' },
-    { href: '/#contact', label: 'Contact' },
+    { href: '/about', label: 'About' },
+    { href: '/contact', label: 'Contact' },
   ];
 
   const handleSearch = (e: React.FormEvent) => {
@@ -34,11 +34,11 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white shadow-sm border-b border-border">
+    <nav className="sticky top-0 z-50 w-full bg-background/80 glass shadow-sm border-b border-border/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex-shrink-0 font-bold text-xl text-primary">
+          <Link href="/" className="flex-shrink-0 font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             TN Automation
           </Link>
 
@@ -48,7 +48,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                className="text-sm font-medium text-foreground/80 hover:text-primary transition-colors duration-200"
               >
                 {link.label}
               </Link>
@@ -67,7 +67,7 @@ export function Navbar() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products..."
                     autoFocus
-                    className="w-48 px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-48 px-3 py-1.5 text-sm border border-border/60 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                   />
                   <button
                     type="submit"
@@ -106,7 +106,7 @@ export function Navbar() {
             >
               <ShoppingCart className="w-5 h-5 text-foreground" />
               {cartCount > 0 && (
-                <span className="absolute top-1 right-1 bg-primary text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 bg-gradient-to-r from-primary to-accent text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
                   {cartCount}
                 </span>
               )}
@@ -138,7 +138,7 @@ export function Navbar() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search products..."
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-border/60 rounded-xl bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                 />
               </div>
             </form>

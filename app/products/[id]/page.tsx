@@ -114,10 +114,10 @@ export default function ProductDetailPage({
               <img
                 src={product.image}
                 alt={product.name}
-                className="w-full aspect-square object-cover rounded-lg border border-border"
+                className="w-full aspect-square object-cover rounded-2xl border border-border/60 shadow-sm"
               />
             ) : (
-              <div className="w-full aspect-square bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg flex items-center justify-center text-6xl border border-border">
+              <div className="w-full aspect-square bg-gradient-to-br from-primary/10 via-muted to-accent/10 rounded-2xl flex items-center justify-center text-6xl border border-border/60 shadow-sm">
                 📷
               </div>
             )}
@@ -137,8 +137,8 @@ export default function ProductDetailPage({
                       key={i}
                       className={`w-5 h-5 ${
                         i < Math.floor(product.rating)
-                          ? 'fill-primary text-primary'
-                          : 'text-muted-foreground'
+                          ? 'fill-accent text-accent'
+                          : 'text-muted-foreground/40'
                       }`}
                     />
                   ))}
@@ -158,7 +158,7 @@ export default function ProductDetailPage({
                   </span>
                 )}
                 {product.inStock && (
-                  <span className="bg-primary/20 text-primary px-4 py-1 rounded-full text-sm font-semibold">
+                  <span className="bg-primary/15 text-primary px-4 py-1 rounded-full text-sm font-semibold">
                     In Stock
                   </span>
                 )}
@@ -230,7 +230,7 @@ export default function ProductDetailPage({
             </Button>
 
             {/* Trust Badges */}
-            <div className="grid grid-cols-3 gap-4 pt-8 border-t border-border">
+            <div className="grid grid-cols-3 gap-4 pt-8 border-t border-border/60">
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-primary" />
                 <div>
@@ -266,7 +266,7 @@ export default function ProductDetailPage({
             <h2 className="text-2xl font-bold text-foreground mb-6">
               Specifications
             </h2>
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm">
               {Object.entries(product.specs).map(([key, value], index) => (
                 <div
                   key={key}

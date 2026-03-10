@@ -82,7 +82,7 @@ export default function AdminLayout({
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-secondary text-secondary-foreground transition-all duration-300 flex flex-col border-r border-border`}
+        } bg-gradient-to-b from-secondary to-secondary/95 text-secondary-foreground transition-all duration-300 flex flex-col border-r border-border/30`}
       >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-secondary-foreground/10">
@@ -107,9 +107,9 @@ export default function AdminLayout({
             return (
               <Link key={item.href} href={item.href}>
                 <div
-                  className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-secondary-foreground/20 text-secondary-foreground'
+                      ? 'bg-primary/20 text-primary-foreground shadow-sm'
                       : 'text-secondary-foreground/70 hover:bg-secondary-foreground/10'
                   }`}
                 >
@@ -139,7 +139,7 @@ export default function AdminLayout({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
+        <header className="h-16 bg-card/80 glass border-b border-border/50 flex items-center justify-between px-6">
           <h1 className="text-lg font-semibold text-foreground">
             TN Automation Admin Panel
           </h1>

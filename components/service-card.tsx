@@ -7,7 +7,7 @@ interface ServiceCardProps {
 
 export function ServiceCard({ service }: ServiceCardProps) {
   return (
-    <div className="bg-card border border-border rounded-lg p-6 hover:shadow-lg hover:scale-105 transition-all duration-300">
+    <div className="bg-card border border-border/60 rounded-2xl p-6 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1 hover:border-primary/20 transition-all duration-300">
       {/* Icon */}
       <div className="text-4xl mb-4">{service.icon}</div>
 

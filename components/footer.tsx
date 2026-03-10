@@ -3,12 +3,12 @@ import { Facebook, Twitter, Instagram, Linkedin, Phone, Mail, MapPin } from 'luc
 
 export function Footer() {
   return (
-    <footer className="bg-secondary text-secondary-foreground mt-20">
+    <footer className="bg-gradient-to-b from-secondary to-secondary/90 text-secondary-foreground mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Company Info */}
           <div>
-            <h3 className="font-bold text-lg mb-4">TN Automation</h3>
+            <h3 className="font-bold text-lg mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">TN Automation</h3>
             <p className="text-sm opacity-90 mb-6">
               Professional CCTV and security solutions for businesses and homes.
             </p>

@@ -82,7 +82,7 @@ export function AccountMenu() {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 p-1.5 hover:bg-muted rounded-lg transition-colors"
       >
-        <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+        <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
           {initials}
         </div>
         <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">
@@ -91,7 +91,7 @@ export function AccountMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
+        <div className="absolute right-0 top-full mt-2 w-56 bg-card/95 glass border border-border/60 rounded-xl shadow-xl py-1 z-50">
           {/* User header */}
           <div className="px-4 py-3 border-b border-border">
             <p className="text-sm font-semibold text-foreground truncate">

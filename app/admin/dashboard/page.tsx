@@ -53,28 +53,28 @@ export default function AdminDashboard() {
       value: products.length,
       icon: Package,
       href: '/admin/products',
-      color: 'bg-blue-500/10',
+      color: 'bg-primary/10',
     },
     {
       label: 'Total Orders',
       value: orders.length,
       icon: ShoppingCart,
       href: '/admin/orders',
-      color: 'bg-purple-500/10',
+      color: 'bg-accent/15',
     },
     {
       label: 'Total Customers',
       value: userCount,
       icon: Users,
       href: '/admin/customers',
-      color: 'bg-orange-500/10',
+      color: 'bg-primary/15',
     },
     {
       label: 'Revenue',
       value: `$${orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0).toFixed(0)}`,
       icon: TrendingUp,
       href: '/admin/orders',
-      color: 'bg-green-500/10',
+      color: 'bg-accent/10',
     },
   ];
 
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
           const Icon = stat.icon;
           return (
             <Link key={stat.href + stat.label} href={stat.href}>
-              <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border border-border">
+              <Card className="p-6 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 cursor-pointer border border-border/60 rounded-2xl">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="p-6 border border-border bg-gradient-to-r from-primary/10 to-secondary/10">
+      <Card className="p-6 border border-border/60 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 rounded-2xl">
         <h2 className="text-lg font-bold text-foreground mb-4">Quick Actions</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
           <Link href="/admin/products?action=add" className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow text-center">

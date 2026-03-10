@@ -144,7 +144,7 @@ export default function CheckoutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center py-16 max-w-2xl mx-auto">
             <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-4xl">
+              <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-full flex items-center justify-center text-4xl shadow-lg shadow-primary/20">
                 <Check className="w-10 h-10" />
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function CheckoutPage() {
               Thank you for your order. We've received your payment and will
               start processing your order right away.
             </p>
-            <div className="bg-card border border-border rounded-lg p-6 mb-8 text-left">
+              <div className="bg-card border border-border/60 rounded-2xl p-6 mb-8 text-left shadow-sm">
               <h2 className="font-semibold text-foreground mb-4">
                 Order Details
               </h2>
