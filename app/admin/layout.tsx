@@ -13,7 +13,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import AdminAccountMenu from '@/components/admin-account-menu';
+import AdminHeader from '@/components/admin/admin-header';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -139,14 +139,7 @@ export default function AdminLayout({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-          <h1 className="text-lg font-semibold text-foreground">
-            TN Automation Admin Panel
-          </h1>
-          <div className="flex items-center gap-4">
-            <AdminAccountMenu />
-          </div>
-        </header>
+        <AdminHeader />
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
