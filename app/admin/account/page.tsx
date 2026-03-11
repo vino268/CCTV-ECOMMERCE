@@ -2,22 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { User, Mail, Phone, Shield, Calendar, Save, Loader2 } from 'lucide-react';
+import { User, Mail, Phone, Settings, Loader2, CheckCircle } from 'lucide-react';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
 
-interface AdminProfile {
-  _id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  createdAt: string;
-}
-
-export default function AdminProfilePage() {
-  const [admin, setAdmin] = useState<AdminProfile | null>(null);
+export default function AccountSettingsPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,25 +16,23 @@ export default function AdminProfilePage() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchAdmin = async () => {
       try {
         const res = await fetch('/api/admin/profile', { cache: 'no-store' });
         const data = await res.json();
 
         if (data.success) {
-          setAdmin(data.admin);
           setName(data.admin.name || '');
           setEmail(data.admin.email || '');
           setPhone(data.admin.phone || '');
         }
       } catch {
-        setMessage({ type: 'error', text: 'Failed to load profile' });
+        setMessage({ type: 'error', text: 'Failed to load account info' });
       } finally {
         setLoading(false);
       }
     };
-
-    fetchProfile();
+    fetchAdmin();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -63,8 +51,6 @@ export default function AdminProfilePage() {
       const data = await res.json();
 
       if (data.success) {
-        setAdmin(data.admin);
-        // Update localStorage
         const stored = localStorage.getItem('adminInfo');
         if (stored) {
           const adminData = JSON.parse(stored);
@@ -73,13 +59,12 @@ export default function AdminProfilePage() {
           adminData.phone = data.admin.phone;
           localStorage.setItem('adminInfo', JSON.stringify(adminData));
         }
-        setMessage({ type: 'success', text: 'Profile updated successfully' });
+        setMessage({ type: 'success', text: 'Account updated successfully' });
 
-        // Log activity
         await fetch('/api/admin/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'Updated profile', adminName: name || email }),
+          body: JSON.stringify({ action: 'Updated account settings', adminName: name || email }),
         });
       } else {
         setMessage({ type: 'error', text: data.message || 'Failed to update' });
@@ -100,85 +85,70 @@ export default function AdminProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Admin Profile</h1>
+    <div className="max-w-lg mx-auto">
+      <h1 className="text-2xl font-bold text-foreground mb-2">Account Settings</h1>
+      <p className="text-muted-foreground mb-6">Update your account information</p>
 
-      {/* Profile Info Card */}
-      {admin && (
-        <div className="bg-card border border-border rounded-xl p-6 mb-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-2xl font-bold">
-              {(admin.name || admin.email).charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">{admin.name || 'Admin'}</h2>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Shield className="w-3.5 h-3.5" />
-                {admin.role || 'admin'}
-              </div>
-            </div>
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Settings className="w-5 h-5 text-primary" />
           </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Calendar className="w-3.5 h-3.5" />
-            Joined: {admin.createdAt ? new Date(admin.createdAt).toLocaleDateString() : 'N/A'}
+          <div>
+            <h3 className="font-semibold text-foreground">Personal Information</h3>
+            <p className="text-xs text-muted-foreground">
+              Update your name, email and phone number
+            </p>
           </div>
         </div>
-      )}
-
-      {/* Edit Form */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Edit Profile</h3>
 
         {message.text && (
           <div
-            className={`mb-4 p-3 rounded-lg text-sm ${
+            className={`mb-4 p-3 rounded-lg text-sm flex items-center gap-2 ${
               message.type === 'success'
                 ? 'bg-green-50 border border-green-200 text-green-700'
                 : 'bg-red-50 border border-red-200 text-red-700'
             }`}
           >
+            {message.type === 'success' && <CheckCircle className="w-4 h-4" />}
             {message.text}
           </div>
         )}
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" /> Name
-              </span>
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
+              <User className="w-4 h-4 text-muted-foreground" />
+              Name
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Admin name"
+              placeholder="Your name"
               className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5" /> Email
-              </span>
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
+              <Mail className="w-4 h-4 text-muted-foreground" />
+              Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@gmail.com"
+              placeholder="admin@example.com"
               className={inputClass}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5" /> Phone
-              </span>
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
+              <Phone className="w-4 h-4 text-muted-foreground" />
+              Phone Number
             </label>
             <input
               type="tel"
@@ -189,15 +159,14 @@ export default function AdminProfilePage() {
             />
           </div>
 
-          <Button type="submit" className="gap-2" disabled={saving}>
+          <Button type="submit" disabled={saving} className="w-full">
             {saving ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
               </>
             ) : (
-              <>
-                <Save className="w-4 h-4" /> Save Changes
-              </>
+              'Save Changes'
             )}
           </Button>
         </form>

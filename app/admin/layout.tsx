@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   Package,
@@ -9,13 +8,10 @@ import {
   Users,
   Wrench,
   Settings,
-  LogOut,
-  Menu,
-  X,
 } from 'lucide-react';
-import AdminAccountMenu from '@/components/admin-account-menu';
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import AdminHeader from '@/components/admin/AdminHeader';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,15 +27,14 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const isLoginPage = pathname === '/admin/login';
-  const isPublicPage = isLoginPage || pathname === '/admin/forgot-password' || pathname === '/admin';
+  const isPublicPage =
+    isLoginPage || pathname === '/admin/forgot-password' || pathname === '/admin';
 
-  // Auth guard — skip for login and forgot-password pages
   useEffect(() => {
     if (isPublicPage) {
       setAuthChecked(true);
@@ -57,17 +52,14 @@ export default function AdminLayout({
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminInfo');
-    // Clear cookie
     document.cookie = 'adminToken=; path=/; max-age=0';
     router.replace('/admin/login');
   };
 
-  // Public pages render without the sidebar chrome
   if (isPublicPage) {
     return <>{children}</>;
   }
 
-  // Show nothing until auth is verified
   if (!authChecked) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -77,30 +69,13 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-secondary text-secondary-foreground transition-all duration-300 flex flex-col border-r border-border`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-secondary-foreground/10">
-          {sidebarOpen && <span className="font-bold text-lg">Admin</span>}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 hover:bg-secondary-foreground/10 rounded"
-          >
-            {sidebarOpen ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <Menu className="w-5 h-5" />
-            )}
-          </button>
+    <div className="flex h-screen bg-gray-100">
+      <aside className="fixed inset-y-0 left-0 z-30 w-64 bg-secondary text-secondary-foreground border-r border-border">
+        <div className="h-16 flex items-center px-4 border-b border-secondary-foreground/10">
+          <span className="font-bold text-lg">Admin</span>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="h-[calc(100vh-4rem)] overflow-y-auto py-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -114,41 +89,16 @@ export default function AdminLayout({
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && (
-                    <span className="text-sm font-medium">{item.label}</span>
-                  )}
+                  <span className="text-sm font-medium">{item.label}</span>
                 </div>
               </Link>
             );
           })}
         </nav>
-
-        {/* Logout */}
-        <div className="p-4 border-t border-secondary-foreground/10">
-          <Button
-            variant="outline"
-            className="w-full gap-2 justify-center"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4" />
-            {sidebarOpen && 'Logout'}
-          </Button>
-        </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-          <h1 className="text-lg font-semibold text-foreground">
-            TN Automation Admin Panel
-          </h1>
-          <div className="flex items-center gap-4">
-            <AdminAccountMenu />
-          </div>
-        </header>
-
-        {/* Page Content */}
+      <div className="ml-64 flex flex-1 flex-col overflow-hidden">
+        <AdminHeader onLogout={handleLogout} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

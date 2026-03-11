@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import AdminLog from "@/models/AdminLog";
 
 // GET /api/products — return all products
 export async function GET() {
@@ -22,6 +23,13 @@ export async function POST(req) {
     await connectDB();
     const data = await req.json();
     const product = await Product.create(data);
+
+    await AdminLog.create({
+      adminName: "Admin",
+      action: "Added product",
+      details: product.name || "",
+    });
+
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     return NextResponse.json(

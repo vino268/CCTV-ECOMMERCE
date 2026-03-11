@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { ArrowLeft, Package, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Package, Pencil, Check, X, Ban, Lock, Eye, Phone } from 'lucide-react';
 
 interface OrderProduct {
   productId: string;
@@ -24,6 +24,7 @@ interface Order {
   paymentMethod: string;
   paymentStatus: string;
   orderStatus: string;
+  trackingStatus: string;
   deliveryInfo: {
     firstName: string;
     lastName: string;
@@ -38,14 +39,22 @@ interface Order {
 }
 
 const statusColors: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-800',
-  Processing: 'bg-blue-100 text-blue-800',
+  Ordered: 'bg-yellow-100 text-yellow-800',
   Confirmed: 'bg-blue-100 text-blue-800',
   Shipped: 'bg-purple-100 text-purple-800',
+  OutForDelivery: 'bg-orange-100 text-orange-800',
   Delivered: 'bg-green-100 text-green-800',
+  Cancelled: 'bg-red-100 text-red-800',
 };
 
-const EDIT_WINDOW_MS = 12 * 60 * 60 * 1000; // 12 hours
+const statusLabels: Record<string, string> = {
+  Ordered: 'Ordered',
+  Confirmed: 'Confirmed',
+  Shipped: 'Shipped',
+  OutForDelivery: 'Out for Delivery',
+  Delivered: 'Delivered',
+  Cancelled: 'Cancelled',
+};
 
 export default function UserOrdersPage() {
   const router = useRouter();
@@ -56,9 +65,17 @@ export default function UserOrdersPage() {
     phone: '', street: '', city: '', state: '', zip: '',
   });
   const [editSaving, setEditSaving] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  const canEdit = (order: Order) =>
-    Date.now() - new Date(order.createdAt).getTime() < EDIT_WINDOW_MS;
+  const canModify = (order: Order) => {
+    const status = order.trackingStatus || order.orderStatus;
+    return ['Ordered', 'Confirmed'].includes(status);
+  };
+
+  const isShippedOrBeyond = (order: Order) => {
+    const status = order.trackingStatus || order.orderStatus;
+    return ['Shipped', 'OutForDelivery', 'Delivered'].includes(status);
+  };
 
   const openEdit = (order: Order) => {
     setEditOrderId(order._id);
@@ -69,6 +86,29 @@ export default function UserOrdersPage() {
       state:  order.deliveryInfo?.state  || '',
       zip:    order.deliveryInfo?.zip    || '',
     });
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    setCancellingId(orderId);
+    try {
+      const res = await fetch('/api/orders/cancel', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      if (res.ok) {
+        const stored = localStorage.getItem('user');
+        if (stored) fetchOrders(JSON.parse(stored).email);
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Failed to cancel order');
+      }
+    } catch {
+      alert('Failed to cancel order');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const handleSaveEdit = async (orderId: string) => {
@@ -115,12 +155,9 @@ export default function UserOrdersPage() {
 
   const fetchOrders = async (email: string) => {
     try {
-      const res = await fetch('/api/orders', { cache: 'no-store' });
+      const res = await fetch(`/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' });
       if (res.ok) {
-        const all: Order[] = await res.json();
-        const userOrders = all.filter(
-          (o) => o.email.toLowerCase() === email.toLowerCase()
-        );
+        const userOrders: Order[] = await res.json();
         setOrders(userOrders);
       }
     } catch (err) {
@@ -214,11 +251,11 @@ export default function UserOrdersPage() {
                   <div className="flex items-center gap-3">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        statusColors[order.orderStatus] ||
+                        statusColors[order.trackingStatus || order.orderStatus] ||
                         'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {order.orderStatus}
+                      {statusLabels[order.trackingStatus || order.orderStatus] || order.orderStatus}
                     </span>
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -280,89 +317,123 @@ export default function UserOrdersPage() {
                     </div>
                   )}
 
-                  {/* Edit Order — visible for 12 hours after placement */}
-                  {canEdit(order) && (
-                    <div className="mt-4 pt-4 border-t border-border">
-                      {editOrderId !== order._id ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => openEdit(order)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit Order
+                  {/* Order actions */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex flex-wrap gap-2">
+                      {/* Track Order button - always visible */}
+                      <Link href={`/account/orders/${order._id}`}>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Eye className="w-3.5 h-3.5" />
+                          Track Order
                         </Button>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-sm font-semibold text-foreground">Edit Delivery Info</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
-                              <Input
-                                value={editForm.phone}
-                                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                placeholder="Phone"
-                              />
+                      </Link>
+
+                      {canModify(order) ? (
+                        <>
+                          {editOrderId !== order._id ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => openEdit(order)}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                Edit Address
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleCancelOrder(order._id)}
+                                disabled={cancellingId === order._id}
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                                {cancellingId === order._id ? 'Cancelling…' : 'Cancel Order'}
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="w-full mt-3 space-y-3">
+                              <p className="text-sm font-semibold text-foreground">Edit Delivery Info</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
+                                  <Input
+                                    value={editForm.phone}
+                                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                                    placeholder="Phone"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground mb-1 block">Street</label>
+                                  <Input
+                                    value={editForm.street}
+                                    onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
+                                    placeholder="Street address"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground mb-1 block">City</label>
+                                  <Input
+                                    value={editForm.city}
+                                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                                    placeholder="City"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground mb-1 block">State</label>
+                                  <Input
+                                    value={editForm.state}
+                                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                                    placeholder="State"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground mb-1 block">ZIP</label>
+                                  <Input
+                                    value={editForm.zip}
+                                    onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })}
+                                    placeholder="ZIP code"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={() => handleSaveEdit(order._id)}
+                                  disabled={editSaving}
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  {editSaving ? 'Saving…' : 'Save Changes'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-2"
+                                  onClick={() => setEditOrderId(null)}
+                                  disabled={editSaving}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Cancel
+                                </Button>
+                              </div>
                             </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">Street</label>
-                              <Input
-                                value={editForm.street}
-                                onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
-                                placeholder="Street address"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">City</label>
-                              <Input
-                                value={editForm.city}
-                                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                                placeholder="City"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">State</label>
-                              <Input
-                                value={editForm.state}
-                                onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                                placeholder="State"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground mb-1 block">ZIP</label>
-                              <Input
-                                value={editForm.zip}
-                                onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })}
-                                placeholder="ZIP code"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => handleSaveEdit(order._id)}
-                              disabled={editSaving}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              {editSaving ? 'Saving…' : 'Save Changes'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="gap-2"
-                              onClick={() => setEditOrderId(null)}
-                              disabled={editSaving}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              Cancel
-                            </Button>
-                          </div>
+                          )}
+                        </>
+                      ) : isShippedOrBeyond(order) ? (
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-muted-foreground">
+                            Order already shipped. Contact support for cancellation.
+                          </p>
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <Phone className="w-3.5 h-3.5" />
+                            Request Cancellation
+                          </Button>
                         </div>
-                      )}
+                      ) : null}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}

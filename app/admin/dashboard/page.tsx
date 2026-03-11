@@ -9,6 +9,8 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
+import RevenueChart from '@/components/admin/RevenueChart';
+import OrdersStatusChart from '@/components/admin/OrdersStatusChart';
 
 interface Product {
   _id: string;
@@ -112,6 +114,12 @@ export default function AdminDashboard() {
             </Link>
           );
         })}
+      </div>
+
+      {/* Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RevenueChart />
+        <OrdersStatusChart />
       </div>
 
       {/* Recent Activity */}

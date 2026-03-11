@@ -2,21 +2,15 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 
-// GET /api/admin/profile?email=admin@gmail.com
+// GET /api/admin/profile or GET /api/admin/profile?email=admin@gmail.com
 export async function GET(req) {
   try {
     await connectDB();
     const { searchParams } = new URL(req.url);
     const email = searchParams.get("email");
 
-    if (!email) {
-      return NextResponse.json(
-        { success: false, message: "Email query parameter is required" },
-        { status: 400 }
-      );
-    }
-
-    const admin = await Admin.findOne({ email: email.toLowerCase() }).select(
+    const query = email ? { email: email.toLowerCase() } : {};
+    const admin = await Admin.findOne(query).select(
       "-password -resetToken -resetTokenExpiry"
     );
 
@@ -41,7 +35,7 @@ export async function GET(req) {
 export async function PUT(req) {
   try {
     await connectDB();
-    const { adminId, name, email } = await req.json();
+    const { adminId, name, email, phone } = await req.json();
 
     if (!adminId) {
       return NextResponse.json(
@@ -53,6 +47,7 @@ export async function PUT(req) {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email.toLowerCase();
+    if (phone !== undefined) updateData.phone = phone;
 
     const updated = await Admin.findByIdAndUpdate(
       adminId,

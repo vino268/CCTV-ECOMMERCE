@@ -1,153 +1,193 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin, Youtube, Phone, Mail, MapPin } from 'lucide-react';
+
+type Settings = {
+  storeName: string;
+  description: string;
+  contact: { phone: string; email: string; address: string };
+  social: { facebook: string; instagram: string; twitter: string; linkedin: string; youtube: string };
+};
+
+const fallback: Settings = {
+  storeName: '',
+  description: '',
+  contact: { phone: '', email: '', address: '' },
+  social: { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
+};
 
 export function Footer() {
+  const [s, setS] = useState<Settings>(fallback);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        setS({
+          storeName: data.storeName ?? '',
+          description: data.description ?? '',
+          contact: {
+            phone: data.contact?.phone ?? '',
+            email: data.contact?.email ?? '',
+            address: data.contact?.address ?? '',
+          },
+          social: {
+            facebook: data.social?.facebook ?? '',
+            instagram: data.social?.instagram ?? '',
+            twitter: data.social?.twitter ?? '',
+            linkedin: data.social?.linkedin ?? '',
+            youtube: data.social?.youtube ?? '',
+          },
+        });
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const socialLinks = [
+    { href: s.social.facebook, icon: Facebook, label: 'Facebook' },
+    { href: s.social.instagram, icon: Instagram, label: 'Instagram' },
+    { href: s.social.twitter, icon: Twitter, label: 'Twitter' },
+    { href: s.social.linkedin, icon: Linkedin, label: 'LinkedIn' },
+    { href: s.social.youtube, icon: Youtube, label: 'YouTube' },
+  ];
+
+  if (!loaded) return null;
+
   return (
-    <footer className="bg-secondary text-secondary-foreground mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          {/* Company Info */}
+    <footer className="bg-blue-900 text-white">
+      {/* Main Footer */}
+      <div className="container mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+          {/* Column 1 — Brand */}
           <div>
-            <h3 className="font-bold text-lg mb-4">TN Automation</h3>
-            <p className="text-sm opacity-90 mb-6">
-              Professional CCTV and security solutions for businesses and homes.
-            </p>
-            <div className="flex gap-4">
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Facebook"
-              >
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Twitter"
-              >
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Instagram"
-              >
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="LinkedIn"
-              >
-                <Linkedin className="w-5 h-5" />
-              </a>
+            {s.storeName && <h3 className="text-xl font-bold mb-3">{s.storeName}</h3>}
+            {s.description && (
+              <p className="text-blue-200 text-sm leading-relaxed mb-5">
+                {s.description}
+              </p>
+            )}
+            <div className="flex gap-3">
+              {socialLinks.map(
+                (link) =>
+                  link.href && (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-800 text-blue-200 transition-colors hover:bg-white hover:text-blue-900"
+                    >
+                      <link.icon className="h-4 w-4" />
+                    </a>
+                  )
+              )}
             </div>
           </div>
 
-          {/* Products */}
+          {/* Column 2 — Products */}
           <div>
-            <h4 className="font-semibold mb-4">Products</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/products?category=dome" className="hover:opacity-80 transition-opacity">
-                  Dome Cameras
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=bullet" className="hover:opacity-80 transition-opacity">
-                  Bullet Cameras
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=ptz" className="hover:opacity-80 transition-opacity">
-                  PTZ Cameras
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=thermal" className="hover:opacity-80 transition-opacity">
-                  Thermal Cameras
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=storage" className="hover:opacity-80 transition-opacity">
-                  Recorders
-                </Link>
-              </li>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-blue-300 mb-4">
+              Products
+            </h4>
+            <ul className="space-y-2.5 text-sm">
+              {[
+                { label: 'Dome Cameras', cat: 'dome' },
+                { label: 'Bullet Cameras', cat: 'bullet' },
+                { label: 'PTZ Cameras', cat: 'ptz' },
+                { label: 'Thermal Cameras', cat: 'thermal' },
+                { label: 'Recorders', cat: 'storage' },
+              ].map((p) => (
+                <li key={p.cat}>
+                  <Link
+                    href={`/products?category=${p.cat}`}
+                    className="text-blue-100 hover:text-white transition-colors"
+                  >
+                    {p.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Services */}
+          {/* Column 3 — Services */}
           <div>
-            <h4 className="font-semibold mb-4">Services</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/services" className="hover:opacity-80 transition-opacity">
-                  Installation
-                </Link>
-              </li>
-              <li>
-                <Link href="/services" className="hover:opacity-80 transition-opacity">
-                  Consultation
-                </Link>
-              </li>
-              <li>
-                <Link href="/services" className="hover:opacity-80 transition-opacity">
-                  Maintenance
-                </Link>
-              </li>
-              <li>
-                <Link href="/services" className="hover:opacity-80 transition-opacity">
-                  Support
-                </Link>
-              </li>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-blue-300 mb-4">
+              Services
+            </h4>
+            <ul className="space-y-2.5 text-sm">
+              {['Installation', 'Consultation', 'Maintenance', 'Support'].map(
+                (svc) => (
+                  <li key={svc}>
+                    <Link
+                      href="/services"
+                      className="text-blue-100 hover:text-white transition-colors"
+                    >
+                      {svc}
+                    </Link>
+                  </li>
+                )
+              )}
             </ul>
           </div>
 
-          {/* Contact Info */}
+          {/* Column 4 — Contact */}
           <div>
-            <h4 className="font-semibold mb-4">Contact Us</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-blue-300 mb-4">
+              Contact Us
+            </h4>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>123 Security Street, Nashville, TN 37201</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone className="w-4 h-4 flex-shrink-0" />
-                <a href="tel:+16155551234" className="hover:opacity-80 transition-opacity">
-                  +1 (615) 555-1234
-                </a>
-              </li>
-              <li className="flex items-center gap-3">
-                <Mail className="w-4 h-4 flex-shrink-0" />
-                <a href="mailto:info@tnautomation.com" className="hover:opacity-80 transition-opacity">
-                  info@tnautomation.com
-                </a>
-              </li>
+              {s.contact.address && (
+                <li className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-300" />
+                  <span className="text-blue-100">{s.contact.address}</span>
+                </li>
+              )}
+              {s.contact.phone && (
+                <li className="flex items-center gap-3">
+                  <Phone className="h-4 w-4 flex-shrink-0 text-blue-300" />
+                  <a
+                    href={`tel:${s.contact.phone}`}
+                    className="text-blue-100 hover:text-white transition-colors"
+                  >
+                    {s.contact.phone}
+                  </a>
+                </li>
+              )}
+              {s.contact.email && (
+                <li className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 flex-shrink-0 text-blue-300" />
+                  <a
+                    href={`mailto:${s.contact.email}`}
+                    className="text-blue-100 hover:text-white transition-colors"
+                  >
+                    {s.contact.email}
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
         </div>
+      </div>
 
-        {/* Divider */}
-        <div className="border-t border-secondary-foreground/20 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center text-sm opacity-75">
-            <p>&copy; 2026 TN Automation. All rights reserved.</p>
-            <div className="flex gap-6 mt-4 md:mt-0 items-center">
-              <Link href="#" className="hover:opacity-100 transition-opacity">
-                Privacy Policy
-              </Link>
-              <Link href="#" className="hover:opacity-100 transition-opacity">
-                Terms of Service
-              </Link>
-              <Link href="#" className="hover:opacity-100 transition-opacity">
-                Sitemap
-              </Link>
-              <Link
-                href="/admin/login"
-                className="text-xs text-secondary-foreground/40 hover:text-blue-500 transition-colors"
-              >
-                Admin
-              </Link>
-            </div>
+      {/* Bottom Bar */}
+      <div className="border-t border-blue-800">
+        <div className="container mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-blue-300">
+          <p>&copy; {new Date().getFullYear()} {s.storeName}. All rights reserved.</p>
+          <div className="flex items-center gap-5">
+            <Link href="#" className="hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href="#" className="hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            <Link href="#" className="hover:text-white transition-colors">
+              Sitemap
+            </Link>
           </div>
         </div>
       </div>

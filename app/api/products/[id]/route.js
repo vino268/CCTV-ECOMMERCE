@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import AdminLog from "@/models/AdminLog";
 
 // GET /api/products/[id] — return single product
 export async function GET(req, { params }) {
@@ -45,6 +46,12 @@ export async function PUT(req, { params }) {
       );
     }
 
+    await AdminLog.create({
+      adminName: "Admin",
+      action: "Updated product",
+      details: product.name || "",
+    });
+
     return NextResponse.json(product);
   } catch (error) {
     return NextResponse.json(
@@ -67,6 +74,12 @@ export async function DELETE(req, { params }) {
         { status: 404 }
       );
     }
+
+    await AdminLog.create({
+      adminName: "Admin",
+      action: "Deleted product",
+      details: product.name || "",
+    });
 
     return NextResponse.json({ message: "Product deleted successfully" });
   } catch (error) {

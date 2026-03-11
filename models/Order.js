@@ -51,8 +51,13 @@ const OrderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["Pending", "Processing", "Confirmed", "Shipped", "Delivered"],
-    default: "Pending",
+    enum: ["Ordered", "Confirmed", "Shipped", "OutForDelivery", "Delivered", "Cancelled"],
+    default: "Ordered",
+  },
+  trackingStatus: {
+    type: String,
+    enum: ["Ordered", "Confirmed", "Shipped", "OutForDelivery", "Delivered", "Cancelled"],
+    default: "Ordered",
   },
   deliveryInfo: {
     firstName: String,
@@ -63,6 +68,34 @@ const OrderSchema = new mongoose.Schema({
     city: String,
     state: String,
     zip: String,
+  },
+  confirmedAt: {
+    type: Date,
+    default: null,
+  },
+  shippedAt: {
+    type: Date,
+    default: null,
+  },
+  outForDeliveryAt: {
+    type: Date,
+    default: null,
+  },
+  deliveredAt: {
+    type: Date,
+    default: null,
+  },
+  cancelledAt: {
+    type: Date,
+    default: null,
+  },
+  estimatedDelivery: {
+    type: Date,
+    default: null,
+  },
+  trackingNumber: {
+    type: String,
+    default: "",
   },
   createdAt: {
     type: Date,

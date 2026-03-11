@@ -45,6 +45,12 @@ export async function POST(req) {
       );
     }
 
+    // Auto-upgrade plain-text password to bcrypt hash on successful login
+    if (!isBcryptHash) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await Admin.findByIdAndUpdate(admin._id, { $set: { password: hashedPassword } });
+    }
+
     const adminData = {
       _id: admin._id,
       name: admin.name,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
+import Notification from "@/models/Notification";
 
 // GET /api/orders — return all orders
 export async function GET() {
@@ -22,6 +23,14 @@ export async function POST(req) {
     await connectDB();
     const data = await req.json();
     const order = await Order.create(data);
+
+    // Create admin notification for the new order
+    await Notification.create({
+      type: "order",
+      message: `New order placed by ${order.customerName}`,
+      orderId: order.orderNumber,
+    });
+
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     return NextResponse.json(

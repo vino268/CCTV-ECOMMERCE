@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { CartProvider } from '@/lib/contexts/cart-context'
-import { Navbar } from '@/components/navbar'
-import { Footer } from '@/components/footer'
+import { RootNavbar } from '@/components/root-navbar'
+import { RootFooter } from '@/components/root-footer'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -41,11 +41,11 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased flex flex-col min-h-screen bg-background">
         <CartProvider>
-          <Navbar />
+          <RootNavbar />
           <main className="flex-1">
             {children}
           </main>
-          <Footer />
+          <RootFooter />
         </CartProvider>
         <Analytics />
       </body>

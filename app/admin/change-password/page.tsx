@@ -34,7 +34,7 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const stored = localStorage.getItem('admin');
+      const stored = localStorage.getItem('adminInfo');
       if (!stored) {
         setMessage({ type: 'error', text: 'Not authenticated' });
         return;

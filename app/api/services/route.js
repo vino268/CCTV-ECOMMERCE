@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Service from "@/models/Service";
+import AdminLog from "@/models/AdminLog";
 
 const DEFAULT_SERVICES = [
   {
@@ -93,6 +94,12 @@ export async function POST(req) {
       icon: data.icon ? String(data.icon).trim() : "",
       isDefault: false,
       isActive: true,
+    });
+
+    await AdminLog.create({
+      adminName: "Admin",
+      action: "Added service",
+      details: service.name,
     });
 
     return NextResponse.json(service, { status: 201 });

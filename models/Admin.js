@@ -1,9 +1,5 @@
 import mongoose from "mongoose";
 
-if (mongoose.models.Admin) {
-  delete mongoose.models.Admin;
-}
-
 const AdminSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -19,6 +15,10 @@ const AdminSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
+  },
+  phone: {
+    type: String,
+    default: "",
   },
   role: {
     type: String,
@@ -36,4 +36,4 @@ const AdminSchema = new mongoose.Schema({
   },
 });
 
-export default mongoose.model("Admin", AdminSchema);
+export default mongoose.models.Admin || mongoose.model("Admin", AdminSchema);

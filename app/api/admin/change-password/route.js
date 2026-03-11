@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
+import AdminLog from "@/models/AdminLog";
 import bcrypt from "bcryptjs";
 
 export async function PUT(req) {
@@ -38,7 +39,12 @@ export async function PUT(req) {
     if (isBcryptHash) {
       isMatch = await bcrypt.compare(currentPassword, admin.password);
     } else {
+      // Plain-text fallback — auto-upgrade old password to hash
       isMatch = currentPassword === admin.password;
+      if (isMatch) {
+        const upgradedHash = await bcrypt.hash(admin.password, 10);
+        await Admin.findByIdAndUpdate(admin._id, { $set: { password: upgradedHash } });
+      }
     }
 
     if (!isMatch) {
@@ -52,6 +58,12 @@ export async function PUT(req) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await Admin.findByIdAndUpdate(admin._id, {
       $set: { password: hashedPassword },
+    });
+
+    // Log the activity
+    await AdminLog.create({
+      adminName: admin.name || admin.email,
+      action: "Changed password",
     });
 
     return NextResponse.json({

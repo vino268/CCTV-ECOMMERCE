@@ -23,6 +23,7 @@ interface Order {
   paymentMethod: string;
   paymentStatus: string;
   orderStatus: string;
+  trackingStatus: string;
   deliveryInfo: {
     firstName: string;
     lastName: string;
@@ -34,16 +35,40 @@ interface Order {
     zip: string;
   };
   createdAt: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  outForDeliveryAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+  trackingNumber?: string;
+  estimatedDelivery?: string;
 }
 
-const STATUS_OPTIONS = ['Pending', 'Confirmed', 'Shipped', 'Delivered'];
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  Ordered: ['Confirmed', 'Cancelled'],
+  Confirmed: ['Shipped', 'Cancelled'],
+  Shipped: ['OutForDelivery'],
+  OutForDelivery: ['Delivered'],
+  Delivered: [],
+  Cancelled: [],
+};
 
 const statusColors: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-800',
-  Processing: 'bg-blue-100 text-blue-800',
+  Ordered: 'bg-yellow-100 text-yellow-800',
   Confirmed: 'bg-blue-100 text-blue-800',
   Shipped: 'bg-purple-100 text-purple-800',
+  OutForDelivery: 'bg-orange-100 text-orange-800',
   Delivered: 'bg-green-100 text-green-800',
+  Cancelled: 'bg-red-100 text-red-800',
+};
+
+const statusLabels: Record<string, string> = {
+  Ordered: 'Ordered',
+  Confirmed: 'Confirmed',
+  Shipped: 'Shipped',
+  OutForDelivery: 'Out for Delivery',
+  Delivered: 'Delivered',
+  Cancelled: 'Cancelled',
 };
 
 const paymentColors: Record<string, string> = {
@@ -78,14 +103,17 @@ export default function AdminOrdersPage() {
   const handleStatusChange = async (id: string, newStatus: string) => {
     setUpdatingId(id);
     try {
-      const res = await fetch(`/api/orders/${id}`, {
-        method: 'PUT',
+      const res = await fetch(`/api/admin/orders/${id}/status`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderStatus: newStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
       if (res.ok) {
         await fetchOrders();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to update status');
       }
     } catch (err) {
       console.error('Error updating order status:', err);
@@ -181,32 +209,56 @@ export default function AdminOrdersPage() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          statusColors[order.orderStatus] || 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {order.orderStatus}
-                      </span>
+                      {(() => {
+                        const status = order.trackingStatus || order.orderStatus;
+                        return (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              statusColors[status] || 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {statusLabels[status] || status}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-4 text-sm text-muted-foreground">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
                     <td className="p-4">
-                      <select
-                        value={order.orderStatus}
-                        onChange={(e) =>
-                          handleStatusChange(order._id, e.target.value)
+                      {(() => {
+                        const status = order.trackingStatus || order.orderStatus;
+                        const allowed = ALLOWED_TRANSITIONS[status] ?? [];
+                        const allStatuses = ['Ordered', 'Confirmed', 'Shipped', 'OutForDelivery', 'Delivered', 'Cancelled'];
+
+                        if (allowed.length === 0) {
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || ''}`}>
+                              {statusLabels[status] || status}
+                            </span>
+                          );
                         }
-                        disabled={updatingId === order._id}
-                        className="border border-border rounded-md px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                      >
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
+                        return (
+                          <select
+                            value={status}
+                            onChange={(e) =>
+                              handleStatusChange(order._id, e.target.value)
+                            }
+                            disabled={updatingId === order._id}
+                            className="border border-border rounded-md px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                          >
+                            {allStatuses.map((s) => (
+                              <option
+                                key={s}
+                                value={s}
+                                disabled={s !== status && !allowed.includes(s)}
+                              >
+                                {statusLabels[s] || s}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

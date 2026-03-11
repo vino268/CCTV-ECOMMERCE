@@ -111,7 +111,8 @@ export default function CheckoutPage() {
           totalAmount: parseFloat(total.toFixed(2)),
           paymentMethod: paymentMethod === 'cod' ? 'COD' : 'Online',
           paymentStatus: paymentMethod === 'cod' ? 'Unpaid' : 'Paid',
-          orderStatus: 'Pending',
+          orderStatus: 'Ordered',
+          trackingStatus: 'Ordered',
           deliveryInfo: {
             firstName: formData.firstName,
             lastName: formData.lastName,
