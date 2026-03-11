@@ -25,11 +25,9 @@ export async function GET(req, { params }) {
   }
 }
 
-const EDIT_WINDOW_MS = 12 * 60 * 60 * 1000; // 12 hours
-
 // PUT /api/orders/[id]
 // Admin status/payment update  → body: { orderStatus } or { paymentStatus }
-// User delivery edit           → body: { deliveryInfo, phone } — 12-hour window enforced
+// User delivery edit           → body: { deliveryInfo, phone } — allowed only when Pending or Shipped
 export async function PUT(req, { params }) {
   try {
     await connectDB();
@@ -54,11 +52,14 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ success: true, order });
     }
 
-    // ── User: delivery info edit (12-hour restriction) ─────────────────────
-    const diff = Date.now() - new Date(order.createdAt).getTime();
-    if (diff > EDIT_WINDOW_MS) {
+    // ── User: delivery info edit (status-based restriction) ──────────────────
+    const editableStatus = order.orderStatus?.toLowerCase();
+    if (
+      editableStatus !== "pending" &&
+      editableStatus !== "shipped"
+    ) {
       return NextResponse.json(
-        { error: "Order editing time has expired (12-hour limit)" },
+        { error: "Order can only be edited when status is Pending or Shipped" },
         { status: 403 }
       );
     }
@@ -79,5 +80,43 @@ export async function PUT(req, { params }) {
   } catch (error) {
     console.error("Error updating order:", error);
     return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+  }
+}
+
+// DELETE /api/orders/[id] — soft-cancel: sets orderStatus to "Cancelled"
+// Order is kept in the database for history tracking.
+export async function DELETE(req, { params }) {
+  try {
+    await connectDB();
+    const { id } = await params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    const status = order.orderStatus?.toLowerCase();
+
+    if (status === "cancelled") {
+      return NextResponse.json(
+        { error: "Order is already cancelled" },
+        { status: 400 }
+      );
+    }
+
+    if (status !== "pending" && status !== "shipped") {
+      return NextResponse.json(
+        { error: "Order cannot be cancelled once it is Confirmed or Delivered" },
+        { status: 403 }
+      );
+    }
+
+    order.orderStatus = "Cancelled";
+    await order.save();
+
+    return NextResponse.json({ success: true, message: "Order cancelled" });
+  } catch (error) {
+    console.error("Error cancelling order:", error);
+    return NextResponse.json({ error: "Failed to cancel order" }, { status: 500 });
   }
 }

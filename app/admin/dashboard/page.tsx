@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { SalesChart } from '@/components/admin/SalesChart';
+import { OrderStatusChart } from '@/components/admin/OrderStatusChart';
 import {
   Package,
   ShoppingCart,
   Users,
   TrendingUp,
+  ArrowUpRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -79,118 +82,136 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome to TN Automation Admin Panel
-        </p>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Welcome back to TN Automation Admin Panel"
+      />
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <Link key={stat.href + stat.label} href={stat.href}>
-              <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border border-border">
+              <div className="group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all duration-200 cursor-pointer">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                       {stat.label}
                     </p>
-                    <p className="text-3xl font-bold text-foreground">
+                    <p className="mt-1.5 text-2xl font-bold text-gray-900 dark:text-white">
                       {stat.value}
                     </p>
                   </div>
-                  <div className={`${stat.color} p-3 rounded-lg`}>
-                    <Icon className="w-6 h-6 text-foreground" />
+                  <div className={`${stat.color} rounded-lg p-2.5`}>
+                    <Icon className="w-5 h-5" />
                   </div>
                 </div>
-              </Card>
+                <div className="mt-3 flex items-center gap-1 text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span>View details</span>
+                  <ArrowUpRight className="w-3 h-3" />
+                </div>
+              </div>
             </Link>
           );
         })}
       </div>
 
+      {/* Charts */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <SalesChart orders={orders} />
+        <OrderStatusChart orders={orders} />
+      </div>
+
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent Products */}
-        <Card className="p-6 border border-border">
-          <h2 className="text-lg font-bold text-foreground mb-4">
-            Recent Products
-          </h2>
-          <div className="space-y-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Recent Products</h2>
+          <div className="space-y-3">
             {products.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No products yet.</p>
+              <p className="text-sm text-gray-400">No products yet.</p>
             ) : (
               products.slice(0, 5).map((product) => (
-                <div key={product._id} className="flex items-center justify-between pb-4 border-b border-border last:border-0">
+                <div
+                  key={product._id}
+                  className="flex items-center justify-between py-2.5 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                >
                   <div>
-                    <p className="font-medium text-foreground text-sm">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white leading-none">
                       {product.name}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {product.category}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{product.category}</p>
                   </div>
-                  <p className="font-semibold text-foreground">
+                  <span className="text-sm font-semibold text-blue-600">
                     ${product.price}
-                  </p>
+                  </span>
                 </div>
               ))
             )}
           </div>
-        </Card>
+        </div>
 
         {/* Recent Orders */}
-        <Card className="p-6 border border-border">
-          <h2 className="text-lg font-bold text-foreground mb-4">
-            Recent Orders
-          </h2>
-          <div className="space-y-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Recent Orders</h2>
+          <div className="space-y-3">
             {orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No orders yet.</p>
+              <p className="text-sm text-gray-400">No orders yet.</p>
             ) : (
               orders.slice(0, 5).map((order) => (
-                <div key={order._id} className="flex items-center justify-between pb-4 border-b border-border last:border-0">
+                <div
+                  key={order._id}
+                  className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0"
+                >
                   <div>
-                    <p className="font-medium text-foreground text-sm">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white leading-none">
                       {order.orderNumber}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {order.orderStatus}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{order.orderStatus}</p>
                   </div>
-                  <p className="font-semibold text-foreground">
+                  <span className="text-sm font-semibold text-blue-600">
                     ${order.totalAmount?.toFixed(2)}
-                  </p>
+                  </span>
                 </div>
               ))
             )}
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <Card className="p-6 border border-border bg-gradient-to-r from-primary/10 to-secondary/10">
-        <h2 className="text-lg font-bold text-foreground mb-4">Quick Actions</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Link href="/admin/products?action=add" className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow text-center">
-            <p className="font-semibold text-foreground text-sm">Add Product</p>
+          <Link
+            href="/admin/products?action=add"
+            className="flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-150"
+          >
+            Add Product
           </Link>
-          <Link href="/admin/services?action=add" className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow text-center">
-            <p className="font-semibold text-foreground text-sm">Add Service</p>
+          <Link
+            href="/admin/services?action=add"
+            className="flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-150"
+          >
+            Add Service
           </Link>
-          <Link href="/admin/orders" className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow text-center">
-            <p className="font-semibold text-foreground text-sm">View Orders</p>
+          <Link
+            href="/admin/orders"
+            className="flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-150"
+          >
+            View Orders
           </Link>
-          <Link href="/admin/customers" className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow text-center">
-            <p className="font-semibold text-foreground text-sm">View Customers</p>
+          <Link
+            href="/admin/customers"
+            className="flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-150"
+          >
+            View Customers
           </Link>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

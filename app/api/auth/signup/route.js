@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import Notification from "@/models/Notification";
 import bcrypt from "bcryptjs";
 
 export async function POST(req) {
@@ -42,6 +43,16 @@ export async function POST(req) {
       role: user.role,
       createdAt: user.createdAt,
     };
+
+    // Create admin notification
+    try {
+      await Notification.create({
+        type: "new_user",
+        message: `New user registered: ${user.name} (${user.email})`,
+      });
+    } catch (_) {
+      // Notification failure must not break registration
+    }
 
     return NextResponse.json(userResponse, { status: 201 });
   } catch (error) {
