@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, X } from 'lucide-react';
 
 interface Notification {
@@ -34,21 +34,19 @@ export function NotificationBell() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/notifications');
       if (res.ok) setNotifications(await res.json());
     } catch {
       // silent fail — UI will just show stale data
     }
-  };
+  }, []);
 
-  // Initial load + 30-second polling
+  // Fetch once on mount — no polling so deleted notifications never reappear
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30_000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {
