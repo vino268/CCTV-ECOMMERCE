@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { RefreshCw, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface Customer {
   _id: string;
@@ -59,22 +60,22 @@ export default function AdminCustomersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Customers</h1>
-          <p className="text-muted-foreground">Manage customer information</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchCustomers}
-          disabled={loading}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Customers"
+        description="Manage customer information"
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchCustomers}
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="relative">

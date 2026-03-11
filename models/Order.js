@@ -40,6 +40,14 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  distance: {
+    type: Number,
+    default: 0,
+  },
+  deliveryCharge: {
+    type: Number,
+    default: 0,
+  },
   paymentMethod: {
     type: String,
     default: "COD",
@@ -51,7 +59,7 @@ const OrderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["Pending", "Processing", "Confirmed", "Shipped", "Delivered"],
+    enum: ["Pending", "Processing", "Confirmed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
     default: "Pending",
   },
   deliveryInfo: {
@@ -63,6 +71,8 @@ const OrderSchema = new mongoose.Schema({
     city: String,
     state: String,
     zip: String,
+    lat: Number,
+    lng: Number,
   },
   createdAt: {
     type: Date,

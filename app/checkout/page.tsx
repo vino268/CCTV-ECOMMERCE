@@ -7,6 +7,17 @@ import Link from 'next/link';
 import { ArrowLeft, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+type ShippingSettings = {
+  freeShippingThreshold: number;
+  standardShippingCost: number;
+};
+
+type PaymentSettings = {
+  cashOnDelivery: boolean;
+  upi: boolean;
+  onlinePayment: boolean;
+};
+
 export default function CheckoutPage() {
   const { cart, getCartTotal, clearCart } = useCart();
   const router = useRouter();
@@ -14,6 +25,25 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<CheckoutStep>('info');
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [taxRate, setTaxRate] = useState(0);
+  const [shippingSettings, setShippingSettings] = useState<ShippingSettings>({
+    freeShippingThreshold: 0,
+    standardShippingCost: 0,
+  });
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
+    cashOnDelivery: true,
+    upi: true,
+    onlinePayment: true,
+  });
+  const [paymentMethod, setPaymentMethod] = useState<string>('');
+
+  // Get first available payment method
+  const getFirstAvailablePaymentMethod = (settings: PaymentSettings): string => {
+    if (settings.cashOnDelivery) return 'cod';
+    if (settings.upi) return 'upi';
+    if (settings.onlinePayment) return 'online';
+    return 'cod'; // Fallback
+  };
 
   // Auth guard + auto-fill from user profile
   useEffect(() => {
@@ -50,11 +80,56 @@ export default function CheckoutPage() {
     zipCode: '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        // Fetch tax rate and shipping settings
+        const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Fetch tax rate
+        const gst = Number(data?.taxSettings?.gstPercentage || 0);
+        if (Number.isFinite(gst) && gst >= 0) {
+          setTaxRate(gst);
+        }
+        
+        // Fetch shipping settings
+        const freeShippingThreshold = Number(data?.shippingSettings?.freeShippingThreshold || 0);
+        const standardShippingCost = Number(data?.shippingSettings?.standardShippingCost || 0);
+        setShippingSettings({
+          freeShippingThreshold: Number.isFinite(freeShippingThreshold) ? freeShippingThreshold : 0,
+          standardShippingCost: Number.isFinite(standardShippingCost) ? standardShippingCost : 0,
+        });
+
+        // Fetch payment settings
+        const paymentRes = await fetch('/api/settings/payment', { cache: 'no-store' });
+        if (!paymentRes.ok) return;
+        const paymentData = await paymentRes.json();
+        setPaymentSettings(paymentData);
+        
+        // Auto-select first available payment method
+        const firstMethod = getFirstAvailablePaymentMethod(paymentData);
+        setPaymentMethod(firstMethod);
+      } catch (_error) {
+        // Keep default settings if API is unavailable
+        // Set default payment method as fallback
+        setPaymentMethod('cod');
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   const cartTotal = getCartTotal();
-  const shippingCost = cartTotal > 100 ? 0 : 9.99;
-  const tax = cartTotal * 0.08;
+  
+  // Simple shipping logic: if order total >= threshold, free shipping, else standard cost
+  const deliveryCharge = cartTotal >= shippingSettings.freeShippingThreshold 
+    ? 0 
+    : shippingSettings.standardShippingCost;
+  
+  const shippingCost = deliveryCharge;
+  const tax = (cartTotal + shippingCost) * (taxRate / 100);
   const total = cartTotal + shippingCost + tax;
 
   // Cart items already contain product data from the cart context
@@ -67,7 +142,12 @@ export default function CheckoutPage() {
     });
   };
 
-  const handleContinueToPayment = () => {
+  const getFullAddress = () =>
+    [formData.address, formData.city, formData.state, formData.zipCode]
+      .filter(Boolean)
+      .join(', ');
+
+  const handleContinueToPayment = async () => {
     if (
       !formData.firstName ||
       !formData.lastName ||
@@ -81,6 +161,7 @@ export default function CheckoutPage() {
       alert('Please fill in all fields');
       return;
     }
+
     setStep('payment');
   };
 
@@ -109,7 +190,8 @@ export default function CheckoutPage() {
             quantity: item.quantity,
           })),
           totalAmount: parseFloat(total.toFixed(2)),
-          paymentMethod: paymentMethod === 'cod' ? 'COD' : 'Online',
+          deliveryCharge: Number(deliveryCharge || 0),
+          paymentMethod: paymentMethod === 'cod' ? 'COD' : paymentMethod === 'upi' ? 'UPI' : 'Online',
           paymentStatus: paymentMethod === 'cod' ? 'Unpaid' : 'Paid',
           orderStatus: 'Pending',
           deliveryInfo: {
@@ -204,6 +286,29 @@ export default function CheckoutPage() {
             </h1>
             <Link href="/products">
               <Button>Continue Shopping</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if no payment methods are enabled
+  const noPaymentMethodsAvailable = !paymentSettings.cashOnDelivery && !paymentSettings.upi && !paymentSettings.onlinePayment;
+  
+  if (noPaymentMethodsAvailable && step === 'payment') {
+    return (
+      <div className="bg-background min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center py-16 max-w-2xl mx-auto">
+            <h1 className="text-3xl font-bold text-foreground mb-4">
+              Checkout Unavailable
+            </h1>
+            <p className="text-muted-foreground mb-8">
+              We're currently updating our payment options. Please check back later.
+            </p>
+            <Link href="/cart">
+              <Button>Back to Cart</Button>
             </Link>
           </div>
         </div>
@@ -367,41 +472,65 @@ export default function CheckoutPage() {
                   Payment Method
                 </h2>
                 <div className="space-y-4 mb-8">
-                  <label className="flex items-center gap-4 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="cod"
-                      checked={paymentMethod === 'cod'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                    />
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        Cash on Delivery
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Pay when your order arrives
-                      </p>
-                    </div>
-                  </label>
+                  {paymentSettings.cashOnDelivery && (
+                    <label className="flex items-center gap-4 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cod"
+                        checked={paymentMethod === 'cod'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          Cash on Delivery
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Pay when your order arrives
+                        </p>
+                      </div>
+                    </label>
+                  )}
 
-                  <label className="flex items-center gap-4 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="online"
-                      checked={paymentMethod === 'online'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                    />
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        Online Payment
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Credit/Debit Card or Digital Wallet
-                      </p>
-                    </div>
-                  </label>
+                  {paymentSettings.upi && (
+                    <label className="flex items-center gap-4 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="upi"
+                        checked={paymentMethod === 'upi'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          UPI Payment
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Google Pay, PhonePe, Paytm, or other UPI apps
+                        </p>
+                      </div>
+                    </label>
+                  )}
+
+                  {paymentSettings.onlinePayment && (
+                    <label className="flex items-center gap-4 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="online"
+                        checked={paymentMethod === 'online'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                      />
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          Online Payment
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Credit/Debit Card or Digital Wallet
+                        </p>
+                      </div>
+                    </label>
+                  )}
                 </div>
 
                 <div className="flex gap-4">
@@ -451,17 +580,11 @@ export default function CheckoutPage() {
                   <span>${cartTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Shipping</span>
-                  <span>
-                    {shippingCost === 0 ? (
-                      <span className="text-primary font-semibold">Free</span>
-                    ) : (
-                      `$${shippingCost.toFixed(2)}`
-                    )}
-                  </span>
+                  <span>Delivery Charge</span>
+                  <span>${shippingCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Tax (8%)</span>
+                  <span>Tax ({taxRate}%)</span>
                   <span>${tax.toFixed(2)}</span>
                 </div>
               </div>

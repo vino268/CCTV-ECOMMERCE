@@ -24,6 +24,7 @@ interface ProductFormData {
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   // Add form
   const [showAddForm, setShowAddForm] = useState(false);
@@ -60,7 +61,7 @@ export default function AdminProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/products', { cache: 'no-store' });
+      const res = await fetch(`/api/admin/products?search=${encodeURIComponent(search)}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setProducts(data);
@@ -73,7 +74,7 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [search]);
 
   /* ---------------------------------------------------------------- */
   /*  Image helpers                                                   */
@@ -319,6 +320,17 @@ export default function AdminProductsPage() {
             <Plus className="w-4 h-4" /> Add Product
           </Button>
         </div>
+      </div>
+
+      {/* ===== Search Bar ===== */}
+      <div className="mb-4 flex gap-2">
+        <input
+          type="text"
+          placeholder="Search product name or category..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-80"
+        />
       </div>
 
       {/* ===== Add Product Form ===== */}

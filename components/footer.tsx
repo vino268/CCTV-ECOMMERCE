@@ -1,7 +1,68 @@
+"use client";
+
 import Link from 'next/link';
 import { Facebook, Twitter, Instagram, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+type FooterSettings = {
+  description: string;
+  facebook: string;
+  twitter: string;
+  instagram: string;
+  linkedin: string;
+  address: string;
+  phone: string;
+  email: string;
+};
+
+const DEFAULT_FOOTER: FooterSettings = {
+  description: 'Professional CCTV and security solutions for businesses and homes.',
+  facebook: '',
+  twitter: '',
+  instagram: '',
+  linkedin: '',
+  address: '123 Security Street, Nashville, TN 37201',
+  phone: '+1 (615) 555-1234',
+  email: 'info@tnautomation.com',
+};
 
 export function Footer() {
+  const [footer, setFooter] = useState<FooterSettings>(DEFAULT_FOOTER);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchFooterSettings = async () => {
+      try {
+        const res = await fetch('/api/settings/footer', { cache: 'no-store' });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (!mounted) return;
+
+        setFooter({
+          ...DEFAULT_FOOTER,
+          ...data,
+        });
+      } catch (_error) {
+        // Keep default values if API fails
+      }
+    };
+
+    fetchFooterSettings();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const socialLinks = [
+    { key: 'facebook', href: footer.facebook, icon: Facebook, label: 'Facebook' },
+    { key: 'twitter', href: footer.twitter, icon: Twitter, label: 'Twitter' },
+    { key: 'instagram', href: footer.instagram, icon: Instagram, label: 'Instagram' },
+    { key: 'linkedin', href: footer.linkedin, icon: Linkedin, label: 'LinkedIn' },
+  ].filter((item) => item.href);
+
   return (
     <footer className="bg-secondary text-secondary-foreground mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -10,37 +71,24 @@ export function Footer() {
           <div>
             <h3 className="font-bold text-lg mb-4">TN Automation</h3>
             <p className="text-sm opacity-90 mb-6">
-              Professional CCTV and security solutions for businesses and homes.
+              {footer.description}
             </p>
             <div className="flex gap-4">
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Facebook"
-              >
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Twitter"
-              >
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="Instagram"
-              >
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a
-                href="#"
-                className="hover:opacity-80 transition-opacity"
-                aria-label="LinkedIn"
-              >
-                <Linkedin className="w-5 h-5" />
-              </a>
+              {socialLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <a
+                    key={item.key}
+                    href={item.href}
+                    className="hover:opacity-80 transition-opacity"
+                    aria-label={item.label}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Icon className="w-5 h-5" />
+                  </a>
+                );
+              })}
             </div>
           </div>
 
@@ -109,18 +157,18 @@ export function Footer() {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>123 Security Street, Nashville, TN 37201</span>
+                <span>{footer.address}</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 flex-shrink-0" />
-                <a href="tel:+16155551234" className="hover:opacity-80 transition-opacity">
-                  +1 (615) 555-1234
+                <a href={`tel:${footer.phone}`} className="hover:opacity-80 transition-opacity">
+                  {footer.phone}
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 flex-shrink-0" />
-                <a href="mailto:info@tnautomation.com" className="hover:opacity-80 transition-opacity">
-                  info@tnautomation.com
+                <a href={`mailto:${footer.email}`} className="hover:opacity-80 transition-opacity">
+                  {footer.email}
                 </a>
               </li>
             </ul>

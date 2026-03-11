@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { PageHeader } from '@/components/ui/page-header';
 
 interface OrderProduct {
   productId: string;
@@ -36,31 +38,18 @@ interface Order {
   createdAt: string;
 }
 
-const STATUS_OPTIONS = ['Pending', 'Confirmed', 'Shipped', 'Delivered'];
-
-const statusColors: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-800',
-  Processing: 'bg-blue-100 text-blue-800',
-  Confirmed: 'bg-blue-100 text-blue-800',
-  Shipped: 'bg-purple-100 text-purple-800',
-  Delivered: 'bg-green-100 text-green-800',
-};
-
-const paymentColors: Record<string, string> = {
-  Paid: 'bg-green-100 text-green-800',
-  Unpaid: 'bg-red-100 text-red-800',
-  Refunded: 'bg-gray-100 text-gray-800',
-};
+const STATUS_OPTIONS = ['Pending', 'Confirmed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/orders', { cache: 'no-store' });
+      const res = await fetch(`/api/admin/orders?search=${encodeURIComponent(search)}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setOrders(data);
@@ -73,12 +62,12 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [search]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     setUpdatingId(id);
     try {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await fetch(`/api/admin/orders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderStatus: newStatus }),
@@ -86,6 +75,9 @@ export default function AdminOrdersPage() {
 
       if (res.ok) {
         await fetchOrders();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update status');
       }
     } catch (err) {
       console.error('Error updating order status:', err);
@@ -97,16 +89,25 @@ export default function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Orders</h1>
-          <p className="text-muted-foreground">
-            Manage customer orders ({orders.length} total)
-          </p>
-        </div>
-        <Button variant="outline" onClick={fetchOrders} className="gap-2">
-          <RefreshCw className="w-4 h-4" /> Refresh
-        </Button>
+      <PageHeader
+        title="Orders"
+        description={`Manage customer orders (${orders.length} total)`}
+        action={
+          <Button variant="outline" onClick={fetchOrders} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </Button>
+        }
+      />
+
+      {/* Search Bar */}
+      <div className="mb-4 flex gap-2">
+        <input
+          type="text"
+          placeholder="Search order ID, customer name, email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-80"
+        />
       </div>
 
       {/* Orders Table */}
@@ -172,41 +173,37 @@ export default function AdminOrdersPage() {
                       ${order.totalAmount.toFixed(2)}
                     </td>
                     <td className="p-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          paymentColors[order.paymentStatus] || 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {order.paymentStatus}
-                      </span>
+                      <StatusBadge status={order.paymentStatus} />
                     </td>
                     <td className="p-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          statusColors[order.orderStatus] || 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {order.orderStatus}
-                      </span>
+                      <StatusBadge status={order.orderStatus} />
                     </td>
                     <td className="p-4 text-sm text-muted-foreground">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
                     <td className="p-4">
-                      <select
-                        value={order.orderStatus}
-                        onChange={(e) =>
-                          handleStatusChange(order._id, e.target.value)
-                        }
-                        disabled={updatingId === order._id}
-                        className="border border-border rounded-md px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                      >
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
+                      {(() => {
+                        const locked =
+                          order.orderStatus?.toLowerCase() === 'cancelled' ||
+                          order.orderStatus?.toLowerCase() === 'delivered';
+                        return (
+                          <select
+                            value={order.orderStatus}
+                            onChange={(e) =>
+                              handleStatusChange(order._id, e.target.value)
+                            }
+                            disabled={locked || updatingId === order._id}
+                            title={locked ? 'This order status is locked' : undefined}
+                            className="border border-border rounded-md px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

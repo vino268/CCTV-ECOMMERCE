@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ProductCard } from '@/components/product-card';
 import { CategoryCard } from '@/components/category-card';
 import { Product, Category } from '@/lib/types';
-import { ArrowRight, Shield, Clock, Award, Zap } from 'lucide-react';
+import { ArrowRight, Shield, Clock, Award, Zap, Camera, CheckCircle } from 'lucide-react';
 
 const categories: Category[] = [
   { id: '1', name: 'Dome Cameras', icon: '📷', image: '/images/dome-cameras.jpg' },
@@ -39,65 +40,150 @@ export default function Home() {
   return (
     <div className="bg-background">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/10 to-secondary/10 py-20 md:py-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 py-24 md:py-36 overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
-            <div className="space-y-6">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                Professional CCTV & Security Solutions
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-lg">
-                Protect what matters most with TN Automation's advanced security camera systems and professional installation services.
-              </p>
-              <div className="flex gap-4 pt-4">
+            <div className="space-y-7">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              >
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold tracking-wide uppercase mb-4">
+                  <Shield className="w-3.5 h-3.5" />
+                  Trusted Security Partner
+                </span>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight">
+                  Professional CCTV &{' '}
+                  <span className="text-blue-400">Security</span> Solutions
+                </h1>
+              </motion.div>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.15, ease: 'easeOut' }}
+                className="text-lg text-blue-100/80 max-w-lg leading-relaxed"
+              >
+                Protect your home and business with advanced surveillance systems. 20+ years of expertise, trusted by thousands.
+              </motion.p>
+
+              <motion.ul
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.25, ease: 'easeOut' }}
+                className="space-y-2"
+              >
+                {['HD & 4K cameras', 'Professional installation', '24/7 technical support'].map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-blue-200">
+                    <CheckCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </motion.ul>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.35, ease: 'easeOut' }}
+                className="flex gap-4 flex-wrap"
+              >
                 <Link href="/products">
-                  <Button size="lg" className="gap-2">
-                    Shop Now <ArrowRight className="w-4 h-4" />
+                  <Button size="lg" className="bg-blue-500 hover:bg-blue-400 text-white gap-2 shadow-lg shadow-blue-500/30">
+                    Shop Cameras <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
                 <Link href="/services">
-                  <Button size="lg" variant="outline">
+                  <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:text-white">
                     View Services
                   </Button>
                 </Link>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Right Content - Decorative */}
-            <div className="hidden md:flex items-center justify-center">
-              <div className="w-full h-64 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl flex items-center justify-center text-6xl border border-primary/20">
-                📹
-              </div>
-            </div>
+            {/* Right Content — Illustration */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+              className="hidden md:flex items-center justify-center"
+            >
+              <motion.div
+                whileHover={{ scale: 1.04 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                className="relative w-full max-w-md aspect-square bg-gradient-to-br from-blue-800/60 to-blue-600/30 rounded-3xl border border-blue-400/20 backdrop-blur-sm flex items-center justify-center shadow-2xl shadow-blue-900/40"
+              >
+                {/* Orbit rings */}
+                <div className="absolute inset-6 rounded-full border border-blue-400/10" />
+                <div className="absolute inset-12 rounded-full border border-blue-400/10" />
+                {/* Icon */}
+                <Camera className="w-28 h-28 text-blue-300/80" strokeWidth={0.8} />
+                {/* Floating badges */}
+                <motion.div
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+                  className="absolute top-8 right-8 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2 text-white text-xs font-medium"
+                >
+                  4K Ultra HD
+                </motion.div>
+                <motion.div
+                  animate={{ y: [0, 8, 0] }}
+                  transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay: 0.5 }}
+                  className="absolute bottom-8 left-8 bg-green-500/20 backdrop-blur-md border border-green-400/30 rounded-xl px-3 py-2 text-green-300 text-xs font-medium"
+                >
+                  ● Live Monitoring
+                </motion.div>
+              </motion.div>
+            </motion.div>
           </div>
         </div>
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="py-16 md:py-24 bg-muted/30">
+      <section className="py-16 md:py-24 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-12"
+          >
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
               Why Choose TN Automation?
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Trusted by thousands of businesses and homeowners for reliable security solutions
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid md:grid-cols-4 gap-6">
             {whyChooseUs.map((feature, index) => (
-              <div key={index} className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow">
-                <div className="mb-4">
-                  {index === 0 && <Award className="w-8 h-8 text-primary" />}
-                  {index === 1 && <Clock className="w-8 h-8 text-primary" />}
-                  {index === 2 && <Shield className="w-8 h-8 text-primary" />}
-                  {index === 3 && <Zap className="w-8 h-8 text-primary" />}
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="mb-4 bg-blue-50 dark:bg-blue-900/30 w-10 h-10 rounded-lg flex items-center justify-center">
+                  {index === 0 && <Award className="w-5 h-5 text-blue-600" />}
+                  {index === 1 && <Clock className="w-5 h-5 text-blue-600" />}
+                  {index === 2 && <Shield className="w-5 h-5 text-blue-600" />}
+                  {index === 3 && <Zap className="w-5 h-5 text-blue-600" />}
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground">{feature.description}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
