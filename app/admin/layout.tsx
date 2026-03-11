@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   Package,
@@ -9,11 +8,11 @@ import {
   Users,
   Wrench,
   Settings,
-  LogOut,
   Menu,
   X,
+  Shield,
 } from 'lucide-react';
-import AdminAccountMenu from '@/components/admin-account-menu';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -32,6 +31,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -70,85 +70,84 @@ export default function AdminLayout({
   // Show nothing until auth is verified
   if (!authChecked) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <span className="text-sm">Loading...</span>
+        </div>
       </div>
     );
   }
 
+  const sidebarClass = `${sidebarOpen ? 'w-60' : 'w-[68px]'} hidden md:flex flex-col bg-white border-r border-gray-200 transition-all duration-300 shrink-0`;
+
+  const SidebarContent = () => (
+    <>
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-4">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600">
+          <Shield className="h-4 w-4 text-white" />
+        </div>
+        {sidebarOpen && (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-gray-900 leading-none">TN Automation</p>
+            <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
+          </div>
+        )}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="ml-auto hidden md:flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+        >
+          {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
+              <div
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                  isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {sidebarOpen && <span>{item.label}</span>}
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
+  );
+
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-secondary text-secondary-foreground transition-all duration-300 flex flex-col border-r border-border`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-secondary-foreground/10">
-          {sidebarOpen && <span className="font-bold text-lg">Admin</span>}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 hover:bg-secondary-foreground/10 rounded"
-          >
-            {sidebarOpen ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <Menu className="w-5 h-5" />
-            )}
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-secondary-foreground/20 text-secondary-foreground'
-                      : 'text-secondary-foreground/70 hover:bg-secondary-foreground/10'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && (
-                    <span className="text-sm font-medium">{item.label}</span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Logout */}
-        <div className="p-4 border-t border-secondary-foreground/10">
-          <Button
-            variant="outline"
-            className="w-full gap-2 justify-center"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4" />
-            {sidebarOpen && 'Logout'}
-          </Button>
-        </div>
+    <div className="flex h-screen bg-gray-50">
+      <aside className={sidebarClass}>
+        <SidebarContent />
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-          <h1 className="text-lg font-semibold text-foreground">
-            TN Automation Admin Panel
-          </h1>
-          <div className="flex items-center gap-4">
-            <AdminAccountMenu />
-          </div>
-        </header>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
 
-        {/* Page Content */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-white border-r border-gray-200 transition-transform duration-300 md:hidden ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <SidebarContent />
+      </aside>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <AdminHeader
+          onToggleSidebar={() => setMobileOpen(!mobileOpen)}
+          onLogout={handleLogout}
+        />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

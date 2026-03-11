@@ -2,8 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { CartProvider } from '@/lib/contexts/cart-context'
-import { Navbar } from '@/components/navbar'
-import { Footer } from '@/components/footer'
+import { AppShell } from '@/components/app-shell'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -38,14 +37,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased flex flex-col min-h-screen bg-background">
         <CartProvider>
-          <Navbar />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <AppShell>{children}</AppShell>
         </CartProvider>
         <Analytics />
       </body>
