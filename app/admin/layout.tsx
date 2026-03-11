@@ -12,6 +12,8 @@ import {
   LogOut,
   Menu,
   X,
+  Search,
+  Bell,
 } from 'lucide-react';
 import AdminAccountMenu from '@/components/admin-account-menu';
 import { useState, useEffect } from 'react';
@@ -143,7 +145,27 @@ export default function AdminLayout({
           <h1 className="text-lg font-semibold text-foreground">
             TN Automation Admin Panel
           </h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative hidden sm:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="search"
+                placeholder="Search..."
+                className="pl-9 pr-4 py-1.5 text-sm bg-secondary/40 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary w-48"
+              />
+            </div>
+
+            {/* Notification Bell */}
+            <button
+              type="button"
+              aria-label="Notifications"
+              className="relative p-2 hover:bg-secondary/50 rounded-lg transition-colors"
+            >
+              <Bell className="w-5 h-5 text-foreground" />
+            </button>
+
+            {/* Admin Account Menu */}
             <AdminAccountMenu />
           </div>
         </header>
