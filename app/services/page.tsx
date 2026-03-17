@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   ArrowRight,
@@ -12,6 +12,14 @@ import {
   Settings,
   Headphones,
   PhoneCall,
+  ChevronUp,
+  Monitor,
+  Clock,
+  ShieldCheck,
+  Cpu,
+  MapPin,
+  AlertTriangle,
+  Wifi,
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -20,9 +28,11 @@ import {
 
 interface Service {
   _id: string;
+  slug?: string;
   name: string;
   description: string;
   price?: number;
+  icon?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -70,6 +80,73 @@ const testimonials = [
   },
 ];
 
+/* service-slug → rich details used by the expanded panel */
+const serviceDetails: Record<
+  string,
+  {
+    details: string;
+    equipment: string[];
+    installTime: string;
+    warranty: string;
+  }
+> = {
+  'online-support': {
+    details:
+      'Our remote support team provides real-time CCTV troubleshooting, firmware updates, app configuration, and network diagnostics — all from the comfort of your location without the need for an on-site visit.',
+    equipment: [
+      'Remote Desktop Tools',
+      'Network Diagnostic Suites',
+      'Firmware Update Systems',
+      'Mobile App Config Tools',
+    ],
+    installTime: 'Instant remote session (30-60 min)',
+    warranty: '7-day follow-up support included',
+  },
+  'installation-support': {
+    details:
+      'Our certified technicians handle the complete CCTV installation process — from camera placement and cable routing to DVR/NVR setup, mobile app pairing, and final system testing to ensure flawless operation.',
+    equipment: [
+      'Thermal Imaging Scanners',
+      'Site Mapping Tools',
+      'Cable Testing Equipment',
+      'Network Analysis Tools',
+    ],
+    installTime: 'Same-day or next-day (2-6 hours)',
+    warranty: '1-year installation warranty',
+  },
+  'service-maintenance': {
+    details:
+      'Keep your security system in peak condition with scheduled maintenance, camera cleaning, firmware updates, hard-drive health checks, and quick repairs by our experienced field engineers.',
+    equipment: [
+      'Lens Cleaning Kits',
+      'HDD Diagnostic Tools',
+      'Signal Strength Meters',
+      'Replacement Component Stock',
+    ],
+    installTime: 'Scheduled visit (1-3 hours)',
+    warranty: '30-day post-service guarantee',
+  },
+};
+
+const defaultDetails = {
+  details:
+    'Our security experts conduct a thorough assessment of your property to identify vulnerabilities and recommend the ideal camera types, placement, and recording solutions tailored to your budget and security goals.',
+  equipment: [
+    'Thermal Imaging Scanners',
+    'Site Mapping Tools',
+    'Risk Assessment Software',
+    'Network Analysis Equipment',
+  ],
+  installTime: 'Same-day consultation (1-2 hours)',
+  warranty: 'Free follow-up consultation within 30 days',
+};
+
+const serviceIconMap: Record<string, React.ReactNode> = {
+  support: <Headphones className="w-7 h-7" />,
+  installation: <Settings className="w-7 h-7" />,
+  maintenance: <Wrench className="w-7 h-7" />,
+};
+
 /* ------------------------------------------------------------------ */
 /*  PAGE COMPONENT                                                    */
 /* ------------------------------------------------------------------ */
@@ -77,6 +154,8 @@ const testimonials = [
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/services')
@@ -85,6 +164,19 @@ export default function ServicesPage() {
       .catch(() => setServices([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const toggleExpand = (id: string) => {
+    const next = expandedId === id ? null : id;
+    setExpandedId(next);
+    if (next) {
+      setTimeout(() => {
+        panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
+  };
+
+  const getDetails = (service: Service) =>
+    serviceDetails[service.slug || ''] ?? defaultDetails;
 
   const whatsappLink =
     'https://wa.me/918778500296?text=Hello%20TN%20Automation%2C%20I%20would%20like%20to%20know%20more%20about%20your%20CCTV%20services.';
@@ -105,70 +197,208 @@ export default function ServicesPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* ====== Services Grid ====== */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {loading ? (
-            /* Skeleton placeholders */
-            Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-card border border-border rounded-2xl p-8 animate-pulse"
-              >
-                <div className="w-14 h-14 bg-muted rounded-xl mb-5" />
-                <div className="h-5 bg-muted rounded w-2/3 mb-3" />
-                <div className="h-4 bg-muted rounded w-full mb-2" />
-                <div className="h-4 bg-muted rounded w-4/5 mb-5" />
-                <div className="h-4 bg-muted rounded w-1/3 mb-5" />
-                <div className="h-9 bg-muted rounded w-28" />
+        <div className="mb-16">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-card border border-border rounded-2xl p-8 animate-pulse"
+                >
+                  <div className="w-14 h-14 bg-muted rounded-xl mb-5" />
+                  <div className="h-5 bg-muted rounded w-2/3 mb-3" />
+                  <div className="h-4 bg-muted rounded w-full mb-2" />
+                  <div className="h-4 bg-muted rounded w-4/5 mb-5" />
+                  <div className="h-4 bg-muted rounded w-1/3 mb-5" />
+                  <div className="h-9 bg-muted rounded w-28" />
+                </div>
+              ))
+            ) : services.length === 0 ? (
+              <div className="col-span-3 text-center py-16 text-muted-foreground">
+                No services available at the moment. Please check back soon.
               </div>
-            ))
-          ) : services.length === 0 ? (
-            <div className="col-span-3 text-center py-16 text-muted-foreground">
-              No services available at the moment. Please check back soon.
-            </div>
-          ) : (
-            services.map((service) => (
-              <div
-                key={service._id}
-                className="bg-card border border-border rounded-2xl hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-              >
-                <div className="p-6 sm:p-8 flex flex-col h-full">
-                  {/* Icon */}
-                  <div className="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-5">
-                    <Wrench className="w-7 h-7" />
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="font-semibold text-xl text-foreground mb-2">
-                    {service.name}
-                  </h3>
-
-                  {/* Description */}
-                  <p className="text-muted-foreground text-sm leading-relaxed mb-5 flex-1">
-                    {service.description}
-                  </p>
-
-                  {/* Price */}
-                  {service.price && service.price > 0 && (
-                    <p className="text-primary font-bold text-lg mb-5">
-                      Starting from ₹{service.price}
-                    </p>
-                  )}
-
-                  {/* Learn More — opens WhatsApp with service name */}
-                  <a
-                    href={`https://wa.me/918778500296?text=Hello%20TN%20Automation%2C%20I%20would%20like%20to%20know%20more%20about%20${encodeURIComponent(service.name)}.`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+            ) : (
+              services.map((service) => {
+                const isExpanded = expandedId === service._id;
+                return (
+                  <div
+                    key={service._id}
+                    className={`bg-card border rounded-2xl transition-all duration-300 ${
+                      isExpanded
+                        ? 'border-primary/40 shadow-lg shadow-primary/5 ring-1 ring-primary/20'
+                        : 'border-border hover:shadow-lg hover:border-primary/30'
+                    }`}
                   >
-                    <Button size="sm" variant="outline" className="gap-1.5 w-full">
-                      Learn More
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </a>
+                    <div className="p-6 sm:p-8 flex flex-col h-full">
+                      <div className="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-5">
+                        {serviceIconMap[service.icon || ''] ?? <Wrench className="w-7 h-7" />}
+                      </div>
+
+                      <h3 className="font-semibold text-xl text-foreground mb-2">
+                        {service.name}
+                      </h3>
+
+                      <p className="text-muted-foreground text-sm leading-relaxed mb-5 flex-1">
+                        {service.description}
+                      </p>
+
+                      {service.price != null && service.price > 0 && (
+                        <p className="text-primary font-bold text-lg mb-5">
+                          From ₹{service.price}
+                        </p>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant={isExpanded ? 'default' : 'outline'}
+                        className="gap-1.5 w-full"
+                        onClick={() => toggleExpand(service._id)}
+                      >
+                        {isExpanded ? (
+                          <>
+                            Show Less
+                            <ChevronUp className="w-4 h-4" />
+                          </>
+                        ) : (
+                          <>
+                            Learn More
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* ====== Expanded Detail Panel ====== */}
+          {expandedId && services.length > 0 && (() => {
+            const service = services.find((s) => s._id === expandedId);
+            if (!service) return null;
+            const info = getDetails(service);
+            return (
+              <div
+                ref={panelRef}
+                className="mt-6 animate-in fade-in slide-in-from-top-2 duration-300"
+              >
+                <div className="bg-card border border-primary/20 rounded-2xl shadow-lg shadow-primary/5 overflow-hidden">
+                  <div className="grid md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-border">
+                    {/* LEFT — Service summary */}
+                    <div className="md:col-span-2 p-6 sm:p-8 flex flex-col">
+                      <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4">
+                        {serviceIconMap[service.icon || ''] ?? <Wrench className="w-6 h-6" />}
+                      </div>
+                      <h3 className="text-xl font-bold text-foreground mb-2">
+                        {service.name}
+                      </h3>
+                      <p className="text-muted-foreground text-sm leading-relaxed mb-4 flex-1">
+                        {service.description}
+                      </p>
+                      {service.price != null && service.price > 0 && (
+                        <p className="text-primary font-bold text-2xl mb-5">
+                          From ₹{service.price}
+                        </p>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 w-full sm:w-auto"
+                        onClick={() => setExpandedId(null)}
+                      >
+                        Show Less
+                        <ChevronUp className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* RIGHT — Service details */}
+                    <div className="md:col-span-3 p-6 sm:p-8 bg-muted/30">
+                      <h4 className="text-lg font-bold text-foreground mb-3">
+                        Service Details
+                      </h4>
+                      <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+                        {info.details}
+                      </p>
+
+                      <div className="grid sm:grid-cols-3 gap-5">
+                        {/* Equipment */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                              <Cpu className="w-4 h-4" />
+                            </div>
+                            <h5 className="text-sm font-semibold text-foreground">
+                              Equipment Supported
+                            </h5>
+                          </div>
+                          <ul className="space-y-2">
+                            {info.equipment.map((item) => (
+                              <li
+                                key={item}
+                                className="flex items-start gap-2 text-sm text-muted-foreground"
+                              >
+                                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Installation Time */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                              <Clock className="w-4 h-4" />
+                            </div>
+                            <h5 className="text-sm font-semibold text-foreground">
+                              Installation Time
+                            </h5>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {info.installTime}
+                          </p>
+                        </div>
+
+                        {/* Warranty */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                              <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <h5 className="text-sm font-semibold text-foreground">
+                              Warranty
+                            </h5>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {info.warranty}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* CTA inside panel */}
+                      <div className="mt-6 pt-5 border-t border-border flex flex-wrap items-center gap-3">
+                        <a
+                          href={`https://wa.me/918778500296?text=Hello%20TN%20Automation%2C%20I%20would%20like%20to%20know%20more%20about%20${encodeURIComponent(service.name)}.`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Button size="sm" className="gap-1.5">
+                            Get a Quote <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </a>
+                        <a href="tel:+918778500296">
+                          <Button size="sm" variant="outline" className="gap-1.5">
+                            <Phone className="w-4 h-4" /> Call Now
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))
-          )}
+            );
+          })()}
         </div>
 
         {/* ====== Testimonials ====== */}

@@ -29,32 +29,36 @@ export default function HelpPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Help & Support</h1>
-        <p className="text-muted-foreground text-sm">Get assistance with the admin panel</p>
+        <h1 className="text-2xl font-bold text-gray-900">Help & Support</h1>
+        <p className="text-gray-500 text-sm">Get assistance with the admin panel</p>
       </div>
 
       {/* Contact Developer */}
-      <div className="bg-card border border-border rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Phone className="w-5 h-5 text-primary" />
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Phone className="w-5 h-5 text-blue-600" />
           Contact Developer
         </h2>
         <div className="space-y-3">
           <div className="flex items-center gap-3 text-sm">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <span className="text-foreground">support@tnautomation.com</span>
+            <Mail className="w-4 h-4 text-gray-400" />
+            <a href="mailto:vinothelango2110@gmail.com" className="text-gray-900 hover:underline">
+              vinothelango2110@gmail.com
+            </a>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <Phone className="w-4 h-4 text-muted-foreground" />
-            <span className="text-foreground">+91 9876543210</span>
+            <Phone className="w-4 h-4 text-gray-400" />
+            <a href="tel:+918778500296" className="text-gray-900 hover:underline">
+              +91 8778500296
+            </a>
           </div>
         </div>
       </div>
 
       {/* Documentation */}
-      <div className="bg-card border border-border rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary" />
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-blue-600" />
           Documentation
         </h2>
         <ul className="space-y-2">
@@ -65,11 +69,11 @@ export default function HelpPage() {
             { label: 'Store Settings', desc: 'Configuring your store information' },
           ].map((doc) => (
             <li key={doc.label}>
-              <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                <ExternalLink className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
+              <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-blue-50/30 transition-colors cursor-pointer">
+                <ExternalLink className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">{doc.label}</p>
-                  <p className="text-xs text-muted-foreground">{doc.desc}</p>
+                  <p className="text-sm font-medium text-gray-900">{doc.label}</p>
+                  <p className="text-xs text-gray-500">{doc.desc}</p>
                 </div>
               </div>
             </li>
@@ -78,16 +82,16 @@ export default function HelpPage() {
       </div>
 
       {/* FAQ */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-          <HelpCircle className="w-5 h-5 text-primary" />
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <HelpCircle className="w-5 h-5 text-blue-600" />
           Frequently Asked Questions
         </h2>
         <div className="space-y-4">
           {faqs.map((faq, i) => (
-            <div key={i} className="border-b border-border pb-4 last:border-0 last:pb-0">
-              <p className="text-sm font-medium text-foreground mb-1">{faq.q}</p>
-              <p className="text-sm text-muted-foreground">{faq.a}</p>
+            <div key={i} className="border-b border-gray-200 pb-4 last:border-0 last:pb-0">
+              <p className="text-sm font-medium text-gray-900 mb-1">{faq.q}</p>
+              <p className="text-sm text-gray-500">{faq.a}</p>
             </div>
           ))}
         </div>

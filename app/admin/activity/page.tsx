@@ -70,7 +70,7 @@ export default function ActivityLogPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -78,27 +78,27 @@ export default function ActivityLogPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Activity Log</h1>
-        <p className="text-muted-foreground text-sm">
+        <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
+        <p className="text-gray-500 text-sm">
           Recent admin activity — {logs.length} entries
         </p>
       </div>
 
       {logs.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
-          <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">No activity recorded yet</p>
+        <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-12 text-center">
+          <Activity className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">No activity recorded yet</p>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="divide-y divide-border">
+        <div className="bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden">
+          <div className="divide-y divide-gray-200">
             {logs.map((log) => {
               const Icon = getActionIcon(log.action);
               const colorClass = getActionColor(log.action);
               return (
                 <div
                   key={log._id}
-                  className="px-5 py-4 flex items-start gap-4 hover:bg-muted/50 transition-colors"
+                  className="px-5 py-4 flex items-start gap-4 hover:bg-blue-50/30 transition-colors"
                 >
                   <div
                     className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${colorClass}`}
@@ -106,20 +106,20 @@ export default function ActivityLogPage() {
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-sm font-medium text-gray-900">
                       {log.adminName}{' '}
-                      <span className="font-normal text-muted-foreground">
+                      <span className="font-normal text-gray-500">
                         {log.action.toLowerCase()}
                       </span>
                       {log.details && (
-                        <span className="font-normal text-muted-foreground">
+                        <span className="font-normal text-gray-500">
                           {' '}
                           — {log.details}
                         </span>
                       )}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
                     <Clock className="w-3.5 h-3.5" />
                     {timeAgo(log.createdAt)}
                   </div>

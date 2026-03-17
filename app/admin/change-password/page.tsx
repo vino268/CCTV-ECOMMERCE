@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 
 const inputClass =
-  'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+  'w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors';
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -70,16 +70,16 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Change Password</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Change Password</h1>
 
-      <div className="bg-card border border-border rounded-xl p-6">
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <KeyRound className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+            <KeyRound className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Update Password</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="font-semibold text-gray-900">Update Password</h3>
+            <p className="text-xs text-gray-500">
               Enter your current password and choose a new one
             </p>
           </div>
@@ -101,7 +101,7 @@ export default function ChangePasswordPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Current Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               Current Password
             </label>
             <div className="relative">
@@ -116,7 +116,7 @@ export default function ChangePasswordPage() {
               <button
                 type="button"
                 onClick={() => setShowCurrent(!showCurrent)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900"
               >
                 {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -125,7 +125,7 @@ export default function ChangePasswordPage() {
 
           {/* New Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               New Password
             </label>
             <div className="relative">
@@ -140,7 +140,7 @@ export default function ChangePasswordPage() {
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900"
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -149,7 +149,7 @@ export default function ChangePasswordPage() {
 
           {/* Confirm Password */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               Confirm New Password
             </label>
             <div className="relative">
@@ -164,7 +164,7 @@ export default function ChangePasswordPage() {
               <button
                 type="button"
                 onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-900"
               >
                 {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>

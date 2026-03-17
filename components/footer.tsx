@@ -21,6 +21,12 @@ const fallback: Settings = {
 export function Footer() {
   const [s, setS] = useState<Settings>(fallback);
   const [loaded, setLoaded] = useState(false);
+  const legalLinks = [
+    { href: '/privacy', label: 'Privacy Policy' },
+    { href: '/terms', label: 'Terms of Service' },
+    { href: '/sitemap', label: 'Sitemap' },
+    { href: '/admin/login', label: 'Admin Login' },
+  ];
 
   useEffect(() => {
     fetch('/api/settings')
@@ -178,16 +184,20 @@ export function Footer() {
       <div className="border-t border-blue-800">
         <div className="container mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-blue-300">
           <p>&copy; {new Date().getFullYear()} {s.storeName}. All rights reserved.</p>
-          <div className="flex items-center gap-5">
-            <Link href="#" className="hover:text-white transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="#" className="hover:text-white transition-colors">
-              Terms of Service
-            </Link>
-            <Link href="#" className="hover:text-white transition-colors">
-              Sitemap
-            </Link>
+          <div className="flex w-full justify-end gap-6 text-sm md:w-auto">
+            {legalLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={
+                  link.href === '/admin/login'
+                    ? 'opacity-30 text-blue-200 hover:opacity-100 hover:text-white transition duration-300'
+                    : 'hover:text-white transition-colors'
+                }
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       </div>

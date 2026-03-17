@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 
 type SiteSettings = {
+  _id?: string;
   storeName: string;
   description: string;
+  taxPercentage: number;
   contact: { phone: string; email: string; address: string };
   social: { facebook: string; instagram: string; twitter: string; linkedin: string; youtube: string };
 };
 
 const defaultSettings: SiteSettings = {
+  _id: undefined,
   storeName: '',
   description: '',
+  taxPercentage: 0,
   contact: { phone: '', email: '', address: '' },
   social: { facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '' },
 };
@@ -28,8 +31,12 @@ export default function AdminSettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         setSettings({
+          _id: data._id,
           storeName: data.storeName ?? '',
           description: data.description ?? '',
+          taxPercentage: Number.isFinite(Number(data.taxPercentage))
+            ? Number(data.taxPercentage)
+            : 0,
           contact: {
             phone: data.contact?.phone ?? '',
             email: data.contact?.email ?? '',
@@ -72,12 +79,12 @@ export default function AdminSettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground">Manage system settings</p>
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Manage system settings</p>
       </div>
 
       {/* Store Information */}
-      <Card className="p-6 border border-border">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h2 className="text-xl font-bold text-foreground mb-4">
           Store Information
         </h2>
@@ -110,12 +117,12 @@ export default function AdminSettingsPage() {
             />
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Contact Information */}
-      <Card className="p-6 border border-border">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h2 className="text-xl font-bold text-foreground mb-4">
-          Contact Information
+          Business Settings
         </h2>
         <div className="space-y-4">
           <div>
@@ -168,11 +175,31 @@ export default function AdminSettingsPage() {
               className={inputClass}
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-foreground mb-2">
+              Tax Percentage
+            </label>
+            <input
+              type="number"
+              placeholder="Enter tax percentage"
+              value={settings.taxPercentage}
+              min={0}
+              step="0.01"
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  taxPercentage: Number(e.target.value),
+                })
+              }
+              className={inputClass}
+            />
+          </div>
         </div>
-      </Card>
+      </div>
 
       {/* Footer / Social Media Settings */}
-      <Card className="p-6 border border-border">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <h2 className="text-xl font-bold text-foreground mb-4">
           Footer Settings
         </h2>
@@ -272,7 +299,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Save */}
       <div className="flex items-center gap-4">

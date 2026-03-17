@@ -1,19 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Trash2, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { formatINRCurrency } from '@/lib/currency';
 
 export default function CartPage() {
   const { cart, removeFromCart, updateQuantity, getCartTotal, clearCart } =
     useCart();
   const router = useRouter();
+  const [taxRate, setTaxRate] = useState(0);
+
+  useEffect(() => {
+    async function fetchTaxRate() {
+      try {
+        const res = await fetch('/api/settings', { cache: 'no-store' });
+        if (!res.ok) {
+          setTaxRate(0);
+          return;
+        }
+
+        const settings = await res.json();
+        const parsedTaxRate = Number(settings?.taxPercentage);
+        setTaxRate(Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0);
+      } catch (err) {
+        console.error('Error loading tax settings:', err);
+        setTaxRate(0);
+      }
+    }
+
+    fetchTaxRate();
+  }, []);
 
   const cartTotal = getCartTotal();
   const shippingCost = cartTotal > 100 ? 0 : 9.99;
-  const tax = cartTotal * 0.08;
+  const tax = (cartTotal * taxRate) / 100;
   const total = cartTotal + shippingCost + tax;
 
   // Cart items already contain product data from the cart context
@@ -67,114 +91,118 @@ export default function CartPage() {
           {/* Cart Items */}
           <div className="lg:col-span-2">
             <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      <th className="text-left px-6 py-4 font-semibold">
-                        Product
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Price
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Quantity
-                      </th>
-                      <th className="text-right px-6 py-4 font-semibold">
-                        Total
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cartItems.map((item) => (
-                      <tr
-                        key={item.productId}
-                        className="border-b border-border hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex gap-4 items-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-primary/10 to-secondary/10 rounded flex items-center justify-center text-2xl">
-                              📷
-                            </div>
-                            <div>
-                              <p className="font-semibold text-foreground">
-                                {item.product?.name}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                SKU: {item.productId}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          ${item.product?.price.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex border border-border rounded-lg w-24 mx-auto">
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.productId,
-                                  item.quantity - 1
-                                )
-                              }
-                              className="px-3 py-1 hover:bg-muted transition-colors"
-                            >
-                              −
-                            </button>
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updateQuantity(
-                                  item.productId,
-                                  Math.max(
-                                    1,
-                                    parseInt(e.target.value) || 1
-                                  )
-                                )
-                              }
-                              className="w-12 text-center py-1 border-l border-r border-border focus:outline-none"
-                            />
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.productId,
-                                  item.quantity + 1
-                                )
-                              }
-                              className="px-3 py-1 hover:bg-muted transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-semibold">
-                          $
-                          {(
-                            (item.product?.price || 0) * item.quantity
-                          ).toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            onClick={() => removeFromCart(item.productId)}
-                            className="p-2 hover:bg-destructive/10 rounded transition-colors text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="hidden md:grid md:grid-cols-5 gap-4 border-b border-border bg-muted/50 px-6 py-4 text-sm font-semibold text-foreground">
+                <div>Product</div>
+                <div className="text-center">Price</div>
+                <div className="text-center">Quantity</div>
+                <div className="text-right">Total</div>
+                <div className="text-center">Action</div>
               </div>
 
-              <div className="px-6 py-4 bg-muted/30 flex justify-between items-center">
+              <div className="divide-y divide-border">
+                {cartItems.map((item) => (
+                  <div
+                    key={item.productId}
+                    className="grid grid-cols-1 gap-4 px-4 py-5 transition-colors hover:bg-muted/20 md:grid-cols-5 md:items-center md:px-6"
+                  >
+                    <div className="md:col-span-1">
+                      <Link href={`/products/${item.productId}`} className="flex items-start gap-4 min-w-[260px]">
+                        <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded bg-gradient-to-br from-primary/10 to-secondary/10">
+                          {item.product?.image ? (
+                            <img
+                              src={item.product.image}
+                              alt={item.product.name}
+                              className="h-full w-full object-cover hover:opacity-80 transition"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-2xl">
+                              📷
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <p className="font-medium text-gray-900 whitespace-normal hover:text-blue-600">
+                            {item.product?.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            SKU: {item.productId}
+                          </p>
+                        </div>
+                      </Link>
+                    </div>
+
+                    <div className="md:text-center">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:hidden">
+                        Price
+                      </p>
+                      <p className="font-medium text-foreground">
+                        {formatINRCurrency(item.product?.price || 0)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:hidden">
+                        Quantity
+                      </p>
+                      <div className="mt-1 flex w-full max-w-[10rem] items-center overflow-hidden rounded-lg border border-border md:mx-auto md:mt-0">
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.productId, item.quantity - 1)
+                          }
+                          className="flex-1 px-3 py-2 transition-colors hover:bg-muted"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            updateQuantity(
+                              item.productId,
+                              Math.max(1, parseInt(e.target.value) || 1)
+                            )
+                          }
+                          className="w-14 border-x border-border py-2 text-center focus:outline-none"
+                        />
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.productId, item.quantity + 1)
+                          }
+                          className="flex-1 px-3 py-2 transition-colors hover:bg-muted"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="md:text-right">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:hidden">
+                        Total
+                      </p>
+                      <p className="font-semibold text-foreground">
+                        {formatINRCurrency((item.product?.price || 0) * item.quantity)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground md:hidden">
+                        Action
+                      </p>
+                      <button
+                        onClick={() => removeFromCart(item.productId)}
+                        className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/20 px-4 py-2 text-destructive transition-colors hover:bg-destructive/10 md:mt-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-3 bg-muted/30 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
                 <Link href="/products">
-                  <Button variant="outline" className="gap-2">
+                  <Button variant="outline" className="w-full gap-2 md:w-auto">
                     <ArrowLeft className="w-4 h-4" />
                     Continue Shopping
                   </Button>
@@ -182,7 +210,7 @@ export default function CartPage() {
                 <Button
                   variant="outline"
                   onClick={() => clearCart()}
-                  className="text-destructive"
+                  className="w-full text-destructive md:w-auto"
                 >
                   Clear Cart
                 </Button>
@@ -200,7 +228,7 @@ export default function CartPage() {
               <div className="space-y-3 border-b border-border pb-4">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatINRCurrency(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
@@ -208,24 +236,24 @@ export default function CartPage() {
                     {shippingCost === 0 ? (
                       <span className="text-primary font-semibold">Free</span>
                     ) : (
-                      `$${shippingCost.toFixed(2)}`
+                      formatINRCurrency(shippingCost)
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Tax</span>
-                  <span>${tax.toFixed(2)}</span>
+                  <span>Tax ({taxRate}%)</span>
+                  <span>{formatINRCurrency(tax)}</span>
                 </div>
               </div>
 
               <div className="flex justify-between text-lg font-bold text-foreground">
                 <span>Total</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
+                <span className="text-primary">{formatINRCurrency(total)}</span>
               </div>
 
               {cartTotal < 100 && (
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-foreground">
-                  Add ${(100 - cartTotal).toFixed(2)} more for free shipping!
+                  Add {formatINRCurrency(100 - cartTotal)} more for free shipping!
                 </div>
               )}
 

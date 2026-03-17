@@ -89,6 +89,14 @@ const OrderSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  cancelReason: {
+    type: String,
+    default: '',
+  },
+  cancelComment: {
+    type: String,
+    default: '',
+  },
   estimatedDelivery: {
     type: Date,
     default: null,

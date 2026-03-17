@@ -1,25 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft, Check } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { CartItem, Product } from '@/lib/types';
+import { formatINRCurrency } from '@/lib/currency';
 
 export default function CheckoutPage() {
-  const { cart, getCartTotal, clearCart } = useCart();
+  const { cart, clearCart } = useCart();
   const router = useRouter();
+  const searchParams = useSearchParams();
   type CheckoutStep = 'info' | 'payment' | 'complete';
   const [step, setStep] = useState<CheckoutStep>('info');
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [directBuyProduct, setDirectBuyProduct] = useState<Product | null>(null);
+  const [isDirectBuyLoading, setIsDirectBuyLoading] = useState(false);
+  const [taxRate, setTaxRate] = useState(0);
+  const directBuyProductId = searchParams.get('productId');
 
   // Auth guard + auto-fill from user profile
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (!stored) {
-      localStorage.setItem('redirectAfterLogin', '/checkout');
+      const redirectPath = directBuyProductId
+        ? `/checkout?productId=${encodeURIComponent(directBuyProductId)}`
+        : '/checkout';
+      localStorage.setItem('redirectAfterLogin', redirectPath);
       router.push('/account');
       return;
     }
@@ -37,7 +47,90 @@ export default function CheckoutPage() {
       phone: prev.phone || user.phone || '',
       address: prev.address || user.address || '',
     }));
-  }, [router]);
+  }, [directBuyProductId, router]);
+
+  useEffect(() => {
+    if (!directBuyProductId) {
+      setDirectBuyProduct(null);
+      setIsDirectBuyLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchDirectBuyProduct() {
+      setIsDirectBuyLoading(true);
+
+      try {
+        const res = await fetch(`/api/products/${directBuyProductId}`, {
+          cache: 'no-store',
+        });
+
+        if (!res.ok) {
+          throw new Error('Product not found');
+        }
+
+        const product: Product = await res.json();
+        if (!cancelled) {
+          setDirectBuyProduct(product);
+        }
+      } catch (err) {
+        console.error('Error loading Buy Now product:', err);
+        if (!cancelled) {
+          setDirectBuyProduct(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsDirectBuyLoading(false);
+        }
+      }
+    }
+
+    fetchDirectBuyProduct();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [directBuyProductId]);
+
+  useEffect(() => {
+    async function fetchTaxRate() {
+      try {
+        const res = await fetch('/api/settings', { cache: 'no-store' });
+        if (!res.ok) {
+          setTaxRate(0);
+          return;
+        }
+
+        const settings = await res.json();
+        const nextTaxRate = Number(settings?.taxPercentage ?? 0);
+        setTaxRate(Number.isFinite(nextTaxRate) ? nextTaxRate : 0);
+      } catch (err) {
+        console.error('Error loading tax settings:', err);
+        setTaxRate(0);
+      }
+    }
+
+    fetchTaxRate();
+
+    const handleWindowFocus = () => {
+      fetchTaxRate();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchTaxRate();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -52,13 +145,36 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState('cod');
 
-  const cartTotal = getCartTotal();
-  const shippingCost = cartTotal > 100 ? 0 : 9.99;
-  const tax = cartTotal * 0.08;
-  const total = cartTotal + shippingCost + tax;
+  const cartItems = useMemo<CartItem[]>(() => {
+    if (directBuyProductId) {
+      if (!directBuyProduct) {
+        return [];
+      }
 
-  // Cart items already contain product data from the cart context
-  const cartItems = cart;
+      return [
+        {
+          productId: directBuyProduct._id || directBuyProduct.id,
+          quantity: 1,
+          product: directBuyProduct,
+        },
+      ];
+    }
+
+    return cart;
+  }, [cart, directBuyProduct, directBuyProductId]);
+
+  const cartTotal = useMemo(
+    () =>
+      cartItems.reduce(
+        (total, item) => total + (item.product?.price || 0) * item.quantity,
+        0
+      ),
+    [cartItems]
+  );
+  const subtotal = cartTotal;
+  const shippingCost = cartTotal > 100 ? 0 : 9.99;
+  const tax = (subtotal * taxRate) / 100;
+  const total = subtotal + shippingCost + tax;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -129,7 +245,9 @@ export default function CheckoutPage() {
       if (!res.ok) throw new Error('Failed to save order');
 
       setOrderNumber(newOrderNumber);
-      clearCart();
+      if (!directBuyProductId) {
+        clearCart();
+      }
       setStep('complete');
     } catch (err) {
       console.error('Error placing order:', err);
@@ -138,6 +256,23 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
+
+  if (isDirectBuyLoading) {
+    return (
+      <div className="bg-background min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center py-16">
+            <h1 className="text-3xl font-bold text-foreground mb-4">
+              Loading checkout
+            </h1>
+            <p className="text-muted-foreground">
+              Preparing your selected product for checkout.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'complete') {
     return (
@@ -179,7 +314,7 @@ export default function CheckoutPage() {
                 </p>
                 <p>
                   <span className="text-muted-foreground">Total Amount:</span>{' '}
-                  <span className="font-semibold">${total.toFixed(2)}</span>
+                  <span className="font-semibold">{formatINRCurrency(total)}</span>
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -195,14 +330,19 @@ export default function CheckoutPage() {
     );
   }
 
-  if (cart.length === 0 && step !== 'complete') {
+  if (cartItems.length === 0 && step !== 'complete') {
     return (
       <div className="bg-background min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center py-16">
             <h1 className="text-3xl font-bold text-foreground mb-4">
-              Your cart is empty
+              {directBuyProductId ? 'Product unavailable' : 'Your cart is empty'}
             </h1>
+            <p className="text-muted-foreground mb-6">
+              {directBuyProductId
+                ? 'We could not load this product for direct checkout.'
+                : 'Add products to your cart before proceeding to checkout.'}
+            </p>
             <Link href="/products">
               <Button>Continue Shopping</Button>
             </Link>
@@ -440,7 +580,7 @@ export default function CheckoutPage() {
                       {item.product?.name} x{item.quantity}
                     </span>
                     <span className="font-semibold">
-                      ${((item.product?.price || 0) * item.quantity).toFixed(2)}
+                      {formatINRCurrency((item.product?.price || 0) * item.quantity)}
                     </span>
                   </div>
                 ))}
@@ -449,7 +589,7 @@ export default function CheckoutPage() {
               <div className="space-y-2 mb-6 pb-6 border-b border-border">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatINRCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Shipping</span>
@@ -457,19 +597,19 @@ export default function CheckoutPage() {
                     {shippingCost === 0 ? (
                       <span className="text-primary font-semibold">Free</span>
                     ) : (
-                      `$${shippingCost.toFixed(2)}`
+                      formatINRCurrency(shippingCost)
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Tax (8%)</span>
-                  <span>${tax.toFixed(2)}</span>
+                  <span>Tax ({taxRate}%)</span>
+                  <span>{formatINRCurrency(tax)}</span>
                 </div>
               </div>
 
               <div className="flex justify-between text-lg font-bold text-foreground">
                 <span>Total</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
+                <span className="text-primary">{formatINRCurrency(total)}</span>
               </div>
             </div>
           </div>

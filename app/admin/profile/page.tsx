@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { User, Mail, Phone, Shield, Calendar, Save, Loader2 } from 'lucide-react';
 
 const inputClass =
-  'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+  'w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors';
 
 interface AdminProfile {
   _id: string;
@@ -94,32 +94,32 @@ export default function AdminProfilePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Admin Profile</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Admin Profile</h1>
 
       {/* Profile Info Card */}
       {admin && (
-        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 mb-6">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-2xl font-bold">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
               {(admin.name || admin.email).charAt(0).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{admin.name || 'Admin'}</h2>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <h2 className="text-lg font-semibold text-gray-900">{admin.name || 'Admin'}</h2>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Shield className="w-3.5 h-3.5" />
                 {admin.role || 'admin'}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
             <Calendar className="w-3.5 h-3.5" />
             Joined: {admin.createdAt ? new Date(admin.createdAt).toLocaleDateString() : 'N/A'}
           </div>
@@ -127,8 +127,8 @@ export default function AdminProfilePage() {
       )}
 
       {/* Edit Form */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Edit Profile</h3>
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Profile</h3>
 
         {message.text && (
           <div
@@ -144,7 +144,7 @@ export default function AdminProfilePage() {
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               <span className="flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5" /> Name
               </span>
@@ -159,7 +159,7 @@ export default function AdminProfilePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               <span className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5" /> Email
               </span>
@@ -175,7 +175,7 @@ export default function AdminProfilePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
+            <label className="block text-sm font-medium text-gray-900 mb-1.5">
               <span className="flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5" /> Phone
               </span>

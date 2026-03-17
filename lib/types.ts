@@ -16,6 +16,7 @@ export interface Product {
 }
 
 export interface Service {
+  _id?: string;
   id: string;
   name: string;
   description: string;

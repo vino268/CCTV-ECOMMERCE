@@ -7,11 +7,20 @@ import AdminLog from "@/models/AdminLog";
 export async function GET() {
   try {
     await connectDB();
-    let settings = await SiteSettings.findOne();
-    if (!settings) {
-      settings = await SiteSettings.create({});
+    let settingsDoc = await SiteSettings.findOne().sort({ updatedAt: -1, createdAt: -1 });
+    if (!settingsDoc) {
+      settingsDoc = await SiteSettings.create({ taxPercentage: 0 });
     }
-    return NextResponse.json(settings);
+
+    const settings = settingsDoc.toObject();
+    const parsedTaxPercentage = Number(settings.taxPercentage ?? 0);
+
+    return NextResponse.json({
+      ...settings,
+      taxPercentage: Number.isFinite(parsedTaxPercentage)
+        ? parsedTaxPercentage
+        : 0,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch settings" },
@@ -25,11 +34,14 @@ export async function POST(req) {
   try {
     await connectDB();
     const data = await req.json();
+    const parsedTax = Number(data.taxPercentage);
+    const taxPercentage = Number.isFinite(parsedTax) ? parsedTax : 0;
 
     // Only allow known fields
     const update = {
       storeName: data.storeName,
       description: data.description,
+      taxPercentage,
       contact: {
         phone: data.contact?.phone,
         email: data.contact?.email,
@@ -44,11 +56,26 @@ export async function POST(req) {
       },
     };
 
-    const settings = await SiteSettings.findOneAndUpdate({}, update, {
-      new: true,
-      upsert: true,
-      runValidators: true,
-    });
+    let settings;
+
+    if (data._id) {
+      settings = await SiteSettings.findByIdAndUpdate(data._id, update, {
+        new: true,
+        runValidators: true,
+      });
+    }
+
+    if (!settings) {
+      settings = await SiteSettings.findOneAndUpdate({}, update, {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        sort: { updatedAt: -1, createdAt: -1 },
+      });
+    }
+
+    const settingsObject = settings.toObject();
+    const parsedTaxPercentage = Number(settingsObject.taxPercentage ?? 0);
 
     await AdminLog.create({
       adminName: "Admin",
@@ -56,7 +83,12 @@ export async function POST(req) {
       details: "Site settings updated",
     });
 
-    return NextResponse.json(settings);
+    return NextResponse.json({
+      ...settingsObject,
+      taxPercentage: Number.isFinite(parsedTaxPercentage)
+        ? parsedTaxPercentage
+        : 0,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to update settings" },

@@ -69,12 +69,14 @@ export function AccountMenu() {
   }
 
   // Logged in — show avatar button + dropdown
-  const initials = user.name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = (user.name && typeof user.name === 'string')
+    ? user.name
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : '--';
 
   return (
     <div ref={menuRef} className="relative">
@@ -86,7 +88,7 @@ export function AccountMenu() {
           {initials}
         </div>
         <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">
-          {user.name.split(' ')[0]}
+          {(user.name && typeof user.name === 'string') ? user.name.split(' ')[0] : '--'}
         </span>
       </button>
 

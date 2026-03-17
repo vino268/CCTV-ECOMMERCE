@@ -12,6 +12,7 @@ export function Navbar() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const cartCount = getCartCount();
 
@@ -20,7 +21,7 @@ export function Navbar() {
     { href: '/products', label: 'Products' },
     { href: '/services', label: 'Services' },
     { href: '/#about', label: 'About' },
-    { href: '/#contact', label: 'Contact' },
+    { href: '/contact', label: 'Contact' },
   ];
 
   const handleSearch = (e: React.FormEvent) => {
@@ -30,6 +31,7 @@ export function Navbar() {
     router.push(`/products?search=${encodeURIComponent(trimmed)}`);
     setSearchQuery('');
     setSearchOpen(false);
+    setMobileSearchOpen(false);
     setMobileMenuOpen(false);
   };
 
@@ -57,8 +59,8 @@ export function Navbar() {
 
           {/* Right Side Icons */}
           <div className="flex items-center gap-4">
-            {/* Search */}
-            <div className="relative flex items-center">
+            {/* Desktop Search — hidden on mobile */}
+            <div className="relative hidden md:flex items-center">
               {searchOpen ? (
                 <form onSubmit={handleSearch} className="flex items-center">
                   <input
@@ -96,6 +98,14 @@ export function Navbar() {
               )}
             </div>
 
+            {/* Mobile Search Icon — opens full-screen overlay */}
+            <button
+              className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
+              onClick={() => setMobileSearchOpen(true)}
+            >
+              <Search className="w-5 h-5 text-foreground" />
+            </button>
+
             {/* Account Menu */}
             <AccountMenu />
 
@@ -129,19 +139,6 @@ export function Navbar() {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border py-4">
-            {/* Mobile Search */}
-            <form onSubmit={handleSearch} className="px-4 pb-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search products..."
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </form>
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -155,6 +152,35 @@ export function Navbar() {
           </div>
         )}
       </div>
+
+      {/* Mobile Search Overlay */}
+      {mobileSearchOpen && (
+        <div className="fixed inset-0 bg-white z-50 p-4">
+          <form onSubmit={handleSearch} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              autoFocus
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <button
+              type="submit"
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+            >
+              <Search className="w-5 h-5 text-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMobileSearchOpen(false); setSearchQuery(''); }}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-foreground" />
+            </button>
+          </form>
+        </div>
+      )}
     </nav>
   );
 }

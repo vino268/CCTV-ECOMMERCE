@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { formatINRCurrency } from '@/lib/currency';
 
 interface OrderProduct {
   productId: string;
@@ -40,6 +39,8 @@ interface Order {
   outForDeliveryAt?: string;
   deliveredAt?: string;
   cancelledAt?: string;
+  cancelReason?: string;
+  cancelComment?: string;
   trackingNumber?: string;
   estimatedDelivery?: string;
 }
@@ -54,12 +55,12 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 };
 
 const statusColors: Record<string, string> = {
-  Ordered: 'bg-yellow-100 text-yellow-800',
-  Confirmed: 'bg-blue-100 text-blue-800',
-  Shipped: 'bg-purple-100 text-purple-800',
-  OutForDelivery: 'bg-orange-100 text-orange-800',
-  Delivered: 'bg-green-100 text-green-800',
-  Cancelled: 'bg-red-100 text-red-800',
+  Ordered: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20',
+  Confirmed: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  Shipped: 'bg-purple-50 text-purple-700 ring-purple-600/20',
+  OutForDelivery: 'bg-orange-50 text-orange-700 ring-orange-600/20',
+  Delivered: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  Cancelled: 'bg-red-50 text-red-700 ring-red-600/20',
 };
 
 const statusLabels: Record<string, string> = {
@@ -72,9 +73,9 @@ const statusLabels: Record<string, string> = {
 };
 
 const paymentColors: Record<string, string> = {
-  Paid: 'bg-green-100 text-green-800',
-  Unpaid: 'bg-red-100 text-red-800',
-  Refunded: 'bg-gray-100 text-gray-800',
+  Paid: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  Unpaid: 'bg-red-50 text-red-700 ring-red-600/20',
+  Refunded: 'bg-gray-50 text-gray-600 ring-gray-500/20',
 };
 
 export default function AdminOrdersPage() {
@@ -125,96 +126,123 @@ export default function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Orders</h1>
-          <p className="text-muted-foreground">
-            Manage customer orders ({orders.length} total)
+          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage customer orders &middot; {orders.length} total
           </p>
         </div>
-        <Button variant="outline" onClick={fetchOrders} className="gap-2">
-          <RefreshCw className="w-4 h-4" /> Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Search orders..."
+            className="border rounded-lg px-3 py-2 w-64 focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={fetchOrders}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm"
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Orders Table */}
-      <Card className="border overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto w-full">
         {loading ? (
-          <div className="p-12 text-center text-muted-foreground">
-            Loading orders...
+          <div className="p-12 text-center">
+            <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mb-3" />
+            <p className="text-sm text-gray-400">Loading orders...</p>
           </div>
         ) : orders.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-lg text-muted-foreground mb-2">No orders yet</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base font-medium text-gray-500 mb-1">No orders yet</p>
+            <p className="text-sm text-gray-400">
               Orders will appear here once customers place them.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto w-full">
+            <table className="min-w-[700px] w-full">
               <thead>
-                <tr className="border-b bg-muted/40">
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Order #
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Customer
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                     Email
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Total
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Payment
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="p-4 text-left text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">
                     Date
                   </th>
-                  <th className="p-4 text-center text-sm font-medium text-muted-foreground">
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-50">
                 {orders.map((order) => (
                   <tr
                     key={order._id}
-                    className="border-b last:border-b-0 hover:bg-muted/20 transition-colors"
+                    className="transition-colors duration-150 hover:bg-blue-50/30"
                   >
-                    <td className="p-4 font-medium text-foreground">
+                    <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">
                       {order.orderNumber}
                     </td>
-                    <td className="p-4 text-foreground">
+                    <td className="px-5 py-3.5 text-sm text-gray-700">
                       {order.customerName}
                     </td>
-                    <td className="p-4 text-muted-foreground text-sm">
+                    <td className="px-5 py-3.5 text-sm text-gray-500 hidden lg:table-cell">
                       {order.email}
                     </td>
-                    <td className="p-4 font-medium text-foreground">
-                      ${order.totalAmount.toFixed(2)}
+                    <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">
+                      {formatINRCurrency(order.totalAmount)}
                     </td>
-                    <td className="p-4">
+                    <td className="px-5 py-3.5">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          paymentColors[order.paymentStatus] || 'bg-gray-100 text-gray-800'
+                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                          paymentColors[order.paymentStatus] || 'bg-gray-50 text-gray-600 ring-gray-500/20'
                         }`}
                       >
                         {order.paymentStatus}
                       </span>
                     </td>
-                    <td className="p-4">
+                    <td className="px-5 py-3.5">
                       {(() => {
                         const status = order.trackingStatus || order.orderStatus;
+                        if (status === 'Cancelled') {
+                          return (
+                            <div className="space-y-1">
+                              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${statusColors[status] || 'bg-gray-50 text-gray-600 ring-gray-500/20'}`}>
+                                {statusLabels[status] || status}
+                              </span>
+                              {order.cancelReason && (
+                                <div className="text-xs text-red-700 mt-1">Reason: {order.cancelReason}</div>
+                              )}
+                              {order.cancelComment && (
+                                <div className="text-xs text-gray-500">{order.cancelComment}</div>
+                              )}
+                            </div>
+                          );
+                        }
                         return (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              statusColors[status] || 'bg-gray-100 text-gray-800'
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                              statusColors[status] || 'bg-gray-50 text-gray-600 ring-gray-500/20'
                             }`}
                           >
                             {statusLabels[status] || status}
@@ -222,10 +250,10 @@ export default function AdminOrdersPage() {
                         );
                       })()}
                     </td>
-                    <td className="p-4 text-sm text-muted-foreground">
+                    <td className="px-5 py-3.5 text-sm text-gray-500 hidden md:table-cell">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="p-4">
+                    <td className="px-5 py-3.5 text-center">
                       {(() => {
                         const status = order.trackingStatus || order.orderStatus;
                         const allowed = ALLOWED_TRANSITIONS[status] ?? [];
@@ -233,7 +261,11 @@ export default function AdminOrdersPage() {
 
                         if (allowed.length === 0) {
                           return (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || ''}`}>
+                            <span
+                              className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                                statusColors[status] || 'bg-gray-50 text-gray-600 ring-gray-500/20'
+                              }`}
+                            >
                               {statusLabels[status] || status}
                             </span>
                           );
@@ -245,7 +277,7 @@ export default function AdminOrdersPage() {
                               handleStatusChange(order._id, e.target.value)
                             }
                             disabled={updatingId === order._id}
-                            className="border border-border rounded-md px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                            className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none transition-all focus:border-blue-300 focus:ring-2 focus:ring-blue-500/10 disabled:opacity-50"
                           >
                             {allStatuses.map((s) => (
                               <option
@@ -266,7 +298,8 @@ export default function AdminOrdersPage() {
             </table>
           </div>
         )}
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { User, Mail, Phone, Settings, Loader2, CheckCircle } from 'lucide-react';
 
 const inputClass =
-  'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+  'w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors';
 
 export default function AccountSettingsPage() {
   const [name, setName] = useState('');
@@ -79,24 +79,24 @@ export default function AccountSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
     <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-foreground mb-2">Account Settings</h1>
-      <p className="text-muted-foreground mb-6">Update your account information</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Account Settings</h1>
+      <p className="text-gray-500 mb-6">Update your account information</p>
 
-      <div className="bg-card border border-border rounded-xl p-6">
+      <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <Settings className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Settings className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Personal Information</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="font-semibold text-gray-900">Personal Information</h3>
+            <p className="text-xs text-gray-500">
               Update your name, email and phone number
             </p>
           </div>
@@ -117,8 +117,8 @@ export default function AccountSettingsPage() {
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
-              <User className="w-4 h-4 text-muted-foreground" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-1.5">
+              <User className="w-4 h-4 text-gray-400" />
               Name
             </label>
             <input
@@ -131,8 +131,8 @@ export default function AccountSettingsPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
-              <Mail className="w-4 h-4 text-muted-foreground" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-1.5">
+              <Mail className="w-4 h-4 text-gray-400" />
               Email
             </label>
             <input
@@ -146,8 +146,8 @@ export default function AccountSettingsPage() {
           </div>
 
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-1.5">
-              <Phone className="w-4 h-4 text-muted-foreground" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-1.5">
+              <Phone className="w-4 h-4 text-gray-400" />
               Phone Number
             </label>
             <input

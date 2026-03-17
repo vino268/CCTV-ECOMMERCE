@@ -42,7 +42,7 @@ export default function OrdersStatusChart() {
   const total = data.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-border p-6">
+    <div className="bg-white rounded-2xl shadow-sm border p-6">
       <div className="mb-6">
         <h3 className="text-lg font-bold text-foreground">Orders by Status</h3>
         <p className="text-sm text-muted-foreground">All time distribution</p>

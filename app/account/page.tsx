@@ -10,6 +10,8 @@ import {
   User,
   Package,
   MapPin,
+  Mail,
+  Lock,
   Eye,
   EyeOff,
   ChevronRight,
@@ -46,7 +48,7 @@ interface UserData {
 }
 
 const inputClass =
-  'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+  'w-full border border-slate-300 rounded-lg px-4 py-3 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -60,19 +62,20 @@ export default function AccountPage() {
   // Login form
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Signup form
   const [signupForm, setSignupForm] = useState({
     name: '',
     email: '',
+    phone: '',
+    dob: '',
     password: '',
     confirmPassword: '',
-    dob: '',
-    phone: '',
   });
   const [signupLoading, setSignupLoading] = useState(false);
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
+
+  // Custom tab state
+  const [activeTab, setActiveTab] = useState('login');
 
   // Check login on mount
   useEffect(() => {
@@ -239,229 +242,138 @@ export default function AccountPage() {
 
   if (!isLoggedIn) {
     return (
-      <div className="bg-background min-h-screen">
-        <div className="max-w-md mx-auto px-4 py-12">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="w-8 h-8" />
+      <div
+        className="min-h-screen bg-cover bg-center bg-no-repeat relative flex items-center justify-center"
+        style={{ backgroundImage: "url('/images/login-cctv-bg.jpg')" }}
+      >
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/40"></div>
+        {/* Login card container */}
+        <div className="relative z-10 flex items-center justify-center w-full">
+          <div className="w-full max-w-md">
+            <div className="mb-5 text-center text-white">
+              <p className="text-xl font-semibold tracking-wide">TN Automation</p>
+              <p className="text-sm text-slate-200">Professional CCTV Security Systems</p>
             </div>
-            <h1 className="text-3xl font-bold text-foreground">My Account</h1>
-            <p className="text-muted-foreground mt-1">
-              Login or create an account
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <Tabs defaultValue="login" onValueChange={() => setError('')}>
-              <TabsList className="grid grid-cols-2 w-full rounded-none">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-
-              {/* ====== LOGIN ====== */}
-              <TabsContent value="login" className="p-6">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={loginForm.email}
-                      onChange={(e) =>
-                        setLoginForm({ ...loginForm, email: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showLoginPassword ? 'text' : 'password'}
-                        placeholder="Enter your password"
-                        value={loginForm.password}
-                        onChange={(e) =>
-                          setLoginForm({
-                            ...loginForm,
-                            password: e.target.value,
-                          })
-                        }
-                        className={inputClass + ' pr-10'}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowLoginPassword(!showLoginPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showLoginPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
+            <div className="w-full bg-white rounded-2xl shadow-2xl p-8 border border-slate-200">
+              <div className="mb-6 text-center">
+                <div className="h-12 w-12 mx-auto rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                  TN
+                </div>
+                <h1 className="mt-3 text-2xl font-bold text-slate-900">Account Access</h1>
+              </div>
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
+              {/* Custom tab buttons */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('login')}
+                  className={`flex-1 py-2 rounded-lg ${activeTab === 'login' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('signup')}
+                  className={`flex-1 py-2 rounded-lg ${activeTab === 'signup' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+                >
+                  Sign Up
+                </button>
+              </div>
+              {/* Login form */}
+              {activeTab === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4 mt-4">
+                  <label className="text-sm font-medium">Email</label>
+                  <input
+                    type="email"
+                    placeholder="Enter your email"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={loginForm.email}
+                    onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
+                    required
+                  />
+                  <label className="text-sm font-medium">Password</label>
+                  <input
+                    type="password"
+                    placeholder="Enter your password"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={loginForm.password}
+                    onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                    required
+                  />
+                  <button
                     type="submit"
-                    className="w-full"
-                    size="lg"
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg"
                     disabled={loginLoading}
                   >
                     {loginLoading ? 'Signing in...' : 'Sign In'}
-                  </Button>
+                  </button>
                 </form>
-              </TabsContent>
-
-              {/* ====== SIGNUP ====== */}
-              <TabsContent value="signup" className="p-6">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="John Doe"
-                      value={signupForm.name}
-                      onChange={(e) =>
-                        setSignupForm({ ...signupForm, name: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signupForm.email}
-                      onChange={(e) =>
-                        setSignupForm({ ...signupForm, email: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Password *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showSignupPassword ? 'text' : 'password'}
-                          placeholder="Min 6 chars"
-                          value={signupForm.password}
-                          onChange={(e) =>
-                            setSignupForm({
-                              ...signupForm,
-                              password: e.target.value,
-                            })
-                          }
-                          className={inputClass + ' pr-10'}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowSignupPassword(!showSignupPassword)
-                          }
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showSignupPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Confirm Password *
-                      </label>
-                      <input
-                        type="password"
-                        placeholder="Re-enter"
-                        value={signupForm.confirmPassword}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            confirmPassword: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Date of Birth
-                      </label>
-                      <input
-                        type="date"
-                        value={signupForm.dob}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            dob: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={signupForm.phone}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            phone: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-
-                  <Button
+              )}
+              {/* Signup form */}
+              {activeTab === 'signup' && (
+                <form onSubmit={handleSignup} className="space-y-4 mt-4">
+                  <input
+                    type="text"
+                    placeholder="Full Name"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.name}
+                    onChange={e => setSignupForm({ ...signupForm, name: e.target.value })}
+                    required
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email Address"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.email}
+                    onChange={e => setSignupForm({ ...signupForm, email: e.target.value })}
+                    required
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Phone Number"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.phone}
+                    onChange={e => setSignupForm({ ...signupForm, phone: e.target.value })}
+                    required
+                  />
+                  <input
+                    type="date"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.dob}
+                    onChange={e => setSignupForm({ ...signupForm, dob: e.target.value })}
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.password}
+                    onChange={e => setSignupForm({ ...signupForm, password: e.target.value })}
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={signupForm.confirmPassword}
+                    onChange={e => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
+                    required
+                  />
+                  <button
                     type="submit"
-                    className="w-full"
-                    size="lg"
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg"
                     disabled={signupLoading}
                   >
                     {signupLoading ? 'Creating Account...' : 'Create Account'}
-                  </Button>
+                  </button>
                 </form>
-              </TabsContent>
-            </Tabs>
+              )}
+            </div>
           </div>
         </div>
       </div>

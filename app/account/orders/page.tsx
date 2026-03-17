@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { ArrowLeft, Package, Pencil, Check, X, Ban, Lock, Eye, Phone } from 'lucide-react';
+import { formatINRCurrency } from '@/lib/currency';
 
 interface OrderProduct {
   productId: string;
@@ -13,6 +14,17 @@ interface OrderProduct {
   productPrice: number;
   quantity: number;
 }
+
+
+const CANCEL_REASONS = [
+  'Incorrect product ordered',
+  'Product not required anymore',
+  'Cash issue',
+  'Ordered by mistake',
+  'Wants to change model',
+  'Delayed delivery cancellation',
+  'Duplicate order',
+];
 
 interface Order {
   _id: string;
@@ -167,272 +179,118 @@ export default function UserOrdersPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="bg-background min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading orders...</p>
-      </div>
-    );
-  }
-
+  // Main return block
   return (
-    <div className="bg-background min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Header */}
-        <Link href="/account">
-          <Button variant="outline" size="sm" className="gap-2 mb-6">
-            <ArrowLeft className="w-4 h-4" /> Back to Account
-          </Button>
-        </Link>
-
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center">
-            <Package className="w-8 h-8" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">My Orders</h1>
-            <p className="text-sm text-muted-foreground">
-              {orders.length} order{orders.length !== 1 ? 's' : ''} placed
-            </p>
-          </div>
-        </div>
-
-        {/* Orders List */}
-        {orders.length === 0 ? (
-          <div className="border border-border rounded-xl p-12 bg-card text-center">
-            <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              No orders yet
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              Your orders will appear here after you make a purchase.
-            </p>
-            <Link href="/products">
-              <Button>Browse Products</Button>
-            </Link>
-          </div>
+    <div className="w-full max-w-full px-4 py-8 mx-auto">
+      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
+        <ArrowLeft className="w-5 h-5 cursor-pointer" onClick={() => router.push('/account')} />
+        My Orders
+      </h1>
+      <div>
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading orders…</div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">No orders found.</div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {orders.map((order) => (
-              <div
-                key={order._id}
-                className="border border-border rounded-xl bg-card overflow-hidden"
-              >
-                {/* Order header */}
-                <div className="bg-muted/30 px-6 py-4 flex flex-wrap justify-between items-center gap-3 border-b border-border">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        ORDER NUMBER
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {order.orderNumber}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        DATE PLACED
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {new Date(order.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">TOTAL</p>
-                      <p className="font-bold text-primary">
-                        ${order.totalAmount.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        statusColors[order.trackingStatus || order.orderStatus] ||
-                        'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {statusLabels[order.trackingStatus || order.orderStatus] || order.orderStatus}
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        order.paymentStatus === 'Paid'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {order.paymentStatus}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Products */}
+              <div key={order._id} className="border rounded-lg shadow-sm">
                 <div className="p-6">
+                  <div className="flex flex-col w-full sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                    <div>
+                      <div className="text-lg font-semibold text-foreground">Order #{order.orderNumber}</div>
+                      <div className="text-xs text-muted-foreground">Placed on {new Date(order.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className={`px-2 py-1 rounded text-xs font-medium ${statusColors[order.trackingStatus || order.orderStatus]}`}>{statusLabels[order.trackingStatus || order.orderStatus]}</div>
+                  </div>
                   <div className="space-y-3">
                     {order.products.map((p, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between items-center text-sm"
-                      >
+                      <div key={i} className="flex justify-between items-center text-sm w-full">
                         <span className="text-foreground">
-                          <Link
-                            href={`/products/${p.productId}`}
-                            className="hover:text-primary hover:underline transition-colors"
-                          >
+                          <Link href={`/products/${p.productId}`} className="hover:text-primary hover:underline transition-colors">
                             {p.productName}
                           </Link>{' '}
-                          <span className="text-muted-foreground">
-                            x{p.quantity}
-                          </span>
+                          <span className="text-muted-foreground">x{p.quantity}</span>
                         </span>
-                        <span className="font-medium text-foreground">
-                          ${(p.productPrice * p.quantity).toFixed(2)}
-                        </span>
+                        <span className="font-medium text-foreground">{formatINRCurrency(p.productPrice * p.quantity)}</span>
                       </div>
                     ))}
                   </div>
-
-                  {/* Delivery info */}
                   {order.deliveryInfo && (
                     <div className="mt-4 pt-4 border-t border-border text-sm">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        DELIVERY TO
-                      </p>
-                      <p className="text-foreground font-medium">
-                        {order.deliveryInfo.firstName}{' '}
-                        {order.deliveryInfo.lastName}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {order.deliveryInfo.street},{' '}
-                        {order.deliveryInfo.city},{' '}
-                        {order.deliveryInfo.state}{' '}
-                        {order.deliveryInfo.zip}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {order.deliveryInfo.phone}
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-1">DELIVERY TO</p>
+                      <p className="text-foreground font-medium">{order.deliveryInfo.firstName} {order.deliveryInfo.lastName}</p>
+                      <p className="text-muted-foreground">{order.deliveryInfo.street}, {order.deliveryInfo.city}, {order.deliveryInfo.state} {order.deliveryInfo.zip}</p>
+                      <p className="text-muted-foreground">{order.deliveryInfo.phone}</p>
                     </div>
                   )}
-
-                  {/* Order actions */}
                   <div className="mt-4 pt-4 border-t border-border">
-                    <div className="flex flex-wrap gap-2">
-                      {/* Track Order button - always visible */}
+                    <div className="flex flex-wrap gap-2 w-full">
                       <Link href={`/account/orders/${order._id}`}>
                         <Button variant="outline" size="sm" className="gap-2">
                           <Eye className="w-3.5 h-3.5" />
                           Track Order
                         </Button>
                       </Link>
-
-                      {canModify(order) ? (
-                        <>
-                          {editOrderId !== order._id ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => openEdit(order)}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                Edit Address
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleCancelOrder(order._id)}
-                                disabled={cancellingId === order._id}
-                              >
-                                <Ban className="w-3.5 h-3.5" />
-                                {cancellingId === order._id ? 'Cancelling…' : 'Cancel Order'}
-                              </Button>
-                            </>
-                          ) : (
-                            <div className="w-full mt-3 space-y-3">
-                              <p className="text-sm font-semibold text-foreground">Edit Delivery Info</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
-                                  <Input
-                                    value={editForm.phone}
-                                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                    placeholder="Phone"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">Street</label>
-                                  <Input
-                                    value={editForm.street}
-                                    onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
-                                    placeholder="Street address"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">City</label>
-                                  <Input
-                                    value={editForm.city}
-                                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                                    placeholder="City"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">State</label>
-                                  <Input
-                                    value={editForm.state}
-                                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                                    placeholder="State"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">ZIP</label>
-                                  <Input
-                                    value={editForm.zip}
-                                    onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })}
-                                    placeholder="ZIP code"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => handleSaveEdit(order._id)}
-                                  disabled={editSaving}
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  {editSaving ? 'Saving…' : 'Save Changes'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => setEditOrderId(null)}
-                                  disabled={editSaving}
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : isShippedOrBeyond(order) ? (
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-muted-foreground">
-                            Order already shipped. Contact support for cancellation.
-                          </p>
-                          <Button variant="outline" size="sm" className="gap-2">
-                            <Phone className="w-3.5 h-3.5" />
-                            Request Cancellation
+                      {canModify(order) && editOrderId !== order._id && (
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => openEdit(order)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit Delivery Info
+                        </Button>
+                      )}
+                      {canModify(order) && editOrderId !== order._id && (
+                        <Button variant="destructive" size="sm" className="gap-2" onClick={() => handleCancelOrder(order._id)} disabled={cancellingId === order._id}>
+                          <Ban className="w-3.5 h-3.5" />
+                          {cancellingId === order._id ? 'Cancelling…' : 'Cancel Order'}
+                        </Button>
+                      )}
+                    </div>
+                    {editOrderId === order._id && (
+                      <div className="w-full mt-3 space-y-3">
+                        <p className="text-sm font-semibold text-foreground">Edit Delivery Info</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
+                            <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Street</label>
+                            <Input value={editForm.street} onChange={(e) => setEditForm({ ...editForm, street: e.target.value })} placeholder="Street address" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">City</label>
+                            <Input value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} placeholder="City" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">State</label>
+                            <Input value={editForm.state} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} placeholder="State" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">ZIP</label>
+                            <Input value={editForm.zip} onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })} placeholder="ZIP code" />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 w-full">
+                          <Button size="sm" className="gap-2" onClick={() => handleSaveEdit(order._id)} disabled={editSaving}>
+                            <Check className="w-3.5 h-3.5" />
+                            {editSaving ? 'Saving…' : 'Save Changes'}
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditOrderId(null)} disabled={editSaving}>
+                            <X className="w-3.5 h-3.5" />
+                            Cancel
                           </Button>
                         </div>
-                      ) : null}
-                    </div>
+                      </div>
+                    )}
+                    {isShippedOrBeyond(order) && (
+                      <div className="flex flex-wrap items-center gap-2 mt-3 w-full">
+                        <p className="text-sm text-muted-foreground">Order already shipped. Contact support for cancellation.</p>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Phone className="w-3.5 h-3.5" />
+                          Request Cancellation
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

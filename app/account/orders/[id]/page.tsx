@@ -76,14 +76,21 @@ const statusLabels: Record<string, string> = {
 export default function OrderTrackingPage() {
   const params = useParams();
   const router = useRouter();
+  const orderId = Array.isArray(params.id) ? params.id[0] : params.id;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
 
   const fetchOrder = useCallback(async () => {
+    if (!orderId) {
+      setError('Order not found');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/orders/${params.id}`, { cache: 'no-store' });
+      const res = await fetch(`/api/orders/${orderId}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Order not found');
       const data = await res.json();
       setOrder(data);
@@ -92,7 +99,7 @@ export default function OrderTrackingPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [orderId]);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');

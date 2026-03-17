@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
+  Menu,
   Bell,
   LogOut,
   Search,
@@ -29,6 +30,7 @@ type Notification = {
 
 type AdminHeaderProps = {
   onLogout: () => void
+  onMenuClick: () => void
 }
 
 function timeAgo(dateStr: string) {
@@ -50,7 +52,7 @@ const notifIcon: Record<string, typeof Bell> = {
   system: Bell,
 }
 
-export default function AdminHeader({ onLogout }: AdminHeaderProps) {
+export default function AdminHeader({ onLogout, onMenuClick }: AdminHeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [bellOpen, setBellOpen] = useState(false)
   const [avatarOpen, setAvatarOpen] = useState(false)
@@ -144,23 +146,25 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
   ]
 
   return (
-    <header className="bg-white border-b px-6 py-3">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Admin Panel</h1>
-          <p className="text-sm text-gray-500">Management Console</p>
+    <header className="h-16 border-b bg-white flex items-center justify-between px-6">
+        {/* Left — Breadcrumb-style title */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-50/80 text-gray-600 lg:hidden"
+            onClick={onMenuClick}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div>
+            <h1 className="text-[15px] font-semibold text-gray-900">Admin Panel</h1>
+            <p className="text-xs text-gray-400">Management Console</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Search */}
-          <div className="relative hidden sm:block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search admin data..."
-              className="h-10 w-64 rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none ring-0 transition placeholder:text-gray-400 focus:border-gray-300"
-            />
-          </div>
+        {/* Right actions */}
+        <div className="flex items-center gap-2">
 
           {/* Notification Bell */}
           <div className="relative" ref={bellRef}>
@@ -172,11 +176,11 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
                 setAvatarOpen(false)
                 if (!bellOpen && unreadCount > 0) handleMarkAllRead()
               }}
-              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-50/80 text-gray-500 transition-all duration-200 hover:bg-gray-100 hover:text-gray-700"
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-[18px] w-[18px]" />
               {unreadCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -263,7 +267,7 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
                 setAvatarOpen((v) => !v)
                 setBellOpen(false)
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-900 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-xs font-bold text-white transition-all duration-200 hover:shadow-md hover:shadow-blue-500/25 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               A
             </button>
@@ -314,7 +318,6 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
             )}
           </div>
         </div>
-      </div>
     </header>
-  )
+  );
 }

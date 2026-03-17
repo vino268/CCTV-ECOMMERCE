@@ -1,6 +1,5 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit2, Trash2, Plus, X, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -136,10 +135,10 @@ export default function AdminServicesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Services</h1>
-          <p className="text-muted-foreground">Manage your services</p>
+          <h1 className="text-2xl font-bold text-gray-900">Services</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage your services</p>
         </div>
         <Button
           onClick={() => {
@@ -155,8 +154,8 @@ export default function AdminServicesPage() {
 
       {/* ====== Add Form ====== */}
       {showAddForm && (
-        <Card className="p-6 border border-border">
-          <h2 className="text-lg font-bold text-foreground mb-4">Add New Service</h2>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Add New Service</h2>
           <form onSubmit={handleAdd} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-foreground mb-1">
@@ -213,28 +212,28 @@ export default function AdminServicesPage() {
               </Button>
             </div>
           </form>
-        </Card>
+        </div>
       )}
 
       {/* ====== Service Cards ====== */}
       <div className="grid gap-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="p-6 border border-border animate-pulse">
-              <div className="h-5 bg-muted rounded w-1/3 mb-3" />
-              <div className="h-4 bg-muted rounded w-full mb-2" />
-              <div className="h-4 bg-muted rounded w-2/3" />
-            </Card>
+            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 animate-pulse">
+              <div className="h-5 bg-gray-100 rounded w-1/3 mb-3" />
+              <div className="h-4 bg-gray-100 rounded w-full mb-2" />
+              <div className="h-4 bg-gray-100 rounded w-2/3" />
+            </div>
           ))
         ) : services.length === 0 ? (
-          <Card className="p-10 border border-border text-center text-muted-foreground">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center text-gray-400">
             No services yet. Click &ldquo;Add Service&rdquo; to create one.
-          </Card>
+          </div>
         ) : (
           services.map((service) => {
             const isEditing = editingId === service._id;
             return (
-              <Card key={service._id} className="p-6 border border-border">
+              <div key={service._id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 transition-all duration-200 hover:shadow-md">
                 <div className="flex items-start gap-4">
                   {/* Content */}
                   <div className="flex-1 min-w-0">
@@ -355,7 +354,7 @@ export default function AdminServicesPage() {
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             );
           })
         )}

@@ -4,6 +4,11 @@ const SiteSettingsSchema = new mongoose.Schema(
   {
     storeName: String,
     description: String,
+    taxPercentage: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     contact: {
       phone: String,
       email: String,

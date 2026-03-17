@@ -7,7 +7,7 @@ import Notification from "@/models/Notification";
 export async function PATCH(req) {
   try {
     await connectDB();
-    const { orderId } = await req.json();
+    const { orderId, reason, comment } = await req.json();
 
     if (!orderId) {
       return NextResponse.json(
@@ -42,6 +42,8 @@ export async function PATCH(req) {
     order.orderStatus = "Cancelled";
     order.trackingStatus = "Cancelled";
     order.cancelledAt = new Date();
+    order.cancelReason = reason || '';
+    order.cancelComment = comment || '';
     await order.save();
 
     await Notification.create({

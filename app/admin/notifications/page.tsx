@@ -46,7 +46,7 @@ export default function NotificationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     );
   }
@@ -55,15 +55,15 @@ export default function NotificationsPage() {
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="text-muted-foreground text-sm">{notifications.length} total notifications</p>
+          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+          <p className="text-gray-500 text-sm">{notifications.length} total notifications</p>
         </div>
       </div>
 
       {notifications.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
-          <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">No notifications yet</p>
+        <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-12 text-center">
+          <Bell className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">No notifications yet</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -73,7 +73,7 @@ export default function NotificationsPage() {
             return (
               <div
                 key={n._id}
-                className="bg-card border border-border rounded-xl p-4 flex items-start gap-4 hover:shadow-sm transition-shadow"
+                className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 flex items-start gap-4 hover:shadow-md transition-shadow"
               >
                 <div
                   className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${config.bg} ${config.color}`}
@@ -81,12 +81,12 @@ export default function NotificationsPage() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{n.message}</p>
+                  <p className="text-sm font-medium text-gray-900">{n.message}</p>
                   <div className="flex items-center gap-3 mt-1">
                     {n.orderId && (
-                      <span className="text-xs font-medium text-primary">{n.orderId}</span>
+                      <span className="text-xs font-medium text-blue-600">{n.orderId}</span>
                     )}
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-gray-500">
                       {new Date(n.createdAt).toLocaleString()}
                     </span>
                   </div>
@@ -94,7 +94,7 @@ export default function NotificationsPage() {
                 <button
                   type="button"
                   onClick={() => handleDelete(n._id)}
-                  className="flex-shrink-0 p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="flex-shrink-0 p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                   aria-label="Delete notification"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -4,16 +4,18 @@ import { Product } from '@/lib/types';
 import { ProductCard } from '@/components/product-card';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/contexts/cart-context';
-import { Star, ShoppingCart, Truck, Shield, RotateCcw } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ShoppingCart, Truck, Shield, RotateCcw } from 'lucide-react';
+import { formatINRCurrency } from '@/lib/currency';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function ProductDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = use(params);
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,7 @@ export default function ProductDetailPage({
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const res = await fetch(`/api/products/${params.id}`, { cache: 'no-store' });
+        const res = await fetch(`/api/products/${id}`, { cache: 'no-store' });
         if (!res.ok) {
           setNotFound(true);
           return;
@@ -58,7 +60,7 @@ export default function ProductDetailPage({
     }
 
     fetchProduct();
-  }, [params.id]);
+  }, [id]);
 
   if (loading) {
     return (
@@ -130,27 +132,10 @@ export default function ProductDetailPage({
               <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3">
                 {product.name}
               </h1>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-5 h-5 ${
-                        i < Math.floor(product.rating)
-                          ? 'fill-primary text-primary'
-                          : 'text-muted-foreground'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {product.rating} ({product.reviews} reviews)
-                </span>
-              </div>
 
               <div className="flex items-center gap-4">
                 <span className="text-4xl font-bold text-primary">
-                  ${product.price.toFixed(2)}
+                  {formatINRCurrency(product.price)}
                 </span>
                 {!product.inStock && (
                   <span className="bg-destructive text-destructive-foreground px-4 py-1 rounded-full text-sm font-semibold">
@@ -237,7 +222,7 @@ export default function ProductDetailPage({
                   <p className="font-semibold text-sm text-foreground">
                     Free Shipping
                   </p>
-                  <p className="text-xs text-muted-foreground">On orders over $100</p>
+                  <p className="text-xs text-muted-foreground">On orders over 100</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
