@@ -221,14 +221,12 @@ export default function CheckoutPage() {
       '#TN' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     try {
-      const stored = user || {};
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderNumber: newOrderNumber,
-          userId: stored._id || '',
+          userId: user?._id ?? '',
           items: cartItems.map((item) => ({
             productId: item.productId,
             name: item.product?.name || '',
