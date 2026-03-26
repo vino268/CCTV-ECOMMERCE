@@ -7,6 +7,8 @@ import { AuthProvider } from '@/lib/contexts/auth-context'
 import { ConditionalLayout } from '@/components/conditional-layout'
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
