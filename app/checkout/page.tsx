@@ -358,8 +358,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (!isBuyNowFlow && cart.length === 0 && step !== 'complete') {
-    return (
+if (!isBuyNowFlow && cart.length === 0) {    return (
       <div className="bg-background min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center py-16">
