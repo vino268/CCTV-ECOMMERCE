@@ -4,6 +4,24 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Brand and semantic color system (light mode) */
+  --brand-blue-light: oklch(0.67 0.14 254.4); /* ~blue-500 */
+  --brand-blue: oklch(0.58 0.15 254.4); /* ~blue-600 */
+  --brand-blue-dark: oklch(0.43 0.12 254.4); /* ~blue-800 */
+  --neutral-50: oklch(0.98 0 0); /* ~gray-50 */
+  --neutral-100: oklch(0.95 0 0); /* ~gray-100 */
+  --neutral-200: oklch(0.9 0 0); /* ~gray-200 */
+  --neutral-500: oklch(0.55 0 0); /* ~gray-500 */
+  --neutral-600: oklch(0.45 0 0); /* ~gray-600 */
+  --neutral-800: oklch(0.3 0 0); /* ~gray-800 */
+  --neutral-900: oklch(0.2 0 0); /* ~gray-900 */
+  --success: oklch(0.72 0.16 151.7); /* green */
+  --success-bg: oklch(0.95 0.07 151.7);
+  --error: oklch(0.58 0.22 27.3); /* red */
+  --error-bg: oklch(0.95 0.07 27.3);
+  --warning: oklch(0.81 0.17 83.5); /* yellow */
+  --warning-bg: oklch(0.97 0.06 83.5);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.18 0 0);
   --card: oklch(0.98 0 0);
@@ -40,6 +58,23 @@
 }
 
 .dark {
+  --brand-blue-light: oklch(0.72 0.14 254.4);
+  --brand-blue: oklch(0.67 0.15 254.4);
+  --brand-blue-dark: oklch(0.53 0.14 254.4);
+  --neutral-50: oklch(0.2 0 0);
+  --neutral-100: oklch(0.24 0 0);
+  --neutral-200: oklch(0.3 0 0);
+  --neutral-500: oklch(0.66 0 0);
+  --neutral-600: oklch(0.74 0 0);
+  --neutral-800: oklch(0.9 0 0);
+  --neutral-900: oklch(0.95 0 0);
+  --success: oklch(0.74 0.15 151.7);
+  --success-bg: oklch(0.3 0.06 151.7);
+  --error: oklch(0.69 0.2 27.3);
+  --error-bg: oklch(0.28 0.06 27.3);
+  --warning: oklch(0.84 0.15 83.5);
+  --warning-bg: oklch(0.3 0.05 83.5);
+
   --background: oklch(0.13 0 0);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.18 0 0);
@@ -77,6 +112,24 @@
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+
+  --color-brand-blue-light: var(--brand-blue-light);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-dark: var(--brand-blue-dark);
+  --color-neutral-50: var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -116,11 +169,65 @@
 }
 
 @layer base {
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700 rounded-xl transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-blue-900 text-white hover:bg-blue-800 rounded-xl transition-colors;
+  }
+
+  .btn-outline-blue {
+    @apply border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-colors;
+  }
+
+  .section-bg-main {
+    @apply bg-white;
+  }
+
+  .section-bg-alt {
+    @apply bg-gray-50;
+  }
+
+  .text-heading {
+    @apply text-gray-900 font-bold;
+  }
+
+  .text-subtext {
+    @apply text-gray-600;
+  }
+
+  .text-label-muted {
+    @apply text-gray-500;
+  }
+
+  .badge-success {
+    @apply bg-green-100 text-green-700;
+  }
+
+  .badge-error {
+    @apply bg-red-100 text-red-700;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-700;
   }
 }
 
@@ -158,6 +265,17 @@
     }
   }
 
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .animate-fadeIn {
     animation: fadeIn 0.5s ease-out;
   }
@@ -168,5 +286,9 @@
 
   .animate-slideInRight {
     animation: slideInRight 0.5s ease-out;
+  }
+
+  .animate-scaleIn {
+    animation: scaleIn 0.2s ease;
   }
 }

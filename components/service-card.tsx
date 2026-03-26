@@ -1,5 +1,6 @@
 import { Service } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { formatPrice } from '@/lib/currency';
 
 interface ServiceCardProps {
   service: Service;
@@ -19,7 +20,7 @@ export function ServiceCard({ service }: ServiceCardProps) {
       {service.price && (
         <div className="flex items-center justify-between">
           <span className="text-lg font-bold text-primary">
-            From ${service.price}
+            From {formatPrice(service.price)}
           </span>
           <Button size="sm" variant="outline">
             Learn More

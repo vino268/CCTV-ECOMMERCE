@@ -32,6 +32,7 @@ const OrderSchema = new mongoose.Schema({
     {
       productId: String,
       productName: String,
+      productImage: String,
       productPrice: Number,
       quantity: Number,
     },
@@ -58,6 +59,11 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     enum: ["Ordered", "Confirmed", "Shipped", "OutForDelivery", "Delivered", "Cancelled"],
     default: "Ordered",
+  },
+  status: {
+    type: String,
+    enum: ["Pending", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+    default: "Pending",
   },
   deliveryInfo: {
     firstName: String,
@@ -97,10 +103,19 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
+  cancelRequested: {
+    type: Boolean,
+    default: false,
   },
-});
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
+}, { timestamps: true });
 
 export default mongoose.model("Order", OrderSchema);

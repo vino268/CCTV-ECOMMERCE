@@ -6,6 +6,14 @@ if (mongoose.models.Product) {
 }
 
 const ProductSchema = new mongoose.Schema({
+  sku: {
+    type: String,
+    required: [true, "SKU is required."],
+    unique: true,
+    trim: true,
+    uppercase: true,
+    index: true,
+  },
   name: {
     type: String,
     required: true,
@@ -27,6 +35,14 @@ const ProductSchema = new mongoose.Schema({
   image: {
     type: String,
     default: "",
+  },
+  images: {
+    type: [String],
+    default: [],
+  },
+  features: {
+    type: [String],
+    default: [],
   },
   rating: {
     type: Number,

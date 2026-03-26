@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
+import User from "@/models/User";
 
 // GET /api/orders/user?email=xxx
 export async function GET(req) {
@@ -16,7 +17,20 @@ export async function GET(req) {
       );
     }
 
+    const user = await User.findOne({ email: email.toLowerCase() }).select("isBlocked");
+    if (user?.isBlocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User blocked",
+          error: "Your account has been blocked. Please contact support.",
+        },
+        { status: 403 }
+      );
+    }
+
     const orders = await Order.find({
+      isDeleted: false,
       email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
     }).sort({ createdAt: -1 });
 

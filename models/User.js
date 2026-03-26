@@ -29,6 +29,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  avatar: {
+    type: String,
+    default: "",
+  },
   address: {
     type: String,
     default: "",
@@ -38,9 +42,26 @@ const UserSchema = new mongoose.Schema({
     enum: ["user", "admin"],
     default: "user",
   },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
+  blockedAt: {
+    type: Date,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
   },
 });
 

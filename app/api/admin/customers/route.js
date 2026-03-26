@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import Order from "@/models/Order";
 
 export async function GET(req) {
   try {
@@ -9,7 +10,7 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim() || "";
 
-    const query = { role: "user" };
+    const query = { role: "user", isDeleted: false };
 
     if (search) {
       // Escape special regex characters to prevent injection
@@ -26,7 +27,48 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .select("-password");
 
-    return NextResponse.json(users);
+    const usersByEmail = new Map();
+    users.forEach((user) => {
+      usersByEmail.set(String(user.email || "").toLowerCase(), user);
+    });
+
+    const emails = [...usersByEmail.keys()].filter(Boolean);
+    let statsByEmail = new Map();
+
+    if (emails.length > 0) {
+      const orderStats = await Order.aggregate([
+        {
+          $match: {
+            isDeleted: false,
+            email: { $in: emails },
+          },
+        },
+        {
+          $group: {
+            _id: "$email",
+            totalOrders: { $sum: 1 },
+            totalSpent: { $sum: "$totalAmount" },
+          },
+        },
+      ]);
+
+      statsByEmail = new Map(
+        orderStats.map((item) => [String(item._id || "").toLowerCase(), item])
+      );
+    }
+
+    const enrichedUsers = users.map((user) => {
+      const key = String(user.email || "").toLowerCase();
+      const stats = statsByEmail.get(key);
+
+      return {
+        ...user.toObject(),
+        totalOrders: stats?.totalOrders || 0,
+        totalSpent: stats?.totalSpent || 0,
+      };
+    });
+
+    return NextResponse.json(enrichedUsers);
   } catch (error) {
     console.error("Error fetching customers:", error);
     return NextResponse.json(

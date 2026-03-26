@@ -1,445 +1,197 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { ArrowLeft, Package, Pencil, Check, X, Ban, Lock, Eye, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import OrderCard, { type AccountOrder } from '@/components/order-card';
+import CancelOrderModal from '@/components/cancel-order-modal';
+import ToastNotification from '@/components/ui/toast-notification';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/contexts/auth-context';
 
-interface OrderProduct {
-  productId: string;
-  productName: string;
-  productPrice: number;
-  quantity: number;
-}
-
-interface Order {
-  _id: string;
-  orderNumber: string;
-  customerName: string;
-  email: string;
-  products: OrderProduct[];
-  totalAmount: number;
-  paymentMethod: string;
-  paymentStatus: string;
-  orderStatus: string;
-  trackingStatus: string;
-  deliveryInfo: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
-  createdAt: string;
-}
-
-const statusColors: Record<string, string> = {
-  Ordered: 'bg-yellow-100 text-yellow-800',
-  Confirmed: 'bg-blue-100 text-blue-800',
-  Shipped: 'bg-purple-100 text-purple-800',
-  OutForDelivery: 'bg-orange-100 text-orange-800',
-  Delivered: 'bg-green-100 text-green-800',
-  Cancelled: 'bg-red-100 text-red-800',
-};
-
-const statusLabels: Record<string, string> = {
-  Ordered: 'Ordered',
-  Confirmed: 'Confirmed',
-  Shipped: 'Shipped',
-  OutForDelivery: 'Out for Delivery',
-  Delivered: 'Delivered',
-  Cancelled: 'Cancelled',
-};
-
-export default function UserOrdersPage() {
+export default function AccountOrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editOrderId, setEditOrderId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    phone: '', street: '', city: '', state: '', zip: '',
-  });
-  const [editSaving, setEditSaving] = useState(false);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-
-  const canModify = (order: Order) => {
-    const status = order.trackingStatus || order.orderStatus;
-    return ['Ordered', 'Confirmed'].includes(status);
-  };
-
-  const isShippedOrBeyond = (order: Order) => {
-    const status = order.trackingStatus || order.orderStatus;
-    return ['Shipped', 'OutForDelivery', 'Delivered'].includes(status);
-  };
-
-  const openEdit = (order: Order) => {
-    setEditOrderId(order._id);
-    setEditForm({
-      phone:  order.deliveryInfo?.phone  || '',
-      street: order.deliveryInfo?.street || '',
-      city:   order.deliveryInfo?.city   || '',
-      state:  order.deliveryInfo?.state  || '',
-      zip:    order.deliveryInfo?.zip    || '',
-    });
-  };
-
-  const handleCancelOrder = async (orderId: string) => {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
-    setCancellingId(orderId);
-    try {
-      const res = await fetch('/api/orders/cancel', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      });
-      if (res.ok) {
-        const stored = localStorage.getItem('user');
-        if (stored) fetchOrders(JSON.parse(stored).email);
-      } else {
-        const err = await res.json();
-        alert(err.message || 'Failed to cancel order');
-      }
-    } catch {
-      alert('Failed to cancel order');
-    } finally {
-      setCancellingId(null);
-    }
-  };
-
-  const handleSaveEdit = async (orderId: string) => {
-    setEditSaving(true);
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deliveryInfo: {
-            phone:  editForm.phone,
-            street: editForm.street,
-            city:   editForm.city,
-            state:  editForm.state,
-            zip:    editForm.zip,
-          },
-        }),
-      });
-      if (res.ok) {
-        setEditOrderId(null);
-        const stored = localStorage.getItem('user');
-        if (stored) fetchOrders(JSON.parse(stored).email);
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to update order');
-      }
-    } catch {
-      alert('Failed to update order');
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (!stored) {
-      router.push('/account');
-      return;
-    }
-
-    const user = JSON.parse(stored);
-    fetchOrders(user.email);
-  }, [router]);
+  const [error, setError] = useState('');
+  const [cancellingId, setCancellingId] = useState('');
+  const [cancelModalOrderId, setCancelModalOrderId] = useState('');
+  const [cancelMode, setCancelMode] = useState<'cancel' | 'request'>('cancel');
+  const { toast, showError, showSuccess } = useToast();
 
   const fetchOrders = async (email: string) => {
+    setLoading(true);
+    setError('');
+
     try {
-      const res = await fetch(`/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' });
-      if (res.ok) {
-        const userOrders: Order[] = await res.json();
-        setOrders(userOrders);
+      const res = await fetch(`/api/orders/user?email=${encodeURIComponent(email)}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to fetch orders');
       }
-    } catch (err) {
-      console.error('Error fetching orders:', err);
+
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch orders');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="bg-background min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading orders...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated || !user?.email) {
+      router.replace('/login?redirect=/account/orders');
+      return;
+    }
+    fetchOrders(user.email);
+  }, [router, authLoading, isAuthenticated, user?.email]);
+
+  const handleCancelOrder = (orderId: string, mode: 'cancel' | 'request') => {
+    setCancelMode(mode);
+    setCancelModalOrderId(orderId);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelModalOrderId) return;
+
+    setCancellingId(cancelModalOrderId);
+    setError('');
+
+    try {
+      const res = await fetch(`/api/orders/cancel/${cancelModalOrderId}`, {
+        method: 'PUT',
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel order');
+      }
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order._id === cancelModalOrderId ? { ...order, ...data.order } : order
+        )
+      );
+      showSuccess(data.message || 'Order status updated successfully');
+    } catch (err: any) {
+      const message = err.message || 'Failed to cancel order';
+      setError(message);
+      showError(message);
+    } finally {
+      setCancellingId('');
+      setCancelModalOrderId('');
+    }
+  };
+
+  const orderedByDate = useMemo(
+    () => [...orders].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+    [orders]
+  );
 
   return (
-    <div className="bg-background min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Header */}
-        <Link href="/account">
-          <Button variant="outline" size="sm" className="gap-2 mb-6">
-            <ArrowLeft className="w-4 h-4" /> Back to Account
-          </Button>
-        </Link>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            title="Go Back"
+            aria-label="Go Back"
+            className="mb-4 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-md transition-all duration-200 hover:scale-105 hover:bg-gray-100"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
 
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center">
-            <Package className="w-8 h-8" />
-          </div>
+          <nav aria-label="Breadcrumb" className="mb-2 text-xs sm:text-sm text-gray-500">
+            <ol className="flex items-center gap-2">
+              <li>
+                <Link href="/" className="hover:text-gray-700 transition-colors duration-200">
+                  Home
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link href="/account" className="hover:text-gray-700 transition-colors duration-200">
+                  Account
+                </Link>
+              </li>
+              <li>/</li>
+              <li className="font-medium text-gray-900">Orders</li>
+            </ol>
+          </nav>
+
           <div>
-            <h1 className="text-2xl font-bold text-foreground">My Orders</h1>
-            <p className="text-sm text-muted-foreground">
-              {orders.length} order{orders.length !== 1 ? 's' : ''} placed
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
+            <p className="text-sm text-gray-500">Track and manage your complete order history</p>
           </div>
         </div>
 
-        {/* Orders List */}
-        {orders.length === 0 ? (
-          <div className="border border-border rounded-xl p-12 bg-card text-center">
-            <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              No orders yet
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              Your orders will appear here after you make a purchase.
-            </p>
-            <Link href="/products">
-              <Button>Browse Products</Button>
-            </Link>
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
-        ) : (
-          <div className="space-y-6">
-            {orders.map((order) => (
-              <div
-                key={order._id}
-                className="border border-border rounded-xl bg-card overflow-hidden"
-              >
-                {/* Order header */}
-                <div className="bg-muted/30 px-6 py-4 flex flex-wrap justify-between items-center gap-3 border-b border-border">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        ORDER NUMBER
-                      </p>
-                      <p className="font-semibold text-foreground">
-                        {order.orderNumber}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        DATE PLACED
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {new Date(order.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">TOTAL</p>
-                      <p className="font-bold text-primary">
-                        ${order.totalAmount.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        statusColors[order.trackingStatus || order.orderStatus] ||
-                        'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {statusLabels[order.trackingStatus || order.orderStatus] || order.orderStatus}
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        order.paymentStatus === 'Paid'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {order.paymentStatus}
-                    </span>
-                  </div>
-                </div>
+        )}
 
-                {/* Products */}
-                <div className="p-6">
-                  <div className="space-y-3">
-                    {order.products.map((p, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between items-center text-sm"
-                      >
-                        <span className="text-foreground">
-                          <Link
-                            href={`/products/${p.productId}`}
-                            className="hover:text-primary hover:underline transition-colors"
-                          >
-                            {p.productName}
-                          </Link>{' '}
-                          <span className="text-muted-foreground">
-                            x{p.quantity}
-                          </span>
-                        </span>
-                        <span className="font-medium text-foreground">
-                          ${(p.productPrice * p.quantity).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Delivery info */}
-                  {order.deliveryInfo && (
-                    <div className="mt-4 pt-4 border-t border-border text-sm">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        DELIVERY TO
-                      </p>
-                      <p className="text-foreground font-medium">
-                        {order.deliveryInfo.firstName}{' '}
-                        {order.deliveryInfo.lastName}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {order.deliveryInfo.street},{' '}
-                        {order.deliveryInfo.city},{' '}
-                        {order.deliveryInfo.state}{' '}
-                        {order.deliveryInfo.zip}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {order.deliveryInfo.phone}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Order actions */}
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <div className="flex flex-wrap gap-2">
-                      {/* Track Order button - always visible */}
-                      <Link href={`/account/orders/${order._id}`}>
-                        <Button variant="outline" size="sm" className="gap-2">
-                          <Eye className="w-3.5 h-3.5" />
-                          Track Order
-                        </Button>
-                      </Link>
-
-                      {canModify(order) ? (
-                        <>
-                          {editOrderId !== order._id ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => openEdit(order)}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                Edit Address
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleCancelOrder(order._id)}
-                                disabled={cancellingId === order._id}
-                              >
-                                <Ban className="w-3.5 h-3.5" />
-                                {cancellingId === order._id ? 'Cancelling…' : 'Cancel Order'}
-                              </Button>
-                            </>
-                          ) : (
-                            <div className="w-full mt-3 space-y-3">
-                              <p className="text-sm font-semibold text-foreground">Edit Delivery Info</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
-                                  <Input
-                                    value={editForm.phone}
-                                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                    placeholder="Phone"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">Street</label>
-                                  <Input
-                                    value={editForm.street}
-                                    onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
-                                    placeholder="Street address"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">City</label>
-                                  <Input
-                                    value={editForm.city}
-                                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                                    placeholder="City"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">State</label>
-                                  <Input
-                                    value={editForm.state}
-                                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                                    placeholder="State"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground mb-1 block">ZIP</label>
-                                  <Input
-                                    value={editForm.zip}
-                                    onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })}
-                                    placeholder="ZIP code"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => handleSaveEdit(order._id)}
-                                  disabled={editSaving}
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  {editSaving ? 'Saving…' : 'Save Changes'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => setEditOrderId(null)}
-                                  disabled={editSaving}
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : isShippedOrBeyond(order) ? (
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-muted-foreground">
-                            Order already shipped. Contact support for cancellation.
-                          </p>
-                          <Button variant="outline" size="sm" className="gap-2">
-                            <Phone className="w-3.5 h-3.5" />
-                            Request Cancellation
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm p-5 mb-4 animate-pulse">
+                <div className="h-5 bg-gray-200 rounded w-1/3 mb-3" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-3" />
+                <div className="h-4 bg-gray-200 rounded w-full" />
               </div>
             ))}
           </div>
+        ) : orderedByDate.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
+            <h2 className="text-lg font-semibold text-gray-900">You have no orders yet</h2>
+            <p className="mt-1 text-sm text-gray-500">Once you place an order, it will appear here.</p>
+            <Button className="mt-5" onClick={() => router.push('/products')}>
+              Start Shopping
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orderedByDate.map((order) => {
+              return (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  isCancelling={cancellingId === order._id}
+                  onCancel={handleCancelOrder}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
+
+      <CancelOrderModal
+        open={Boolean(cancelModalOrderId)}
+        isProcessing={Boolean(cancelModalOrderId) && cancellingId === cancelModalOrderId}
+        title={cancelMode === 'request' ? 'Request Order Cancellation' : 'Cancel Order'}
+        description={
+          cancelMode === 'request'
+            ? 'Your order is already packed. Do you want to submit a cancel request to support?'
+            : 'Are you sure you want to cancel this order? This action cannot be undone.'
+        }
+        confirmText={cancelMode === 'request' ? 'Submit Request' : 'Confirm'}
+        processingText={cancelMode === 'request' ? 'Submitting...' : 'Cancelling...'}
+        onOpenChange={(open) => {
+          if (!open && !cancellingId) setCancelModalOrderId('');
+        }}
+        onConfirm={handleConfirmCancelOrder}
+      />
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -1,18 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  ArrowRight,
-  MessageCircle,
-  Wrench,
-  Phone,
-  ClipboardList,
-  PenTool,
-  Settings,
-  Headphones,
-  PhoneCall,
-} from 'lucide-react';
+import { ArrowRight, MapPin, MessageCircle, Phone, PhoneCall, Smartphone, Wrench, X } from 'lucide-react';
+import { formatPrice } from '@/lib/currency';
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                             */
@@ -26,251 +16,294 @@ interface Service {
 }
 
 /* ------------------------------------------------------------------ */
-/*  STATIC DATA                                                       */
-/* ------------------------------------------------------------------ */
-
-const processSteps = [
-  {
-    icon: <ClipboardList className="w-6 h-6" />,
-    title: 'Consultation',
-    desc: 'Free assessment of your security needs',
-  },
-  {
-    icon: <PenTool className="w-6 h-6" />,
-    title: 'Design',
-    desc: 'Custom CCTV system planning',
-  },
-  {
-    icon: <Settings className="w-6 h-6" />,
-    title: 'Installation',
-    desc: 'Professional installation and testing',
-  },
-  {
-    icon: <Headphones className="w-6 h-6" />,
-    title: 'Support',
-    desc: 'Maintenance and technical support',
-  },
-];
-
-const testimonials = [
-  {
-    name: 'John Smith',
-    role: 'Store Manager',
-    text: 'TN Automation installed a 16-camera system at our retail store. The image quality is incredible and their team was extremely professional throughout the process.',
-  },
-  {
-    name: 'Sarah Johnson',
-    role: 'Homeowner',
-    text: 'From consultation to installation, everything was seamless. I can monitor my entire property from my phone now. I feel much safer with their system.',
-  },
-  {
-    name: 'Mike Davis',
-    role: 'Business Owner',
-    text: 'Best security solution provider in Nashville. Quick response time, reliable equipment, and their maintenance plan gives us complete peace of mind.',
-  },
-];
-
-/* ------------------------------------------------------------------ */
 /*  PAGE COMPONENT                                                    */
 /* ------------------------------------------------------------------ */
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeService, setActiveService] = useState<Service | null>(null);
+  const [name, setName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [message, setMessage] = useState('');
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+
+  const serviceProcessSteps = [
+    {
+      label: 'STEP 1',
+      title: 'Consultation',
+      description: 'Share your security needs and get expert CCTV recommendations for your space.',
+      icon: PhoneCall,
+    },
+    {
+      label: 'STEP 2',
+      title: 'Site Inspection',
+      description: 'Our team evaluates your location and suggests ideal camera positions and coverage.',
+      icon: MapPin,
+    },
+    {
+      label: 'STEP 3',
+      title: 'Installation',
+      description: 'Professional setup with clean wiring, quick configuration, and quality checks.',
+      icon: Wrench,
+    },
+    {
+      label: 'STEP 4',
+      title: 'Live Monitoring',
+      description: 'Access live feeds and alerts from mobile with reliable remote monitoring support.',
+      icon: Smartphone,
+    },
+  ];
 
   useEffect(() => {
-    fetch('/api/services')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/services`)
       .then((res) => res.json())
       .then((data) => setServices(Array.isArray(data) ? data : []))
       .catch(() => setServices([]))
       .finally(() => setLoading(false));
   }, []);
 
-  const whatsappLink =
-    'https://wa.me/918778500296?text=Hello%20TN%20Automation%2C%20I%20would%20like%20to%20know%20more%20about%20your%20CCTV%20services.';
+  useEffect(() => {
+    if (activeService) {
+      setName('');
+      setPhoneNumber('');
+      setMessage('');
+      setFormError('');
+      setFormSuccess('');
+    }
+  }, [activeService]);
+
+  const handleBookingSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!name.trim() || !phoneNumber.trim()) {
+      setFormError('Please enter your name and phone number.');
+      setFormSuccess('');
+      return;
+    }
+
+    setFormError('');
+    setFormSuccess('Your request has been submitted successfully. Our team will contact you shortly.');
+    setName('');
+    setPhoneNumber('');
+    setMessage('');
+  };
 
   return (
-    <div className="bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
+    <div className="bg-gray-50 min-h-screen">
+      <div className="bg-white border-b border-gray-200 py-12">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
             Our Services
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-gray-600 max-w-2xl mx-auto">
             Professional security solutions and support from our expert team
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* ====== Services Grid ====== */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+      <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {loading ? (
-            /* Skeleton placeholders */
             Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="bg-card border border-border rounded-2xl p-8 animate-pulse"
+                className="bg-white rounded-2xl p-6 shadow-md animate-pulse"
               >
-                <div className="w-14 h-14 bg-muted rounded-xl mb-5" />
-                <div className="h-5 bg-muted rounded w-2/3 mb-3" />
-                <div className="h-4 bg-muted rounded w-full mb-2" />
-                <div className="h-4 bg-muted rounded w-4/5 mb-5" />
-                <div className="h-4 bg-muted rounded w-1/3 mb-5" />
-                <div className="h-9 bg-muted rounded w-28" />
+                <div className="w-14 h-14 bg-blue-100 rounded-full mx-auto mb-5" />
+                <div className="h-5 bg-gray-200 rounded w-2/3 mx-auto mb-3" />
+                <div className="h-4 bg-gray-200 rounded w-full mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-4/5 mx-auto mb-4" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto mb-5" />
+                <div className="h-10 bg-gray-200 rounded-lg w-full" />
               </div>
             ))
           ) : services.length === 0 ? (
-            <div className="col-span-3 text-center py-16 text-muted-foreground">
+            <div className="col-span-full text-center py-12 text-gray-600 bg-white rounded-2xl shadow-md">
               No services available at the moment. Please check back soon.
             </div>
           ) : (
-            services.map((service) => (
+            services.map((service, index) => {
+              const serviceId = service._id || `${service.name}-${index}`;
+
+              return (
               <div
-                key={service._id}
-                className="bg-card border border-border rounded-2xl hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                key={serviceId}
+                className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-[1.02] transition-all duration-300 p-6 flex flex-col"
               >
-                <div className="p-6 sm:p-8 flex flex-col h-full">
-                  {/* Icon */}
-                  <div className="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-5">
-                    <Wrench className="w-7 h-7" />
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="font-semibold text-xl text-foreground mb-2">
-                    {service.name}
-                  </h3>
-
-                  {/* Description */}
-                  <p className="text-muted-foreground text-sm leading-relaxed mb-5 flex-1">
-                    {service.description}
-                  </p>
-
-                  {/* Price */}
-                  {service.price && service.price > 0 && (
-                    <p className="text-primary font-bold text-lg mb-5">
-                      Starting from ₹{service.price}
-                    </p>
-                  )}
-
-                  {/* Learn More — opens WhatsApp with service name */}
-                  <a
-                    href={`https://wa.me/918778500296?text=Hello%20TN%20Automation%2C%20I%20would%20like%20to%20know%20more%20about%20${encodeURIComponent(service.name)}.`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button size="sm" variant="outline" className="gap-1.5 w-full">
-                      Learn More
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </a>
+                <div className="w-14 h-14 bg-blue-100 p-3 rounded-full flex items-center justify-center mx-auto text-blue-600">
+                  <Wrench className="w-8 h-8" />
                 </div>
-              </div>
-            ))
-          )}
-        </div>
 
-        {/* ====== Testimonials ====== */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-            What Our Clients Say
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={index}
-                className="bg-card border border-border rounded-2xl p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} className="text-primary text-lg">
-                      ★
-                    </span>
-                  ))}
-                </div>
-                <p className="text-muted-foreground mb-4 italic">
-                  &ldquo;{testimonial.text}&rdquo;
-                </p>
-                <div>
-                  <p className="font-semibold text-foreground">
-                    {testimonial.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {testimonial.role}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ====== Service Process ====== */}
-        <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl border border-primary/20 p-12">
-          <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-            Our Service Process
-          </h2>
-          <div className="grid md:grid-cols-4 gap-6">
-            {processSteps.map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="w-14 h-14 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
-                  {item.icon}
-                </div>
-                <div className="text-xs font-bold text-primary mb-1">
-                  STEP {index + 1}
-                </div>
-                <h3 className="font-semibold text-foreground mb-2">
-                  {item.title}
+                <h3 className="text-xl font-semibold mt-3 mb-2 text-gray-900 text-center">
+                  {service.name}
                 </h3>
-                <p className="text-sm text-muted-foreground">{item.desc}</p>
+
+                <p className="text-gray-600 text-sm leading-relaxed mb-5 text-center flex-1">
+                  {service.description}
+                </p>
+
+                <div className="mb-5 text-center min-h-[54px]">
+                  {service.price && service.price > 0 && (
+                    <>
+                      <span className="inline-block text-xs font-medium uppercase tracking-wide text-blue-700 bg-blue-100 px-3 py-1 rounded-full mb-2">
+                        Starting from
+                      </span>
+                      <p className="text-blue-600 font-bold text-lg">{formatPrice(service.price)}</p>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveService(service)}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 font-medium transition-colors duration-300"
+                >
+                  Get Service
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              );
+            })
+          )}
+          </div>
+        </div>
+
+        <section className="rounded-2xl bg-gradient-to-b from-gray-100 to-gray-50 border border-gray-200 p-6 md:p-8">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900">Our Service Process</h2>
+            <p className="mt-2 text-gray-600 text-sm md:text-base">
+              Simple, fast and professional CCTV installation workflow
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
+            {serviceProcessSteps.map((step) => (
+              <div
+                key={step.title}
+                className="rounded-2xl bg-white p-5 text-center shadow-md hover:shadow-xl transition-all duration-300"
+              >
+                <span className="inline-block text-[11px] font-semibold tracking-wide text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full mb-3">
+                  {step.label}
+                </span>
+
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                  <step.icon className="h-6 w-6" />
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900">{step.title}</h3>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{step.description}</p>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* ====== CTA Section ====== */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground mt-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Get Started?
-          </h2>
+      <div
+        className={`fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${
+          activeService
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setActiveService(null)}
+      >
+        <div
+          className={`w-full max-w-md sm:max-w-lg bg-white rounded-2xl shadow-2xl p-5 sm:p-6 relative max-h-[90vh] overflow-y-auto transition-all duration-300 ease-in-out ${
+            activeService ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Online Support</h2>
+            <button
+              type="button"
+              onClick={() => setActiveService(null)}
+              className="text-gray-500 hover:text-black text-xl transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-          <p className="text-lg opacity-90 mb-8 max-w-2xl mx-auto">
-            Contact our team today for a free security consultation and custom
-            quote. We&apos;ll design the perfect CCTV solution for your
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
+            {activeService?.name}
+          </h3>
+          <p className="text-gray-600 text-sm sm:text-base leading-relaxed mb-5">
+            {activeService?.description} Our experts provide complete planning,
+            installation, and reliable after-sales support tailored to your
             property.
           </p>
 
-          <div className="flex gap-4 justify-center flex-wrap">
-            <Button size="lg" variant="secondary" className="gap-2">
-              Schedule Consultation <ArrowRight className="w-4 h-4" />
-            </Button>
+          <form className="mb-4" onSubmit={handleBookingSubmit}>
+            <input
+              type="text"
+              placeholder="Name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <input
+              type="tel"
+              placeholder="Phone Number"
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+              className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <input
+              type="text"
+              value={activeService?.name || ''}
+              readOnly
+              className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 bg-gray-50 text-gray-600"
+            />
+            <textarea
+              placeholder="Message (optional)"
+              rows={3}
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+            />
 
-            <a href="tel:+918778500296">
-              <Button
-                size="lg"
-                variant="outline"
-                className="text-primary-foreground border-primary-foreground hover:bg-primary-foreground/10 gap-2"
-              >
-                <Phone className="w-4 h-4" />
-                +91 8778500296
-              </Button>
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors duration-300"
+            >
+              Submit Request
+            </button>
+          </form>
+
+          {formError && (
+            <p className="text-sm text-red-600 mb-4">{formError}</p>
+          )}
+
+          {formSuccess && (
+            <p className="text-sm text-green-600 mb-4">{formSuccess}</p>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            <a
+              href="tel:+917845283678"
+              className="w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-medium transition-colors duration-300"
+            >
+              <Phone className="w-4 h-4" />
+              Call Now
+            </a>
+
+            <a
+              href={`https://wa.me/917845283678?text=${encodeURIComponent(
+                `I am interested in your ${activeService?.name || 'CCTV'} service`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-medium transition-colors duration-300"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Chat on WhatsApp
             </a>
           </div>
         </div>
-      </section>
-
-      {/* ====== WhatsApp Floating Button ====== */}
-      <a
-        href={whatsappLink}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
-        aria-label="Chat on WhatsApp"
-      >
-        <MessageCircle className="w-7 h-7" />
-      </a>
+      </div>
     </div>
   );
 }

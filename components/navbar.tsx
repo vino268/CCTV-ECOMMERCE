@@ -1,54 +1,128 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCart } from '@/lib/contexts/cart-context';
-import { ShoppingCart, Menu, X, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useWishlist } from '@/lib/contexts/wishlist-context';
+import { ShoppingCart, Menu, X, Search, Heart } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { AccountMenu } from '@/components/account-menu';
 
 export function Navbar() {
   const { getCartCount } = useCart();
+  const { getWishlistCount } = useWishlist();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const clickCountRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cartCount = getCartCount();
+  const wishlistCount = getWishlistCount();
 
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/products', label: 'Products' },
     { href: '/services', label: 'Services' },
-    { href: '/#about', label: 'About' },
-    { href: '/#contact', label: 'Contact' },
+    { href: '/about', label: 'About' },
+    { href: '/contact', label: 'Contact' },
   ];
+
+  useEffect(() => {
+    if (pathname !== '/products') return;
+    const q = searchParams.get('search') || '';
+    setSearchQuery(q);
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (pathname !== '/products') return;
+    if (!searchOpen && !mobileMenuOpen) return;
+
+    const timer = setTimeout(() => {
+      const trimmed = searchQuery.trim();
+      if (!trimmed) {
+        router.replace('/products');
+        return;
+      }
+      router.replace(`/products?search=${encodeURIComponent(trimmed)}`);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, pathname, searchOpen, mobileMenuOpen, router]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = searchQuery.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      if (pathname === '/products') {
+        router.push('/products');
+      }
+      return;
+    }
     router.push(`/products?search=${encodeURIComponent(trimmed)}`);
-    setSearchQuery('');
     setSearchOpen(false);
     setMobileMenuOpen(false);
   };
 
+  const handleLogoSecretClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    clickCountRef.current += 1;
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = setTimeout(() => {
+      clickCountRef.current = 0;
+    }, 2000);
+
+    if (clickCountRef.current >= 5) {
+      event.preventDefault();
+      clickCountRef.current = 0;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      router.push('/admin/login');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white shadow-sm border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <nav className="fixed top-0 left-0 z-50 w-full bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/85 shadow-sm border-b border-gray-100 overflow-visible">
+      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 overflow-visible">
+        <div className="flex items-center justify-between w-full py-2.5 min-h-[72px] gap-2">
           {/* Logo */}
-          <Link href="/" className="flex-shrink-0 font-bold text-xl text-primary">
-            TN Automation
+          <Link href="/" onClick={handleLogoSecretClick} className="flex items-center gap-2 flex-shrink-0 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <Image
+                src="/images/tnlogo.png"
+                alt="TN Automation"
+                width={50}
+                height={50}
+                className="object-contain"
+                priority
+              />
+              <span className="hidden sm:block text-blue-700 font-bold text-lg lg:text-xl tracking-tight whitespace-nowrap">TN AUTOMATION</span>
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-7">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                className="relative text-sm font-medium text-gray-700 hover:text-blue-700 transition-colors after:absolute after:left-0 after:-bottom-1 after:h-0.5 after:w-0 after:bg-blue-600 after:transition-all after:duration-300 hover:after:w-full"
               >
                 {link.label}
               </Link>
@@ -56,9 +130,9 @@ export function Navbar() {
           </div>
 
           {/* Right Side Icons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 whitespace-nowrap flex-shrink-0">
             {/* Search */}
-            <div className="relative flex items-center">
+            <div className="relative hidden md:flex items-center">
               {searchOpen ? (
                 <form onSubmit={handleSearch} className="flex items-center">
                   <input
@@ -67,7 +141,7 @@ export function Navbar() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products..."
                     autoFocus
-                    className="w-48 px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-40 lg:w-48 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <button
                     type="submit"
@@ -80,6 +154,9 @@ export function Navbar() {
                     onClick={() => {
                       setSearchOpen(false);
                       setSearchQuery('');
+                      if (pathname === '/products') {
+                        router.replace('/products');
+                      }
                     }}
                     className="p-2 hover:bg-muted rounded-lg transition-colors"
                   >
@@ -89,20 +166,41 @@ export function Navbar() {
               ) : (
                 <button
                   onClick={() => setSearchOpen(true)}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <Search className="w-5 h-5 text-foreground" />
                 </button>
               )}
             </div>
 
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
+              aria-label="Toggle mobile menu"
+            >
+              <Search className="w-5 h-5 text-foreground" />
+            </button>
+
             {/* Account Menu */}
             <AccountMenu />
+
+            {/* Wishlist Icon with Badge */}
+            <Link
+              href="/wishlist"
+              className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              <Heart className="w-5 h-5 text-foreground" />
+              {wishlistCount > 0 && (
+                <span className="absolute top-1 right-1 bg-rose-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {wishlistCount}
+                </span>
+              )}
+            </Link>
 
             {/* Cart Icon with Badge */}
             <Link
               href="/cart"
-              className="relative p-2 hover:bg-muted rounded-lg transition-colors"
+              className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <ShoppingCart className="w-5 h-5 text-foreground" />
               {cartCount > 0 && (
@@ -115,7 +213,7 @@ export function Navbar() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 hover:bg-muted rounded-lg transition-colors"
+              className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               {mobileMenuOpen ? (
                 <X className="w-5 h-5 text-foreground" />
@@ -138,7 +236,7 @@ export function Navbar() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search products..."
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
             </form>

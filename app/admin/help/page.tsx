@@ -42,11 +42,29 @@ export default function HelpPage() {
         <div className="space-y-3">
           <div className="flex items-center gap-3 text-sm">
             <Mail className="w-4 h-4 text-muted-foreground" />
-            <span className="text-foreground">support@tnautomation.com</span>
+            <a
+              href="mailto:vinothelango2110@gmail.com"
+              className="text-foreground hover:text-primary transition-colors"
+            >
+              vinothelango2110@gmail.com
+            </a>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <Phone className="w-4 h-4 text-muted-foreground" />
-            <span className="text-foreground">+91 9876543210</span>
+            <a href="tel:+918778500296" className="text-foreground hover:text-primary transition-colors">
+              +91 8778500296
+            </a>
+          </div>
+          <div className="pt-1">
+            <a
+              href="https://wa.me/918778500296"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              WhatsApp
+            </a>
           </div>
         </div>
       </div>

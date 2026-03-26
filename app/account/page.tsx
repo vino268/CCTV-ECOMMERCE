@@ -1,694 +1,1026 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import OrderCard, { type AccountOrder } from '@/components/order-card';
+import CancelOrderModal from '@/components/cancel-order-modal';
+import LogoutConfirmModal from '@/components/logout-confirm-modal';
+import { formatINRCurrency } from '@/lib/currency';
 import {
-  LogOut,
-  User,
+  LayoutDashboard,
   Package,
   MapPin,
+  Heart,
+  LogOut,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  Loader2,
+  ShoppingBag,
+  Truck,
+  Clock3,
+  XCircle,
+  ShieldCheck,
   Eye,
-  EyeOff,
-  ChevronRight,
+  Ban,
+  Mail,
+  Phone,
+  X,
 } from 'lucide-react';
+import { useAuth } from '@/lib/contexts/auth-context';
 
-interface OrderProduct {
-  productId: string;
-  productName: string;
-  productPrice: number;
-  quantity: number;
-}
-
-interface Order {
-  _id: string;
-  orderNumber: string;
-  customerName: string;
-  email: string;
-  products: OrderProduct[];
-  totalAmount: number;
-  paymentStatus: string;
-  orderStatus: string;
-  createdAt: string;
-}
+type AccountTab = 'dashboard' | 'orders' | 'address' | 'wishlist';
 
 interface UserData {
   _id: string;
   name: string;
   email: string;
   phone: string;
-  dob: string | null;
   address: string;
   role: string;
   createdAt: string;
 }
 
+interface AddressItem {
+  _id: string;
+  fullName: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  isDefault: boolean;
+}
+
+type ToastState = {
+  type: 'success' | 'error';
+  message: string;
+};
+
+const cardClass = 'bg-white rounded-xl shadow-sm p-5';
 const inputClass =
-  'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+  'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all';
+
+function normalizeStatus(orderStatus?: string) {
+  const s = String(orderStatus || '').toLowerCase();
+  if (s.includes('delivered')) return 'Delivered';
+  if (s.includes('cancel')) return 'Cancelled';
+  if (s.includes('pending') || s.includes('process') || s.includes('ship') || s.includes('packed')) return 'Pending';
+  return 'Ordered';
+}
+
+function getStatusBadgeClass(status: string) {
+  if (status === 'Delivered') return 'bg-green-100 text-green-700';
+  if (status === 'Cancelled') return 'bg-red-100 text-red-700';
+  if (status === 'Pending') return 'bg-yellow-100 text-yellow-700';
+  return 'bg-yellow-100 text-yellow-700';
+}
+
+function getInitial(name?: string, email?: string) {
+  const base = (name || email || 'U').trim();
+  return base.charAt(0).toUpperCase();
+}
+
+function displayAddressLine(address: AddressItem) {
+  return `${address.address}, ${address.city}, ${address.state} - ${address.pincode}`;
+}
 
 export default function AccountPage() {
   const router = useRouter();
+  const {
+    user: authUser,
+    isAuthenticated,
+    loading: authLoading,
+    logout,
+    refreshUser,
+  } = useAuth();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+
   const [user, setUser] = useState<UserData | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<AccountOrder[]>([]);
+  const [addresses, setAddresses] = useState<AddressItem[]>([]);
+  const [activeTab, setActiveTab] = useState<AccountTab>('dashboard');
+  const [cancellingId, setCancellingId] = useState('');
+  const [cancelModalOrderId, setCancelModalOrderId] = useState('');
+  const [toast, setToast] = useState<ToastState | null>(null);
+
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Login form
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [loginLoading, setLoginLoading] = useState(false);
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '' });
 
-  // Signup form
-  const [signupForm, setSignupForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    dob: '',
+  const [addressFormOpen, setAddressFormOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState('');
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState('');
+  const [defaultingAddressId, setDefaultingAddressId] = useState('');
+  const [addressForm, setAddressForm] = useState({
+    fullName: '',
     phone: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+    isDefault: false,
   });
-  const [signupLoading, setSignupLoading] = useState(false);
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
-  // Check login on mount
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setUser(parsed);
-      setIsLoggedIn(true);
-      fetchOrders(parsed.email);
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  const loadAddresses = useCallback(async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/user`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setAddresses(Array.isArray(data.addresses) ? data.addresses : []);
+      }
+    } catch {
+      // Ignore address refresh failure to keep dashboard usable.
     }
-    setLoading(false);
   }, []);
 
-  const fetchOrders = async (email: string) => {
-    try {
-      const res = await fetch(`/api/orders`, { cache: 'no-store' });
-      if (res.ok) {
-        const all: Order[] = await res.json();
-        const userOrders = all.filter(
-          (o) => o.email.toLowerCase() === email.toLowerCase()
-        );
-        setOrders(userOrders);
-      }
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    }
-  };
-
-  const handleRedirectAfterLogin = () => {
-    const redirect = localStorage.getItem('redirectAfterLogin');
-    if (redirect) {
-      localStorage.removeItem('redirectAfterLogin');
-      router.push(redirect);
-    }
-  };
-
-  /* ---------------------------------------------------------------- */
-  /*  Login                                                           */
-  /* ---------------------------------------------------------------- */
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const loadDashboard = useCallback(async (email: string) => {
+    setLoadingDashboard(true);
     setError('');
-    setLoginLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
+      const [profileRes, ordersRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
+      ]);
+
+      const profileData = await profileRes.json();
+
+      if (!profileRes.ok) {
+        throw new Error(profileData.error || profileData.message || 'Unable to load profile');
+      }
+
+      if (profileData.message === 'User blocked') {
+        throw new Error(profileData.error || 'Your account has been blocked.');
+      }
+
+      setUser(profileData);
+      setProfileForm({
+        name: profileData.name || '',
+        email: profileData.email || '',
+        phone: profileData.phone || '',
+      });
+
+      if (ordersRes.ok) {
+        const orderData = await ordersRes.json();
+        setOrders(Array.isArray(orderData) ? orderData : []);
+      } else {
+        setOrders([]);
+      }
+
+      await loadAddresses();
+    } catch (err: any) {
+      setError(err.message || 'Failed to load account dashboard');
+    } finally {
+      setLoadingDashboard(false);
+    }
+  }, [loadAddresses]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated || !authUser?.email) {
+      router.replace('/login?redirect=/account');
+      setAuthChecking(false);
+      return;
+    }
+
+    setAuthChecking(false);
+    loadDashboard(authUser.email);
+  }, [loadDashboard, router, authLoading, isAuthenticated, authUser?.email]);
+
+  const orderStats = useMemo(() => {
+    const stats = {
+      total: orders.length,
+      delivered: 0,
+      pending: 0,
+      cancelled: 0,
+    };
+
+    orders.forEach((order) => {
+      const normalized = normalizeStatus(order.orderStatus);
+      if (normalized === 'Delivered') stats.delivered += 1;
+      else if (normalized === 'Cancelled') stats.cancelled += 1;
+      else if (normalized === 'Pending') stats.pending += 1;
+    });
+
+    return stats;
+  }, [orders]);
+
+  const recentOrders = useMemo(() => orders.slice(0, 5), [orders]);
+  const orderedByDate = useMemo(
+    () => [...orders].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+    [orders]
+  );
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logout();
+    router.replace('/login');
+    setLoggingOut(false);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setShowLogoutModal(false);
+    await handleLogout();
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    setSavingProfile(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: loginForm.email,
-          password: loginForm.password,
+          email: user.email,
+          name: profileForm.name.trim(),
+          phone: profileForm.phone.trim(),
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || 'Login failed');
-        return;
+        throw new Error(data.error || data.message || 'Failed to update profile');
       }
 
-      localStorage.setItem('user', JSON.stringify(data));
-      window.dispatchEvent(new Event('user-auth-change'));
-      setUser(data);
-      setIsLoggedIn(true);
-      fetchOrders(data.email);
-      setLoginForm({ email: '', password: '' });
-      handleRedirectAfterLogin();
-    } catch (err) {
-      setError('Something went wrong. Please try again.');
+      const updatedUser = {
+        ...data,
+        email: profileForm.email.trim() || data.email,
+      };
+
+      setUser(updatedUser);
+      await refreshUser();
+      setProfileModalOpen(false);
+      setSuccess('Profile updated successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile');
     } finally {
-      setLoginLoading(false);
+      setSavingProfile(false);
     }
   };
 
-  /* ---------------------------------------------------------------- */
-  /*  Signup                                                          */
-  /* ---------------------------------------------------------------- */
+  const persistAddresses = async (nextAddresses: AddressItem[]) => {
+    setAddresses(nextAddresses);
+  };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const openNewAddressForm = () => {
+    setEditingAddressId('');
+    setAddressForm({
+      fullName: user?.name || '',
+      phone: user?.phone || '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      isDefault: addresses.length === 0,
+    });
+    setAddressFormOpen(true);
+  };
+
+  const openEditAddressForm = (address: AddressItem) => {
+    setEditingAddressId(address._id);
+    setAddressForm({
+      fullName: address.fullName,
+      phone: address.phone,
+      address: address.address,
+      city: address.city,
+      state: address.state,
+      pincode: address.pincode,
+      isDefault: address.isDefault,
+    });
+    setAddressFormOpen(true);
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
-    if (signupForm.password !== signupForm.confirmPassword) {
-      setError('Passwords do not match');
+    if (
+      !addressForm.fullName.trim() ||
+      !addressForm.phone.trim() ||
+      !addressForm.address.trim() ||
+      !addressForm.city.trim() ||
+      !addressForm.state.trim() ||
+      !addressForm.pincode.trim()
+    ) {
+      setError('All address fields are required');
       return;
     }
 
-    if (signupForm.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (!/^\d{10}$/.test(addressForm.phone.trim())) {
+      setError('Phone number must be 10 digits');
       return;
     }
 
-    setSignupLoading(true);
+    if (!/^\d{6}$/.test(addressForm.pincode.trim())) {
+      setError('Pincode must be 6 digits');
+      return;
+    }
+
+    setSavingAddress(true);
 
     try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
+      const endpoint = editingAddressId ? `/api/address/${editingAddressId}` : '/api/address';
+      const method = editingAddressId ? 'PUT' : 'POST';
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: signupForm.name,
-          email: signupForm.email,
-          password: signupForm.password,
-          dob: signupForm.dob || null,
-          phone: signupForm.phone,
-        }),
+        body: JSON.stringify(addressForm),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Signup failed');
-        return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to save address');
       }
 
-      localStorage.setItem('user', JSON.stringify(data));
-      window.dispatchEvent(new Event('user-auth-change'));
-      setUser(data);
-      setIsLoggedIn(true);
-      setSignupForm({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        dob: '',
-        phone: '',
-      });
-      handleRedirectAfterLogin();
-    } catch (err) {
-      setError('Something went wrong. Please try again.');
+      await loadAddresses();
+      setAddressFormOpen(false);
+      setEditingAddressId('');
+      setSuccess(editingAddressId ? 'Address updated successfully' : 'Address added successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save address');
     } finally {
-      setSignupLoading(false);
+      setSavingAddress(false);
     }
   };
 
-  /* ---------------------------------------------------------------- */
-  /*  Logout                                                          */
-  /* ---------------------------------------------------------------- */
+  const handleDeleteAddress = async (addressId: string) => {
+    const confirmed = window.confirm('Delete this address?');
+    if (!confirmed) return;
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    window.dispatchEvent(new Event('user-auth-change'));
-    setIsLoggedIn(false);
-    setUser(null);
-    setOrders([]);
+    setDeletingAddressId(addressId);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${addressId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete address');
+      }
+
+      const nextAddresses = addresses.filter((item) => item._id !== addressId);
+      await persistAddresses(nextAddresses);
+      await loadAddresses();
+      setSuccess('Address deleted successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete address');
+    } finally {
+      setDeletingAddressId('');
+    }
   };
 
-  /* ---------------------------------------------------------------- */
-  /*  Loading state                                                   */
-  /* ---------------------------------------------------------------- */
+  const handleSetDefaultAddress = async (addressId: string) => {
+    const selected = addresses.find((item) => item._id === addressId);
+    if (!selected) return;
 
-  if (loading) {
+    setDefaultingAddressId(addressId);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${addressId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isDefault: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to set default address');
+      }
+
+      await loadAddresses();
+      setSuccess('Default address updated successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to set default address');
+    } finally {
+      setDefaultingAddressId('');
+    }
+  };
+
+  const handleCancelOrder = (orderId: string) => {
+    setCancelModalOrderId(orderId);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelModalOrderId) return;
+
+    setCancellingId(cancelModalOrderId);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/cancel/${cancelModalOrderId}`, {
+        method: 'PUT',
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel order');
+      }
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order._id === cancelModalOrderId
+            ? { ...order, orderStatus: 'Cancelled', trackingStatus: 'Cancelled', status: 'Cancelled' }
+            : order
+        )
+      );
+      setSuccess('Order cancelled successfully');
+      setToast({ type: 'success', message: 'Order cancelled successfully' });
+    } catch (err: any) {
+      const message = err.message || 'Failed to cancel order';
+      setError(message);
+      setToast({ type: 'error', message });
+    } finally {
+      setCancellingId('');
+      setCancelModalOrderId('');
+    }
+  };
+
+  const sidebarItems: Array<{ key: AccountTab | 'logout'; label: string; icon: any }> = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'orders', label: 'My Orders', icon: Package },
+    { key: 'address', label: 'My Address', icon: MapPin },
+    { key: 'wishlist', label: 'Wishlist', icon: Heart },
+    { key: 'logout', label: 'Logout', icon: LogOut },
+  ];
+
+  if (authChecking || loadingDashboard || !user) {
     return (
-      <div className="bg-background min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
-
-  /* ================================================================ */
-  /*  NOT LOGGED IN — Login / Signup Forms                            */
-  /* ================================================================ */
-
-  if (!isLoggedIn) {
-    return (
-      <div className="bg-background min-h-screen">
-        <div className="max-w-md mx-auto px-4 py-12">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="w-8 h-8" />
-            </div>
-            <h1 className="text-3xl font-bold text-foreground">My Account</h1>
-            <p className="text-muted-foreground mt-1">
-              Login or create an account
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <Tabs defaultValue="login" onValueChange={() => setError('')}>
-              <TabsList className="grid grid-cols-2 w-full rounded-none">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-
-              {/* ====== LOGIN ====== */}
-              <TabsContent value="login" className="p-6">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={loginForm.email}
-                      onChange={(e) =>
-                        setLoginForm({ ...loginForm, email: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showLoginPassword ? 'text' : 'password'}
-                        placeholder="Enter your password"
-                        value={loginForm.password}
-                        onChange={(e) =>
-                          setLoginForm({
-                            ...loginForm,
-                            password: e.target.value,
-                          })
-                        }
-                        className={inputClass + ' pr-10'}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowLoginPassword(!showLoginPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showLoginPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={loginLoading}
-                  >
-                    {loginLoading ? 'Signing in...' : 'Sign In'}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              {/* ====== SIGNUP ====== */}
-              <TabsContent value="signup" className="p-6">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="John Doe"
-                      value={signupForm.name}
-                      onChange={(e) =>
-                        setSignupForm({ ...signupForm, name: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signupForm.email}
-                      onChange={(e) =>
-                        setSignupForm({ ...signupForm, email: e.target.value })
-                      }
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Password *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showSignupPassword ? 'text' : 'password'}
-                          placeholder="Min 6 chars"
-                          value={signupForm.password}
-                          onChange={(e) =>
-                            setSignupForm({
-                              ...signupForm,
-                              password: e.target.value,
-                            })
-                          }
-                          className={inputClass + ' pr-10'}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowSignupPassword(!showSignupPassword)
-                          }
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showSignupPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Confirm Password *
-                      </label>
-                      <input
-                        type="password"
-                        placeholder="Re-enter"
-                        value={signupForm.confirmPassword}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            confirmPassword: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Date of Birth
-                      </label>
-                      <input
-                        type="date"
-                        value={signupForm.dob}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            dob: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1.5">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={signupForm.phone}
-                        onChange={(e) =>
-                          setSignupForm({
-                            ...signupForm,
-                            phone: e.target.value,
-                          })
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    size="lg"
-                    disabled={signupLoading}
-                  >
-                    {signupLoading ? 'Creating Account...' : 'Create Account'}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-2 text-gray-600">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading your account...
         </div>
       </div>
     );
   }
-
-  /* ================================================================ */
-  /*  LOGGED IN — Dashboard                                          */
-  /* ================================================================ */
-
-  const recentOrders = orders.slice(0, 3);
 
   return (
-    <div className="bg-background min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Welcome, {user?.name?.split(' ')[0]}
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your account and view your orders
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="gap-2 text-red-500 hover:text-red-600 hover:border-red-300"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </Button>
-        </div>
-
-        {/* Quick Links Grid */}
-        <div className="grid md:grid-cols-3 gap-6 mb-10">
-          <Link
-            href="/account/profile"
-            className="group border border-border rounded-xl p-6 bg-card hover:shadow-md hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <User className="w-6 h-6" />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+          <aside className="lg:sticky lg:top-24 self-start">
+            <div className="rounded-2xl border border-blue-100 bg-white shadow-sm p-4">
+              <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-semibold">
+                  {getInitial(user.name, user.email)}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">
-                    Profile Information
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    View and edit your details
-                  </p>
+                  <p className="font-semibold text-gray-900 leading-tight">{user.name}</p>
+                  <p className="text-xs text-gray-500 truncate max-w-[150px]">{user.email}</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-          </Link>
 
-          <Link
-            href="/account/orders"
-            className="group border border-border rounded-xl p-6 bg-card hover:shadow-md hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <Package className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">My Orders</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {orders.length} order{orders.length !== 1 ? 's' : ''} placed
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              <nav className="space-y-1">
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.key !== 'logout' && activeTab === item.key;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        if (item.key === 'logout') {
+                          handleLogoutConfirm();
+                          return;
+                        }
+                        setActiveTab(item.key);
+                      }}
+                      className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+                        active
+                          ? 'bg-blue-600 text-white'
+                          : item.key === 'logout'
+                            ? 'text-red-600 hover:bg-red-50'
+                            : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-          </Link>
+          </aside>
 
-          <Link
-            href="/account/profile"
-            className="group border border-border rounded-xl p-6 bg-card hover:shadow-md hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <MapPin className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">My Address</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Manage delivery address
-                  </p>
-                </div>
+          <section className="space-y-6">
+            <header className="rounded-2xl border border-blue-100 bg-white shadow-sm p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Account</h1>
+                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
+                  <Mail className="h-4 w-4" /> {user.email}
+                </p>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-          </Link>
-        </div>
-
-        {/* Account Info Summary */}
-        <div className="grid md:grid-cols-2 gap-6 mb-10">
-          <div className="border border-border rounded-xl p-6 bg-card">
-            <h3 className="font-semibold text-foreground mb-4">
-              Account Details
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Name</span>
-                <span className="font-medium text-foreground">
-                  {user?.name}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Email</span>
-                <span className="font-medium text-foreground">
-                  {user?.email}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Phone</span>
-                <span className="font-medium text-foreground">
-                  {user?.phone || 'Not set'}
-                </span>
-              </div>
-            </div>
-            <Link href="/account/profile">
-              <Button variant="outline" size="sm" className="mt-4 w-full">
-                Edit Profile
+              <Button variant="outline" onClick={() => setProfileModalOpen(true)}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit Profile
               </Button>
-            </Link>
-          </div>
+            </header>
 
-          <div className="border border-border rounded-xl p-6 bg-card">
-            <h3 className="font-semibold text-foreground mb-4">
-              Order Summary
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-muted/30 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-primary">
-                  {orders.length}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Total Orders
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-primary">
-                  {orders.filter((o) => o.orderStatus === 'Delivered').length}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Delivered</p>
-              </div>
-            </div>
-            <Link href="/account/orders">
-              <Button variant="outline" size="sm" className="mt-4 w-full">
-                View All Orders
-              </Button>
-            </Link>
-          </div>
-        </div>
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            )}
+            {success && (
+              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>
+            )}
 
-        {/* Recent Orders */}
-        {recentOrders.length > 0 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-foreground">
-                Recent Orders
-              </h2>
-              <Link
-                href="/account/orders"
-                className="text-sm text-primary hover:underline"
-              >
-                View all
-              </Link>
-            </div>
-            <div className="space-y-4">
-              {recentOrders.map((order) => (
-                <div
-                  key={order._id}
-                  className="border border-border rounded-xl p-5 bg-card"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {order.orderNumber}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </p>
+            {activeTab === 'dashboard' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className={`${cardClass} border border-gray-100`}>
+                    <p className="text-xs text-gray-500">Total Orders</p>
+                    <p className="mt-1 text-3xl font-bold text-gray-900">{orderStats.total}</p>
+                  </div>
+                  <div className={`${cardClass} border border-green-100 bg-green-50`}>
+                    <p className="text-xs text-green-700">Delivered</p>
+                    <p className="mt-1 text-3xl font-bold text-green-700">{orderStats.delivered}</p>
+                  </div>
+                  <div className={`${cardClass} border border-yellow-100 bg-yellow-50`}>
+                    <p className="text-xs text-yellow-700">Pending</p>
+                    <p className="mt-1 text-3xl font-bold text-yellow-700">{orderStats.pending}</p>
+                  </div>
+                  <div className={`${cardClass} border border-red-100 bg-red-50`}>
+                    <p className="text-xs text-red-700">Cancelled</p>
+                    <p className="mt-1 text-3xl font-bold text-red-700">{orderStats.cancelled}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className={cardClass}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-semibold text-gray-900">Profile Details</h2>
+                      <Link href="/account/profile">
+                        <Button variant="outline" size="sm">Manage</Button>
+                      </Link>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          order.orderStatus === 'Delivered'
-                            ? 'bg-green-100 text-green-800'
-                            : order.orderStatus === 'Shipped'
-                              ? 'bg-purple-100 text-purple-800'
-                              : order.orderStatus === 'Processing'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {order.orderStatus}
-                      </span>
-                      <span className="font-bold text-primary">
-                        ${order.totalAmount.toFixed(2)}
-                      </span>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between gap-4">
+                        <span className="text-gray-500">Name</span>
+                        <span className="font-medium text-gray-900 text-right">{user.name}</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-gray-500">Email</span>
+                        <span className="font-medium text-gray-900 text-right">{user.email}</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-gray-500">Phone</span>
+                        <span className="font-medium text-gray-900 text-right">{user.phone || 'Not set'}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-border text-sm text-muted-foreground">
-                    {order.products.map((p, i) => (
-                      <span key={i}>
-                        {p.productName} x{p.quantity}
-                        {i < order.products.length - 1 ? ', ' : ''}
-                      </span>
+
+                  <div className={cardClass}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-semibold text-gray-900">Default Address</h2>
+                      <Button variant="outline" size="sm" onClick={() => setActiveTab('address')}>
+                        Manage
+                      </Button>
+                    </div>
+                    {addresses.find((a) => a.isDefault) ? (
+                      <>
+                        <p className="font-semibold text-gray-900">{addresses.find((a) => a.isDefault)?.fullName}</p>
+                        <p className="text-sm text-gray-600 mt-1">{addresses.find((a) => a.isDefault)?.phone}</p>
+                        <p className="text-sm text-gray-700 mt-2">
+                          {displayAddressLine(addresses.find((a) => a.isDefault) as AddressItem)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">No default address selected yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className={cardClass}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('orders')}>
+                      View All Orders
+                    </Button>
+                  </div>
+
+                  {recentOrders.length === 0 ? (
+                    <p className="text-sm text-gray-500">No orders yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {recentOrders.map((order) => {
+                        const normalizedStatus = normalizeStatus(order.status || order.trackingStatus || order.orderStatus);
+                        const firstProduct = order.products?.[0]?.productName || 'Product';
+                        const moreCount = Math.max(0, (order.products?.length || 0) - 1);
+
+                        return (
+                          <div key={order._id} className="rounded-lg border border-gray-200 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-gray-900">{order.orderNumber || order._id}</p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(order.createdAt).toLocaleDateString('en-IN', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })}
+                                </p>
+                              </div>
+
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeClass(
+                                  normalizedStatus
+                                )}`}
+                              >
+                                {normalizedStatus}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <p className="text-gray-700">
+                                {firstProduct}
+                                {moreCount > 0 ? ` +${moreCount} more` : ''}
+                              </p>
+                              <p className="font-semibold text-gray-900">{formatINRCurrency(order.totalAmount)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {activeTab === 'orders' && (
+              <div className="space-y-4">
+                <div className={cardClass}>
+                  <h2 className="text-xl font-semibold text-gray-900">My Orders</h2>
+                  <p className="text-sm text-gray-500 mt-1">Complete order history with live tracking timeline</p>
+                </div>
+
+                {orderedByDate.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
+                    <h2 className="text-lg font-semibold text-gray-900">You have no orders yet</h2>
+                    <p className="mt-1 text-sm text-gray-500">Once you place an order, it will appear here.</p>
+                    <Button className="mt-5" onClick={() => router.push('/products')}>
+                      Start Shopping
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orderedByDate.map((order) => (
+                      <OrderCard
+                        key={order._id}
+                        order={order}
+                        isCancelling={cancellingId === order._id}
+                        onCancel={handleCancelOrder}
+                      />
                     ))}
                   </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'address' && (
+              <div className="space-y-4">
+                <div className={`${cardClass} flex items-center justify-between gap-3`}>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">My Address</h2>
+                    <p className="text-sm text-gray-500 mt-1">Manage delivery locations and default address</p>
+                  </div>
+                  <Button onClick={openNewAddressForm} disabled={savingAddress} className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" /> Add New Address
+                  </Button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+
+                {addressFormOpen && (
+                  <form onSubmit={handleSaveAddress} className={`${cardClass} space-y-3 border border-gray-200`}>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Full Name</label>
+                        <input
+                          value={addressForm.fullName}
+                          onChange={(e) => setAddressForm((prev) => ({ ...prev, fullName: e.target.value }))}
+                          className={inputClass}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Phone</label>
+                        <input
+                          value={addressForm.phone}
+                          onChange={(e) => setAddressForm((prev) => ({ ...prev, phone: e.target.value }))}
+                          className={inputClass}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">Address</label>
+                      <input
+                        value={addressForm.address}
+                        onChange={(e) => setAddressForm((prev) => ({ ...prev, address: e.target.value }))}
+                        className={inputClass}
+                        required
+                      />
+                    </div>
+
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">City</label>
+                        <input
+                          value={addressForm.city}
+                          onChange={(e) => setAddressForm((prev) => ({ ...prev, city: e.target.value }))}
+                          className={inputClass}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">State</label>
+                        <input
+                          value={addressForm.state}
+                          onChange={(e) => setAddressForm((prev) => ({ ...prev, state: e.target.value }))}
+                          className={inputClass}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Pincode</label>
+                        <input
+                          value={addressForm.pincode}
+                          onChange={(e) => setAddressForm((prev) => ({ ...prev, pincode: e.target.value }))}
+                          className={inputClass}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={addressForm.isDefault}
+                        onChange={(e) => setAddressForm((prev) => ({ ...prev, isDefault: e.target.checked }))}
+                      />
+                      Set as default address
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <Button type="submit" disabled={savingAddress} className="bg-blue-600 hover:bg-blue-700">
+                        {savingAddress ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4 mr-2" />
+                            Save Address
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setAddressFormOpen(false);
+                          setEditingAddressId('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
+                {addresses.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+                    No address saved yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {addresses.map((address) => (
+                      <div key={address._id} className={`${cardClass} border border-gray-100`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900 flex items-center gap-2">
+                              {address.fullName}
+                              {address.isDefault && (
+                                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                                  Default
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">{address.phone}</p>
+                            <p className="text-sm text-gray-700 mt-2">{displayAddressLine(address)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditAddressForm(address)}>
+                            <Pencil className="h-4 w-4 mr-1.5" /> Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteAddress(address._id)}
+                            disabled={deletingAddressId === address._id}
+                          >
+                            {deletingAddressId === address._id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+                              </>
+                            )}
+                          </Button>
+                          {!address.isDefault && (
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700"
+                              onClick={() => handleSetDefaultAddress(address._id)}
+                              disabled={defaultingAddressId === address._id}
+                            >
+                              {defaultingAddressId === address._id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Updating...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="h-4 w-4 mr-1.5" /> Set Default
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'wishlist' && (
+              <div className="space-y-4">
+                <div className={cardClass}>
+                  <h2 className="text-xl font-semibold text-gray-900">Wishlist</h2>
+                  <p className="text-sm text-gray-500 mt-1">See saved products and continue shopping quickly</p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className={`${cardClass} border border-gray-100`}>
+                    <Heart className="w-5 h-5 text-blue-600" />
+                    <p className="mt-2 text-sm text-gray-500">Saved Favorites</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">View</p>
+                  </div>
+                  <div className={`${cardClass} border border-gray-100`}>
+                    <ShieldCheck className="w-5 h-5 text-blue-600" />
+                    <p className="mt-2 text-sm text-gray-500">Fast Checkout</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">Enabled</p>
+                  </div>
+                  <div className={`${cardClass} border border-gray-100`}>
+                    <ShoppingBag className="w-5 h-5 text-blue-600" />
+                    <p className="mt-2 text-sm text-gray-500">Recommended</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">Products</p>
+                  </div>
+                </div>
+
+                <div className={cardClass}>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href="/wishlist">
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        <Eye className="h-4 w-4 mr-1.5" /> Open Wishlist
+                      </Button>
+                    </Link>
+                    <Link href="/products">
+                      <Button variant="outline">Browse Products</Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
+
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Profile</h3>
+              <button
+                type="button"
+                onClick={() => setProfileModalOpen(false)}
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+                aria-label="Close profile modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">Name</label>
+                <input
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className={inputClass}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Email</label>
+                <input value={profileForm.email} className={`${inputClass} bg-gray-50`} disabled />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Phone</label>
+                <input
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  className={inputClass}
+                  placeholder="Phone number"
+                />
+              </div>
+              <div className="pt-2 flex items-center gap-2">
+                <Button type="submit" disabled={savingProfile}>
+                  {savingProfile ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setProfileModalOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {loggingOut && (
+        <div className="fixed bottom-5 right-5 rounded-lg bg-slate-900 text-white px-4 py-3 text-sm shadow-lg">
+          Logging out...
+        </div>
+      )}
+
+      <CancelOrderModal
+        open={Boolean(cancelModalOrderId)}
+        isProcessing={Boolean(cancelModalOrderId) && cancellingId === cancelModalOrderId}
+        onOpenChange={(open) => {
+          if (!open && !cancellingId) setCancelModalOrderId('');
+        }}
+        onConfirm={handleConfirmCancelOrder}
+      />
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        isProcessing={loggingOut}
+        onOpenChange={(open) => {
+          if (!open && !loggingOut) setShowLogoutModal(false);
+        }}
+        onConfirm={handleConfirmLogout}
+      />
+
+      {toast && (
+        <div
+          className={`fixed bottom-16 right-5 rounded-lg px-4 py-3 text-sm text-white shadow-lg ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 
@@ -10,6 +10,7 @@ const inputClass =
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,11 +19,23 @@ export default function AdminLoginPage() {
 
   // If already logged in, redirect to dashboard
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (token) {
-      router.replace('/admin/dashboard');
+    if (searchParams.get('error') === 'unauthorized') {
+      setError('Unauthorized Access');
     }
-  }, [router]);
+
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        if (res.ok) {
+          router.replace('/admin/dashboard');
+        }
+      } catch {
+        // Ignore and stay on login page.
+      }
+    };
+
+    checkSession();
+  }, [router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +43,7 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -39,15 +52,18 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || 'Login failed');
+        setError(data.error || data.message || 'Login failed');
         return;
       }
 
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminInfo', JSON.stringify(data.admin));
-      // Cookie is already set by the API response
-      router.replace('/admin/dashboard');
-    } catch (err) {
+      const role = String(data?.role || '').toLowerCase();
+      if (role === 'admin') {
+        router.replace('/admin/dashboard');
+        return;
+      }
+
+      router.replace('/');
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
@@ -62,7 +78,7 @@ export default function AdminLoginPage() {
           <div className="w-16 h-16 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Shield className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
+          <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
           <p className="text-sm text-muted-foreground mt-1">
             TN Automation — Authorized Access Only
           </p>
@@ -87,9 +103,13 @@ export default function AdminLoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@gmail.com"
                 className={inputClass}
+                inputMode="email"
                 required
                 autoFocus
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use your authorized admin email.
+              </p>
             </div>
 
             <div>

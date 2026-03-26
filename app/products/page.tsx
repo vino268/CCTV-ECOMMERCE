@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductCard } from '@/components/product-card';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -12,20 +12,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search } from 'lucide-react';
+import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
 export default function ProductsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const searchTerm = (searchParams.get('search') || '').trim();
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>(['All Categories']);
+  const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState('featured');
-  const [searchTerm, setSearchTerm] = useState('');
 
   // Load products from MongoDB API
   useEffect(() => {
     async function fetchProducts() {
-      const res = await fetch('/api/products');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/products`);
       const data = await res.json();
       setProducts(data);
     }
@@ -33,26 +35,43 @@ export default function ProductsPage() {
     fetchProducts();
   }, []);
 
-  // Initialize search from URL
   useEffect(() => {
-    const q = searchParams.get('search');
-    if (q) {
-      setSearchTerm(q);
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories', { cache: 'no-store' });
+      const data = await res.json();
+
+      setCategories([
+        'All Categories',
+        ...data.map((cat: any) => cat.name),
+      ]);
+    } catch (err) {
+      console.error('Failed to load categories');
+    }
+  };
+
+  // Initialize category filter from URL
+  useEffect(() => {
+    const categoryParam = searchParams.get('category');
+
+    if (categoryParam) {
+      setSelectedCategory(decodeURIComponent(categoryParam));
+    } else {
+      setSelectedCategory('All Categories');
     }
   }, [searchParams]);
 
-  // Get categories dynamically
-  const uniqueCategories = useMemo(() => {
-    return [...new Set(products.map((p) => p.category))];
-  }, [products]);
-
   // Filter + Sort
   const filteredProducts = useMemo(() => {
-    let filtered = [...products];
+    const categoryFiltered =
+      selectedCategory === 'All Categories'
+        ? products
+        : products.filter((p) => p.category === selectedCategory);
 
-    if (selectedCategory) {
-      filtered = filtered.filter((p) => p.category === selectedCategory);
-    }
+    let filtered = [...categoryFiltered];
 
     if (searchTerm) {
       filtered = filtered.filter(
@@ -67,22 +86,40 @@ export default function ProductsPage() {
       filtered.sort((a, b) => a.price - b.price);
     } else if (sortBy === 'price-high') {
       filtered.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'rating') {
-      filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     }
 
     return filtered;
   }, [products, selectedCategory, sortBy, searchTerm]);
 
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      counts.set(product.category, (counts.get(product.category) || 0) + 1);
+    }
+    return counts;
+  }, [products]);
+
+  const getCategoryIcon = (category: string) => {
+    const key = category.toLowerCase();
+
+    if (key.includes('camera')) return Camera;
+    if (key.includes('dvr') || key.includes('nvr') || key.includes('storage')) return HardDrive;
+    if (key.includes('accessor') || key.includes('cable')) return Cable;
+    if (key.includes('network')) return Network;
+    if (key.includes('security') || key.includes('installation')) return ShieldCheck;
+
+    return Tag;
+  };
+
   return (
-    <div className="bg-background">
+    <div className="bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 py-12">
+      <div className="bg-gradient-to-r from-blue-50 to-gray-100 py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-gray-900 mb-3">
             Our Products
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-gray-600 text-base md:text-lg">
             Browse our complete selection of CCTV cameras and security equipment
           </p>
         </div>
@@ -95,60 +132,50 @@ export default function ProductsPage() {
           <div className="lg:col-span-1">
             <div className="sticky top-20 space-y-6">
 
-              {/* Search */}
-              <div>
-                <label className="block text-sm font-semibold mb-3">
-                  Search
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-
               {/* Category */}
-              <div>
-                <label className="block text-sm font-semibold mb-3">
-                  Category
-                </label>
+              <div className="bg-white rounded-2xl shadow-md p-5 border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">Categories</h3>
+                <div className="mt-3 border-t border-gray-100" />
 
-                <div className="space-y-2">
-                  <Button
-                    variant={selectedCategory === null ? 'default' : 'outline'}
-                    className="w-full justify-start"
-                    onClick={() => setSelectedCategory(null)}
-                  >
-                    All Categories
-                  </Button>
+                <div className="mt-4 max-h-[360px] overflow-y-auto pr-1 space-y-2">
+                  {categories.map((cat) => {
+                    const Icon = getCategoryIcon(cat);
+                    const count = cat === 'All Categories' ? products.length : categoryCounts.get(cat) || 0;
 
-                  {uniqueCategories.map((category) => (
-                    <Button
-                      key={category}
-                      variant={
-                        selectedCategory === category ? 'default' : 'outline'
-                      }
-                      className="w-full justify-start"
-                      onClick={() => setSelectedCategory(category)}
-                    >
-                      {category}
-                    </Button>
-                  ))}
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
+                          selectedCategory === cat
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-white text-gray-700 hover:bg-blue-50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5 text-left">
+                          <Icon className="h-4 w-4 flex-shrink-0" />
+                          <span className="font-medium">{cat}</span>
+                        </span>
+                        <span
+                          className={`ml-3 text-xs font-semibold ${
+                            selectedCategory === cat ? 'text-blue-100' : 'text-gray-500'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {(selectedCategory || searchTerm) && (
+              {(selectedCategory !== 'All Categories' || searchTerm) && (
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    setSelectedCategory(null);
-                    setSearchTerm('');
+                    setSelectedCategory('All Categories');
+                    router.push('/products');
                   }}
                 >
                   Clear Filters
@@ -161,8 +188,8 @@ export default function ProductsPage() {
           <div className="lg:col-span-3">
 
             {/* Sort */}
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex justify-between items-center mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+              <p className="text-sm text-gray-600">
                 Showing {filteredProducts.length} products
               </p>
 
@@ -175,7 +202,6 @@ export default function ProductsPage() {
                   <SelectItem value="featured">Featured</SelectItem>
                   <SelectItem value="price-low">Price: Low → High</SelectItem>
                   <SelectItem value="price-high">Price: High → Low</SelectItem>
-                  <SelectItem value="rating">Top Rated</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -196,8 +222,8 @@ export default function ProductsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setSelectedCategory(null);
-                    setSearchTerm('');
+                    setSelectedCategory('All Categories');
+                    router.push('/products');
                   }}
                 >
                   View All Products

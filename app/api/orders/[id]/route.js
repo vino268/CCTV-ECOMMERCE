@@ -3,13 +3,67 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
+import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
+
+const ADMIN_ALLOWED_STATUSES = [
+  "Pending",
+  "Packed",
+  "Ordered",
+  "Confirmed",
+  "Shipped",
+  "Out for Delivery",
+  "OutForDelivery",
+  "Delivered",
+  "Cancelled",
+];
+
+function normalizeIncomingStatus(status) {
+  if (!status) return status;
+  const value = String(status).trim();
+  const map = {
+    pending: "Pending",
+    packed: "Packed",
+    ordered: "Ordered",
+    confirmed: "Confirmed",
+    shipped: "Shipped",
+    outfordelivery: "OutForDelivery",
+    "out for delivery": "OutForDelivery",
+    out_for_delivery: "OutForDelivery",
+    "out-for-delivery": "OutForDelivery",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  };
+  return map[value.toLowerCase()] || value;
+}
+
+function mapWorkflowStatus(status) {
+  switch (status) {
+    case "Pending":
+    case "Ordered":
+      return "Pending";
+    case "Packed":
+    case "Confirmed":
+      return "Packed";
+    case "Shipped":
+      return "Shipped";
+    case "OutForDelivery":
+    case "Out for Delivery":
+      return "Out for Delivery";
+    case "Delivered":
+      return "Delivered";
+    case "Cancelled":
+      return "Cancelled";
+    default:
+      return "Pending";
+  }
+}
 
 // GET /api/orders/[id] — return single order
 export async function GET(req, { params }) {
   try {
     await connectDB();
     const { id } = await params;
-    const order = await Order.findById(id);
+    const order = await Order.findOne({ _id: id, isDeleted: false });
 
     if (!order) {
       return NextResponse.json(
@@ -36,43 +90,65 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const body = await req.json();
 
-    const order = await Order.findById(id);
+    const order = await Order.findOne({ _id: id, isDeleted: false });
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
     // ── Admin: status / payment updates (no time restriction) ──────────────
     if (body.orderStatus !== undefined) {
-      // Enforce allowed status transitions
-      const allowedTransitions = {
-        Ordered: ["Confirmed", "Cancelled"],
-        Confirmed: ["Shipped", "Cancelled"],
-        Shipped: ["OutForDelivery"],
-        OutForDelivery: ["Delivered"],
-        Delivered: [],
-        Cancelled: [],
-      };
+      const nextStatus = normalizeIncomingStatus(body.orderStatus);
 
-      const currentStatus = order.trackingStatus || order.orderStatus;
-      const allowed = allowedTransitions[currentStatus] || [];
-      if (!allowed.includes(body.orderStatus)) {
+      if (!ADMIN_ALLOWED_STATUSES.includes(nextStatus)) {
         return NextResponse.json(
-          { error: `Cannot change status from ${currentStatus} to ${body.orderStatus}` },
+          { error: "Invalid order status" },
           { status: 400 }
         );
       }
 
-      order.orderStatus = body.orderStatus;
-      order.trackingStatus = body.orderStatus;
+      order.orderStatus = nextStatus;
+      order.trackingStatus = nextStatus;
+      order.status = mapWorkflowStatus(nextStatus);
 
       // Set timestamp for the status change
       const now = new Date();
-      switch (body.orderStatus) {
-        case "Confirmed": order.confirmedAt = now; break;
-        case "Shipped": order.shippedAt = now; break;
-        case "OutForDelivery": order.outForDeliveryAt = now; break;
-        case "Delivered": order.deliveredAt = now; break;
-        case "Cancelled": order.cancelledAt = now; break;
+      switch (nextStatus) {
+        case "Ordered":
+        case "Pending":
+          order.confirmedAt = null;
+          order.shippedAt = null;
+          order.outForDeliveryAt = null;
+          order.deliveredAt = null;
+          order.cancelledAt = null;
+          break;
+        case "Confirmed":
+        case "Packed":
+          order.confirmedAt = now;
+          order.shippedAt = null;
+          order.outForDeliveryAt = null;
+          order.deliveredAt = null;
+          order.cancelledAt = null;
+          break;
+        case "Shipped":
+          if (!order.confirmedAt) order.confirmedAt = now;
+          order.shippedAt = now;
+          break;
+        case "OutForDelivery":
+        case "Out for Delivery":
+          if (!order.confirmedAt) order.confirmedAt = now;
+          if (!order.shippedAt) order.shippedAt = now;
+          order.outForDeliveryAt = now;
+          order.cancelledAt = null;
+          break;
+        case "Delivered":
+          if (!order.confirmedAt) order.confirmedAt = now;
+          if (!order.shippedAt) order.shippedAt = now;
+          order.outForDeliveryAt = order.outForDeliveryAt || now;
+          order.deliveredAt = now;
+          break;
+        case "Cancelled":
+          order.cancelledAt = now;
+          break;
       }
 
       await order.save();
@@ -80,10 +156,10 @@ export async function PUT(req, { params }) {
       await AdminLog.create({
         adminName: "Admin",
         action: "Changed order status",
-        details: `${order.orderNumber || order._id} → ${body.orderStatus}`,
+        details: `${order.orderNumber || order._id} → ${nextStatus}`,
       });
 
-      if (body.orderStatus === "Cancelled") {
+      if (nextStatus === "Cancelled") {
         await Notification.create({
           type: "cancel",
           message: `Order ${order.orderNumber || order._id} was cancelled`,
@@ -91,7 +167,7 @@ export async function PUT(req, { params }) {
         });
       }
 
-      if (body.orderStatus === "Delivered") {
+      if (nextStatus === "Delivered") {
         await Notification.create({
           type: "delivery",
           message: `Order ${order.orderNumber || order._id} was delivered`,
@@ -133,5 +209,39 @@ export async function PUT(req, { params }) {
   } catch (error) {
     console.error("Error updating order:", error);
     return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req, { params }) {
+  try {
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) return adminAuthError(auth);
+
+    await connectDB();
+    const { id } = await params;
+
+    const order = await Order.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    await AdminLog.create({
+      adminName: "Admin",
+      action: "Soft deleted order",
+      details: order.orderNumber || String(order._id),
+    });
+
+    return NextResponse.json({ message: "Order moved to trash successfully", order });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to delete order" }, { status: 500 });
   }
 }

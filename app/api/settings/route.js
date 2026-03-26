@@ -2,6 +2,44 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import SiteSettings from "@/models/SiteSettings";
 import AdminLog from "@/models/AdminLog";
+import { jwtVerify } from "jose";
+
+function normalizeString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidHttpsUrl(value) {
+  if (!value) return true;
+  if (!value.startsWith("https://")) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function verifyAdmin(request) {
+  const token = request.cookies.get("adminToken")?.value;
+  if (!token) {
+    return { ok: false, status: 401, message: "Unauthorized" };
+  }
+
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    if (payload.role !== "admin") {
+      return { ok: false, status: 403, message: "Forbidden" };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, status: 401, message: "Unauthorized" };
+  }
+}
 
 // GET /api/settings — return the single site-settings document (create default if missing)
 export async function GET() {
@@ -23,25 +61,57 @@ export async function GET() {
 // POST /api/settings — upsert site settings
 export async function POST(req) {
   try {
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.message }, { status: auth.status });
+    }
+
     await connectDB();
     const data = await req.json();
 
+    const contactEmail = normalizeString(data.contact?.email);
+    const contactPhone = normalizeString(data.contact?.phone);
+    const social = {
+      facebook: normalizeString(data.social?.facebook),
+      instagram: normalizeString(data.social?.instagram),
+      twitter: normalizeString(data.social?.twitter),
+      linkedin: normalizeString(data.social?.linkedin),
+      youtube: normalizeString(data.social?.youtube),
+    };
+
+    if (contactEmail && !isValidEmail(contactEmail)) {
+      return NextResponse.json(
+        { error: "Please provide a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    if (contactPhone && !/^\d+$/.test(contactPhone)) {
+      return NextResponse.json(
+        { error: "Phone number must be numeric" },
+        { status: 400 }
+      );
+    }
+
+    for (const [key, value] of Object.entries(social)) {
+      if (!isValidHttpsUrl(value)) {
+        return NextResponse.json(
+          { error: `${key} link must start with https://` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Only allow known fields
     const update = {
-      storeName: data.storeName,
-      description: data.description,
+      storeName: normalizeString(data.storeName),
+      description: normalizeString(data.description),
       contact: {
-        phone: data.contact?.phone,
-        email: data.contact?.email,
-        address: data.contact?.address,
+        phone: contactPhone,
+        email: contactEmail,
+        address: normalizeString(data.contact?.address),
       },
-      social: {
-        facebook: data.social?.facebook,
-        instagram: data.social?.instagram,
-        twitter: data.social?.twitter,
-        linkedin: data.social?.linkedin,
-        youtube: data.social?.youtube,
-      },
+      social,
     };
 
     const settings = await SiteSettings.findOneAndUpdate({}, update, {

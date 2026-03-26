@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import LogoutConfirmModal from '@/components/logout-confirm-modal'
 import {
   Bell,
   LogOut,
@@ -51,11 +53,14 @@ const notifIcon: Record<string, typeof Bell> = {
 }
 
 export default function AdminHeader({ onLogout }: AdminHeaderProps) {
+  const pathname = usePathname()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [bellOpen, setBellOpen] = useState(false)
-  const [avatarOpen, setAvatarOpen] = useState(false)
+  const [openMenu, setOpenMenu] = useState(false)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [adminName, setAdminName] = useState('Admin')
   const bellRef = useRef<HTMLDivElement>(null)
-  const avatarRef = useRef<HTMLDivElement>(null)
 
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
@@ -72,18 +77,41 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
     return () => clearInterval(id)
   }, [])
 
+  useEffect(() => {
+    const loadAdmin = async () => {
+      try {
+        const res = await fetch('/api/admin/profile', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        const admin = data?.admin
+        if (admin?.name?.trim()) {
+          setAdminName(admin.name.trim())
+        } else if (admin?.email) {
+          setAdminName(String(admin.email).split('@')[0])
+        }
+      } catch {
+        // Keep fallback name.
+      }
+    }
+
+    loadAdmin()
+  }, [])
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement
+
+      if (bellRef.current && !bellRef.current.contains(target)) {
         setBellOpen(false)
       }
-      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
-        setAvatarOpen(false)
+
+      if (!target.closest('.profile-menu')) {
+        setOpenMenu(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
   }, [])
 
   const handleDeleteOne = async (id: string) => {
@@ -120,7 +148,13 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
   }
 
   const handleLogout = () => {
-    setAvatarOpen(false)
+    setOpenMenu(false)
+    setShowLogoutModal(true)
+  }
+
+  const handleConfirmLogout = () => {
+    setIsLoggingOut(true)
+    setShowLogoutModal(false)
     onLogout()
   }
 
@@ -136,19 +170,38 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
 
   const menuItems = [
     { href: '/admin/profile', label: 'My Profile', icon: User },
-    { href: '/admin/account', label: 'Account Settings', icon: Settings },
+    { href: '/admin/settings', label: 'Account Settings', icon: Settings },
     { href: '/admin/change-password', label: 'Change Password', icon: KeyRound },
     { href: '/admin/notifications', label: 'Notifications', icon: Bell },
     { href: '/admin/activity', label: 'Activity Log', icon: Activity },
     { href: '/admin/help', label: 'Help / Support', icon: HelpCircle },
   ]
 
+  const today = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+
+  const section = pathname?.split('/')[2] || 'dashboard'
+  const purposeMap: Record<string, string> = {
+    dashboard: 'Manage your CCTV business efficiently',
+    orders: 'Track orders and fulfillment operations',
+    customers: 'Manage customer relationships and support',
+    products: 'Control catalog, stock, and pricing',
+    services: 'Handle installation and service requests',
+    settings: 'Configure platform settings and preferences',
+  }
+  const subtitle = `TN Automation Admin Dashboard — ${purposeMap[section] || 'Manage your CCTV business efficiently'}`
+  const adminInitial = (adminName || 'A').charAt(0).toUpperCase()
+
   return (
-    <header className="bg-white border-b px-6 py-3">
+    <header className="bg-white border-b px-4 py-3">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Admin Panel</h1>
-          <p className="text-sm text-gray-500">Management Console</p>
+          <h1 className="text-2xl font-bold text-gray-800">Welcome back, {adminName} 👋</h1>
+          <p className="text-sm text-gray-500">{subtitle}</p>
+          <p className="text-xs text-gray-400 mt-1">Today: {today}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -169,7 +222,7 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
               aria-label="Notifications"
               onClick={() => {
                 setBellOpen((v) => !v)
-                setAvatarOpen(false)
+                setOpenMenu(false)
                 if (!bellOpen && unreadCount > 0) handleMarkAllRead()
               }}
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-50"
@@ -256,23 +309,23 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
           </div>
 
           {/* Avatar + Profile Dropdown */}
-          <div className="relative" ref={avatarRef}>
+          <div className="relative profile-menu">
             <button
               type="button"
               onClick={() => {
-                setAvatarOpen((v) => !v)
+                setOpenMenu((v) => !v)
                 setBellOpen(false)
               }}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-900 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              A
+              {adminInitial}
             </button>
 
-            {avatarOpen && (
+            {openMenu && (
               <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
                 {/* Admin info */}
                 <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-gray-900">Admin</p>
+                  <p className="text-sm font-semibold text-gray-900">{adminName}</p>
                   <p className="text-xs text-gray-500 truncate">Administrator</p>
                 </div>
 
@@ -282,9 +335,9 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
                     const Icon = item.icon
                     return (
                       <Link
-                        key={item.href}
+                        key={`${item.href}-${item.label}`}
                         href={item.href}
-                        onClick={() => setAvatarOpen(false)}
+                        onClick={() => setOpenMenu(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                       >
                         <Icon className="h-4 w-4 text-gray-400" />
@@ -315,6 +368,15 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
           </div>
         </div>
       </div>
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        isProcessing={isLoggingOut}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !isLoggingOut) setShowLogoutModal(false)
+        }}
+        onConfirm={handleConfirmLogout}
+      />
     </header>
   )
 }

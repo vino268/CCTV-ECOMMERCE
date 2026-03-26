@@ -27,6 +27,17 @@ export async function GET(req) {
       );
     }
 
+    if (user.isBlocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User blocked",
+          error: "Your account has been blocked. Please contact support.",
+        },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(user);
   } catch (error) {
     return NextResponse.json(
@@ -63,6 +74,17 @@ export async function PUT(req) {
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
+      );
+    }
+
+    if (user.isBlocked) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "User blocked",
+          error: "Your account has been blocked. Please contact support.",
+        },
+        { status: 403 }
       );
     }
 

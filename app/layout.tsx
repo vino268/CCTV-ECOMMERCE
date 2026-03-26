@@ -2,32 +2,20 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { CartProvider } from '@/lib/contexts/cart-context'
-import { RootNavbar } from '@/components/root-navbar'
-import { RootFooter } from '@/components/root-footer'
+import { WishlistProvider } from '@/lib/contexts/wishlist-context'
+import { AuthProvider } from '@/lib/contexts/auth-context'
+import { ConditionalLayout } from '@/components/conditional-layout'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'TN Automation - Professional CCTV & Security Solutions',
+  title: 'TN Automation - Professional CCTV',
   description: 'Professional CCTV cameras, security systems, and installation services. Shop dome cameras, bullet cameras, and more from trusted brands.',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/images/tnlogo.png',
     apple: '/apple-icon.png',
   },
 }
@@ -38,15 +26,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased flex flex-col min-h-screen bg-background">
-        <CartProvider>
-          <RootNavbar />
-          <main className="flex-1">
-            {children}
-          </main>
-          <RootFooter />
-        </CartProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className="font-sans antialiased flex flex-col min-h-screen overflow-x-hidden">
+        <AuthProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <ConditionalLayout>{children}</ConditionalLayout>
+            </WishlistProvider>
+          </CartProvider>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

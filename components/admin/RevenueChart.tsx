@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -11,23 +10,24 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Loader2 } from 'lucide-react';
+import { formatINRCurrency } from '@/lib/currency';
 
 interface RevenueData {
   date: string;
   revenue: number;
 }
 
-export default function RevenueChart() {
-  const [data, setData] = useState<RevenueData[]>([]);
-  const [loading, setLoading] = useState(true);
+interface RevenueChartProps {
+  data: RevenueData[];
+  loading: boolean;
+  subtitle?: string;
+}
 
-  useEffect(() => {
-    fetch('/api/admin/analytics/revenue', { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+export default function RevenueChart({
+  data,
+  loading,
+  subtitle = 'Revenue trend',
+}: RevenueChartProps) {
 
   const total = data.reduce((sum, d) => sum + d.revenue, 0);
 
@@ -35,10 +35,10 @@ export default function RevenueChart() {
     <div className="bg-white rounded-xl shadow-sm border border-border p-6">
       <div className="mb-6">
         <h3 className="text-lg font-bold text-foreground">Revenue</h3>
-        <p className="text-sm text-muted-foreground">Last 7 days</p>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
         {!loading && (
           <p className="text-2xl font-bold text-foreground mt-1">
-            ₹{total.toLocaleString()}
+            {formatINRCurrency(total)}
           </p>
         )}
       </div>
@@ -46,6 +46,10 @@ export default function RevenueChart() {
       {loading ? (
         <div className="flex items-center justify-center h-[250px]">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : data.length === 0 ? (
+        <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
+          No data available
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={250}>
@@ -69,7 +73,7 @@ export default function RevenueChart() {
                 border: '1px solid #e5e7eb',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}
-              formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
+              formatter={(value: number) => [formatINRCurrency(value), 'Revenue']}
             />
             <Line
               type="monotone"

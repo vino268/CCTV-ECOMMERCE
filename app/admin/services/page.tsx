@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit2, Trash2, Plus, X, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { formatPrice } from '@/lib/currency';
+import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 
 interface Service {
   _id: string;
@@ -34,6 +36,9 @@ export default function AdminServicesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<FormState>(EMPTY_FORM);
   const [adding, setAdding] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<Service | null>(null);
+  const [deleteType, setDeleteType] = useState<'service' | ''>('');
+  const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
 
   /* ---------------------------------------------------------------- */
   const fetchServices = async () => {
@@ -115,18 +120,26 @@ export default function AdminServicesPage() {
   /* ---------------------------------------------------------------- */
   /*  Delete                                                          */
   /* ---------------------------------------------------------------- */
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this service? This cannot be undone.')) return;
+  const confirmDelete = async () => {
+    if (!deleteItem || deleteType !== 'service') return;
+
+    const id = deleteItem._id;
+
     try {
+      setIsDeleteSubmitting(true);
       const res = await fetch(`/api/services/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error ?? 'Delete failed');
         return;
       }
+      setDeleteItem(null);
+      setDeleteType('');
       await fetchServices();
     } catch {
       alert('Delete failed — check your connection and try again.');
+    } finally {
+      setIsDeleteSubmitting(false);
     }
   };
 
@@ -328,7 +341,7 @@ export default function AdminServicesPage() {
                         </p>
                         <p className="text-sm font-semibold text-primary">
                           {service.price > 0
-                            ? `Starting from ₹${service.price}`
+                            ? `Starting from ${formatPrice(service.price)}`
                             : 'Price not set'}
                         </p>
                       </>
@@ -346,7 +359,10 @@ export default function AdminServicesPage() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(service._id)}
+                        onClick={() => {
+                          setDeleteItem(service);
+                          setDeleteType('service');
+                        }}
                         className="p-2 hover:bg-muted rounded transition-colors text-destructive"
                         title="Delete"
                       >
@@ -360,6 +376,17 @@ export default function AdminServicesPage() {
           })
         )}
       </div>
+
+      <DeleteConfirmModal
+        open={!!deleteItem && deleteType === 'service'}
+        message={`Are you sure you want to delete this service${deleteItem?.name ? ` (${deleteItem.name})` : ''}? This action cannot be undone.`}
+        isDeleting={isDeleteSubmitting}
+        onCancel={() => {
+          setDeleteItem(null);
+          setDeleteType('');
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

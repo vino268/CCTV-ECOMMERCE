@@ -27,7 +27,7 @@ export async function GET(req) {
   }
 }
 
-// POST /api/cart — add or update a cart item
+// POST /api/cart — add item if not exists (no duplicates)
 export async function POST(req) {
   try {
     await connectDB();
@@ -40,26 +40,43 @@ export async function POST(req) {
       );
     }
 
-    // Upsert: if item exists, increment quantity; otherwise create
+    // Prevent duplicates: if item exists, return it without creating a new row.
     const existing = await Cart.findOne({ userId, productId });
 
     if (existing) {
-      existing.quantity = (existing.quantity || 0) + (quantity || 1);
       if (product) {
         existing.product = product;
+        await existing.save();
       }
-      await existing.save();
-      return NextResponse.json(existing);
+      return NextResponse.json(
+        { success: true, message: "Already in cart", item: existing },
+        { status: 200 }
+      );
     }
 
-    const item = await Cart.create({
-      userId,
-      productId,
-      quantity: quantity || 1,
-      product: product || {},
-    });
+    try {
+      const item = await Cart.create({
+        userId,
+        productId,
+        quantity: quantity || 1,
+        product: product || {},
+      });
 
-    return NextResponse.json(item, { status: 201 });
+      return NextResponse.json(
+        { success: true, message: "Added to cart", item },
+        { status: 201 }
+      );
+    } catch (createError) {
+      // Handle race condition where two requests try to insert same item.
+      if (createError?.code === 11000) {
+        const dup = await Cart.findOne({ userId, productId });
+        return NextResponse.json(
+          { success: true, message: "Already in cart", item: dup },
+          { status: 200 }
+        );
+      }
+      throw createError;
+    }
   } catch (error) {
     console.error("Add to cart error:", error);
     return NextResponse.json(

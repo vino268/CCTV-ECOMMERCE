@@ -1,4 +1,9 @@
+"use client";
+
 import Link from 'next/link';
+import Image from 'next/image';
+import { useState } from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { Category } from '@/lib/types';
 
 interface CategoryCardProps {
@@ -6,24 +11,35 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category }: CategoryCardProps) {
+  const [hasImageError, setHasImageError] = useState(false);
+
   return (
-    <Link href={`/products?category=${category.id}`}>
-      <div className="group relative bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer">
-        {/* Background */}
-        <div className="relative w-full aspect-square bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center group-hover:from-primary/30 group-hover:to-secondary/30 transition-colors">
-          <span className="text-5xl">{category.icon}</span>
-        </div>
+    <Link
+      href={`/products?category=${category.id}`}
+      className="group block relative overflow-hidden rounded-2xl shadow-md hover:shadow-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1"
+    >
+      <div className="relative w-full aspect-[4/3]">
+        {!hasImageError ? (
+          <Image
+            src={category.image}
+            alt={category.name}
+            fill
+            unoptimized
+            onError={() => setHasImageError(true)}
+            className="object-cover group-hover:scale-110 transition duration-500"
+          />
+        ) : (
+          <Image src="/images/camera.jpg" alt={category.name} fill className="object-cover" />
+        )}
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end justify-center pb-4">
-          <h3 className="text-white font-semibold text-center opacity-0 group-hover:opacity-100 transition-opacity">
-            {category.name}
-          </h3>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10 group-hover:from-black/70 transition-all duration-300" />
+        <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/15 transition-colors duration-300" />
 
-        {/* Text at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/30 to-transparent p-4 group-hover:from-black/50">
-          <p className="text-white font-medium text-sm">{category.name}</p>
+        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+          <h3 className="text-white text-lg font-semibold drop-shadow-sm">{category.name}</h3>
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+            <ArrowUpRight className="w-4 h-4" />
+          </span>
         </div>
       </div>
     </Link>

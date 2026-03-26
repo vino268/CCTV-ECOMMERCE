@@ -1,17 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
 import { Loader2 } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface StatusData {
   status: string;
@@ -19,33 +9,43 @@ interface StatusData {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Pending: '#f97316',
-  Processing: '#8b5cf6',
-  Confirmed: '#3b82f6',
-  Shipped: '#06b6d4',
+  Ordered: '#2563eb',
+  Shipped: '#7c3aed',
   Delivered: '#22c55e',
   Cancelled: '#ef4444',
 };
 
-export default function OrdersStatusChart() {
-  const [data, setData] = useState<StatusData[]>([]);
-  const [loading, setLoading] = useState(true);
+interface OrdersStatusChartProps {
+  data: StatusData[];
+  loading: boolean;
+  subtitle?: string;
+}
 
-  useEffect(() => {
-    fetch('/api/admin/analytics/orders-status', { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+export default function OrdersStatusChart({
+  data,
+  loading,
+  subtitle = 'Orders by status',
+}: OrdersStatusChartProps) {
 
-  const total = data.reduce((sum, d) => sum + d.count, 0);
+  const normalizedData = useMemo(() => {
+    const acc = new Map<string, number>();
+
+    data.forEach((entry) => {
+      const status = (entry.status || 'Ordered').trim();
+      const count = Number(entry.count) || 0;
+      acc.set(status, (acc.get(status) || 0) + count);
+    });
+
+    return Array.from(acc.entries()).map(([status, count]) => ({ status, count }));
+  }, [data]);
+
+  const total = normalizedData.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-border p-6">
       <div className="mb-6">
         <h3 className="text-lg font-bold text-foreground">Orders by Status</h3>
-        <p className="text-sm text-muted-foreground">All time distribution</p>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
         {!loading && (
           <p className="text-2xl font-bold text-foreground mt-1">
             {total} orders
@@ -57,50 +57,41 @@ export default function OrdersStatusChart() {
         <div className="flex items-center justify-center h-[250px]">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
-      ) : data.length === 0 ? (
+      ) : normalizedData.length === 0 ? (
         <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">
-          No orders yet
+          No data available
         </div>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={data} barSize={40}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis
-                dataKey="status"
-                tick={{ fontSize: 12, fill: '#6b7280' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: '#6b7280' }}
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                }}
-                formatter={(value: number) => [value, 'Orders']}
-              />
-              <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                {data.map((entry) => (
-                  <Cell
-                    key={entry.status}
-                    fill={STATUS_COLORS[entry.status] || '#6b7280'}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="space-y-3">
+            {normalizedData.map((entry, index) => {
+              const max = Math.max(...normalizedData.map((item) => item.count), 1);
+              const percent = Math.max(0, Math.min(100, (entry.count / max) * 100));
+
+              return (
+                <div key={`${entry.status}-row-${index}`}>
+                  <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{entry.status}</span>
+                    <span>{entry.count} orders</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${percent}%`,
+                        backgroundColor: STATUS_COLORS[entry.status] || '#6b7280',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Legend */}
           <div className="flex flex-wrap gap-4 mt-4">
-            {data.map((entry) => (
-              <div key={entry.status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {normalizedData.map((entry, index) => (
+              <div key={`${entry.status}-legend-${index}`} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span
                   className="w-2.5 h-2.5 rounded-full inline-block"
                   style={{ backgroundColor: STATUS_COLORS[entry.status] || '#6b7280' }}

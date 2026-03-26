@@ -1,70 +1,76 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { OrderTracker } from '@/components/OrderTracker';
+import { formatINRCurrency } from '@/lib/currency';
+import CancelOrderModal from '@/components/cancel-order-modal';
 import {
   ArrowLeft,
-  Package,
   Ban,
-  Phone,
-  Truck,
   Calendar,
-  Hash,
+  FileDown,
+  Loader2,
+  Package,
+  Pencil,
+  Phone,
+  Save,
+  User,
+  X,
 } from 'lucide-react';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 interface OrderProduct {
   productId: string;
   productName: string;
   productPrice: number;
   quantity: number;
+  image?: string;
+}
+
+interface DeliveryInfo {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
 }
 
 interface Order {
   _id: string;
   orderNumber: string;
-  customerName: string;
   email: string;
-  phone: string;
   products: OrderProduct[];
   totalAmount: number;
-  paymentMethod: string;
-  paymentStatus: string;
   orderStatus: string;
   trackingStatus: string;
-  deliveryInfo: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-  };
   createdAt: string;
-  confirmedAt?: string;
-  shippedAt?: string;
-  outForDeliveryAt?: string;
-  deliveredAt?: string;
-  cancelledAt?: string;
-  estimatedDelivery?: string;
-  trackingNumber?: string;
+  deliveryInfo: DeliveryInfo;
 }
 
-const statusBadgeColors: Record<string, string> = {
-  Ordered: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  Shipped: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  OutForDelivery: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  Delivered: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+type ToastState = {
+  type: 'success' | 'error';
+  message: string;
 };
 
-const statusLabels: Record<string, string> = {
+const steps = ['Ordered', 'Confirmed', 'Shipped', 'OutForDelivery', 'Delivered'];
+
+const statusColorMap: Record<string, string> = {
+  Pending: 'bg-yellow-100 text-yellow-800',
+  Ordered: 'bg-yellow-100 text-yellow-800',
+  Confirmed: 'bg-blue-100 text-blue-800',
+  Shipped: 'bg-purple-100 text-purple-800',
+  OutForDelivery: 'bg-orange-100 text-orange-800',
+  Delivered: 'bg-green-100 text-green-800',
+  Cancelled: 'bg-red-100 text-red-800',
+};
+
+const statusLabelMap: Record<string, string> = {
+  Pending: 'Pending',
   Ordered: 'Ordered',
   Confirmed: 'Confirmed',
   Shipped: 'Shipped',
@@ -73,82 +79,225 @@ const statusLabels: Record<string, string> = {
   Cancelled: 'Cancelled',
 };
 
-export default function OrderTrackingPage() {
+function normalizeStatus(status?: string) {
+  if (!status) return 'Ordered';
+  return statusLabelMap[status] ? status : 'Ordered';
+}
+
+export default function OrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
 
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    street: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
+
   const fetchOrder = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
     try {
-      const res = await fetch(`/api/orders/${params.id}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Order not found');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${params.id}`, { cache: 'no-store' });
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Order not found');
+      }
+
       setOrder(data);
-    } catch {
-      setError('Order not found');
+      setAddressForm({
+        firstName: data.deliveryInfo?.firstName || '',
+        lastName: data.deliveryInfo?.lastName || '',
+        phone: data.deliveryInfo?.phone || '',
+        street: data.deliveryInfo?.street || '',
+        city: data.deliveryInfo?.city || '',
+        state: data.deliveryInfo?.state || '',
+        zip: data.deliveryInfo?.zip || '',
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch order details');
     } finally {
       setLoading(false);
     }
   }, [params.id]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (!stored) {
-      router.push('/account');
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      router.replace(`/login?redirect=/account/orders/${params.id}`);
       return;
     }
+
     fetchOrder();
+  }, [fetchOrder, params.id, router, authLoading, isAuthenticated]);
 
-    // Poll for real-time updates every 30 seconds
-    const interval = setInterval(fetchOrder, 30000);
-    return () => clearInterval(interval);
-  }, [fetchOrder, router]);
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(id);
+  }, [toast]);
 
-  const handleCancel = async () => {
+  useEffect(() => {
+    if (loading || !order) return;
+    if (searchParams.get('section') !== 'timeline') return;
+
+    const id = window.requestAnimationFrame(() => {
+      document.getElementById('timeline')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => window.cancelAnimationFrame(id);
+  }, [loading, order, searchParams]);
+
+  const currentStatus = useMemo(
+    () => normalizeStatus(order?.trackingStatus || order?.orderStatus),
+    [order]
+  );
+
+  const statusIndex = steps.indexOf(currentStatus);
+  const canCancel = currentStatus === 'Ordered' || currentStatus === 'Confirmed';
+  const canEditAddress = currentStatus === 'Ordered' || currentStatus === 'Confirmed';
+
+  const handleCancelOrder = () => {
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
     if (!order) return;
-    if (!confirm('Are you sure you want to cancel this order?')) return;
 
     setCancelling(true);
+    setError('');
+
     try {
-      const res = await fetch('/api/orders/cancel', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order._id }),
-      });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/cancel/${order._id}`, { method: 'PUT' });
       const data = await res.json();
-      if (res.ok) {
-        await fetchOrder();
-      } else {
-        alert(data.message || 'Failed to cancel order');
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel order');
       }
-    } catch {
-      alert('Failed to cancel order');
+
+      await fetchOrder();
+      setToast({ type: 'success', message: 'Order cancelled successfully' });
+    } catch (err: any) {
+      const message = err.message || 'Failed to cancel order';
+      setError(message);
+      setToast({ type: 'error', message });
     } finally {
       setCancelling(false);
+      setShowCancelModal(false);
     }
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+
+    setSavingAddress(true);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${order._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryInfo: addressForm, phone: addressForm.phone }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update delivery details');
+      }
+
+      setShowAddressModal(false);
+      await fetchOrder();
+      setToast({ type: 'success', message: 'Address updated successfully' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to update address');
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleDownloadInvoice = () => {
+    if (!order) return;
+
+    const rows = order.products
+      .map(
+        (item) =>
+          `<tr><td>${item.productName}</td><td>${item.quantity}</td><td>${formatINRCurrency(
+            item.productPrice * item.quantity
+          )}</td></tr>`
+      )
+      .join('');
+
+    const invoiceHtml = `
+      <html>
+      <head>
+        <title>Invoice ${order.orderNumber || order._id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; }
+          h1 { margin-bottom: 4px; }
+          table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background: #f5f5f5; }
+        </style>
+      </head>
+      <body>
+        <h1>Invoice</h1>
+        <p><strong>Order ID:</strong> ${order.orderNumber || order._id}</p>
+        <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleDateString('en-IN')}</p>
+        <p><strong>Status:</strong> ${statusLabelMap[currentStatus] || currentStatus}</p>
+        <table>
+          <thead><tr><th>Product</th><th>Qty</th><th>Price</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <h3 style="margin-top: 16px;">Total: ${formatINRCurrency(order.totalAmount)}</h3>
+      </body>
+      </html>
+    `;
+
+    const popup = window.open('', '_blank', 'width=900,height=700');
+    if (!popup) return;
+    popup.document.write(invoiceHtml);
+    popup.document.close();
+    popup.focus();
+    popup.print();
   };
 
   if (loading) {
     return (
-      <div className="bg-background min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground">Loading order details...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-4">
+          <div className="h-8 w-40 bg-gray-200 rounded animate-pulse" />
+          <div className="rounded-xl shadow-sm p-6 bg-white animate-pulse h-32" />
+          <div className="rounded-xl shadow-sm p-6 bg-white animate-pulse h-56" />
+          <div className="rounded-xl shadow-sm p-6 bg-white animate-pulse h-56" />
         </div>
       </div>
     );
   }
 
-  if (error || !order) {
+  if (!order) {
     return (
-      <div className="bg-background min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-lg font-semibold text-foreground mb-2">Order Not Found</h2>
-          <p className="text-muted-foreground mb-6">{error || 'This order does not exist.'}</p>
+          <p className="text-lg font-semibold text-gray-800 mb-2">Order not found</p>
+          <p className="text-gray-500 mb-4">{error || 'Unable to load order details.'}</p>
           <Link href="/account/orders">
             <Button>Back to Orders</Button>
           </Link>
@@ -157,186 +306,310 @@ export default function OrderTrackingPage() {
     );
   }
 
-  const trackingStatus = order.trackingStatus || order.orderStatus;
-  const canCancel = ['Ordered', 'Confirmed'].includes(trackingStatus);
-  const isShippedOrBeyond = ['Shipped', 'OutForDelivery', 'Delivered'].includes(trackingStatus);
-  const isCancelled = trackingStatus === 'Cancelled';
-
   return (
-    <div className="bg-background min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Back button */}
-        <Link href="/account/orders">
-          <Button variant="outline" size="sm" className="gap-2 mb-6">
-            <ArrowLeft className="w-4 h-4" /> Back to Orders
-          </Button>
-        </Link>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div>
+          <nav aria-label="Breadcrumb" className="mb-2 text-sm text-gray-500">
+            <ol className="hidden items-center gap-2 sm:flex">
+              <li>
+                <Link href="/" className="transition-colors duration-200 hover:text-gray-700">
+                  Home
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link href="/account" className="transition-colors duration-200 hover:text-gray-700">
+                  Account
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link href="/account/orders" className="transition-colors duration-200 hover:text-gray-700">
+                  Orders
+                </Link>
+              </li>
+              <li>/</li>
+              <li className="font-semibold text-black">Order Details</li>
+            </ol>
 
-        {/* Order header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              Order {order.orderNumber}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Placed on{' '}
-              {new Date(order.createdAt).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
+            <ol className="flex items-center gap-2 sm:hidden">
+              <li>
+                <Link href="/" className="transition-colors duration-200 hover:text-gray-700">
+                  Home
+                </Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link href="/account/orders" className="transition-colors duration-200 hover:text-gray-700">
+                  Orders
+                </Link>
+              </li>
+              <li>/</li>
+              <li className="font-semibold text-black">Details</li>
+            </ol>
+          </nav>
+
+          <button
+            type="button"
+            onClick={() => router.push('/account/orders')}
+            className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:scale-105 hover:bg-gray-100 sm:w-auto sm:justify-start"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Orders
+          </button>
+
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+            <Package className="h-6 w-6 text-gray-700" />
+            Order Details
+          </h1>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        )}
+
+        <section className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-gray-500">Order ID</p>
+              <p className="font-semibold text-gray-900">{order.orderNumber || order._id}</p>
+              <p className="text-sm text-gray-500 mt-2 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4" />
+                {new Date(order.createdAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
+
+            <span
+              className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${
+                statusColorMap[currentStatus] || 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {statusLabelMap[currentStatus] || currentStatus}
+            </span>
+          </div>
+        </section>
+
+        <section id="timeline" className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">Order Timeline</h2>
+          <div className="space-y-4">
+            {steps.map((step, idx) => {
+              const done = idx <= statusIndex && currentStatus !== 'Cancelled';
+              const isCurrentCancelled = currentStatus === 'Cancelled' && step === 'Ordered';
+
+              return (
+                <div key={step} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className={`h-4 w-4 rounded-full mt-1 ${
+                        done || isCurrentCancelled ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    />
+                    {idx < steps.length - 1 && <span className="w-0.5 h-8 bg-gray-200" />}
+                  </div>
+                  <div>
+                    <p className={`text-sm font-medium ${done ? 'text-green-700' : 'text-gray-500'}`}>
+                      {statusLabelMap[step] || step}
+                    </p>
+                    <p className="text-xs text-gray-400">{done ? 'Completed' : 'Pending'}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {currentStatus === 'Cancelled' && (
+              <div className="text-sm text-red-600 font-medium">Order has been cancelled.</div>
+            )}
+          </div>
+        </section>
+
+        <section className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Delivery Details</h2>
+            {canEditAddress && (
+              <Button variant="outline" size="sm" onClick={() => setShowAddressModal(true)}>
+                <Pencil className="w-4 h-4 mr-1.5" />
+                Edit Address
+              </Button>
+            )}
+          </div>
+          <div className="space-y-1 text-sm text-gray-700">
+            <p className="font-medium flex items-center gap-1.5">
+              <User className="w-4 h-4" />
+              {order.deliveryInfo?.firstName} {order.deliveryInfo?.lastName}
+            </p>
+            <p>{order.deliveryInfo?.street}</p>
+            <p>
+              {order.deliveryInfo?.city}, {order.deliveryInfo?.state} {order.deliveryInfo?.zip}
+            </p>
+            <p className="flex items-center gap-1.5">
+              <Phone className="w-4 h-4" />
+              {order.deliveryInfo?.phone}
             </p>
           </div>
-          <span
-            className={`px-4 py-1.5 rounded-full text-sm font-medium ${
-              statusBadgeColors[trackingStatus] || 'bg-gray-100 text-gray-800'
-            }`}
-          >
-            {statusLabels[trackingStatus] || trackingStatus}
-          </span>
-        </div>
+        </section>
 
-        {/* Tracking Card */}
-        <Card className="p-6 mb-6">
-          <OrderTracker
-            trackingStatus={trackingStatus}
-            createdAt={order.createdAt}
-            confirmedAt={order.confirmedAt}
-            shippedAt={order.shippedAt}
-            outForDeliveryAt={order.outForDeliveryAt}
-            deliveredAt={order.deliveredAt}
-            cancelledAt={order.cancelledAt}
-          />
-        </Card>
-
-        {/* Delivery Info Card */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Shipping Details */}
-          <Card className="p-6">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Truck className="w-5 h-5 text-primary" />
-              Shipping Details
-            </h3>
-            <div className="space-y-3 text-sm">
-              {order.trackingNumber && (
-                <div className="flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Tracking:</span>
-                  <span className="font-medium text-foreground">{order.trackingNumber}</span>
-                </div>
-              )}
-              {order.estimatedDelivery && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Est. Delivery:</span>
-                  <span className="font-medium text-foreground">
-                    {new Date(order.estimatedDelivery).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              )}
-              <div className="pt-2 border-t border-border">
-                <p className="text-muted-foreground mb-1">Delivery by</p>
-                <p className="font-medium text-foreground">TN Automation</p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Delivery Address */}
-          <Card className="p-6">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Package className="w-5 h-5 text-primary" />
-              Delivery Address
-            </h3>
-            {order.deliveryInfo && (
-              <div className="space-y-1 text-sm">
-                <p className="font-medium text-foreground">
-                  {order.deliveryInfo.firstName} {order.deliveryInfo.lastName}
-                </p>
-                <p className="text-muted-foreground">{order.deliveryInfo.street}</p>
-                <p className="text-muted-foreground">
-                  {order.deliveryInfo.city}, {order.deliveryInfo.state} {order.deliveryInfo.zip}
-                </p>
-                {order.deliveryInfo.phone && (
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">{order.deliveryInfo.phone}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
-        </div>
-
-        {/* Items Card */}
-        <Card className="p-6 mb-6">
-          <h3 className="font-semibold text-foreground mb-4">Order Items</h3>
+        <section className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="font-semibold text-gray-900 mb-4">Products</h2>
           <div className="space-y-3">
-            {order.products.map((p, i) => (
-              <div
-                key={i}
-                className="flex justify-between items-center py-3 border-b border-border last:border-b-0"
-              >
-                <div>
-                  <Link
-                    href={`/products/${p.productId}`}
-                    className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
-                  >
-                    {p.productName}
-                  </Link>
-                  <p className="text-sm text-muted-foreground">Qty: {p.quantity}</p>
+            {order.products.map((item, idx) => (
+              <div key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-14 w-14 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
+                    {item.image ? (
+                      <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{item.productName}</p>
+                    <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                  </div>
                 </div>
-                <span className="font-semibold text-foreground">
-                  ${(p.productPrice * p.quantity).toFixed(2)}
-                </span>
+                <p className="font-semibold text-gray-900">
+                  {formatINRCurrency(item.productPrice * item.quantity)}
+                </p>
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
-            <span className="font-semibold text-foreground">Total</span>
-            <span className="text-xl font-bold text-primary">
-              ${order.totalAmount.toFixed(2)}
-            </span>
-          </div>
-        </Card>
 
-        {/* Action buttons */}
-        {!isCancelled && (
-          <Card className="p-6">
-            {canCancel ? (
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="destructive"
-                  onClick={handleCancel}
-                  disabled={cancelling}
-                  className="gap-2"
-                >
-                  <Ban className="w-4 h-4" />
-                  {cancelling ? 'Cancelling...' : 'Cancel Order'}
-                </Button>
-                <Link href={`/account/orders`}>
-                  <Button variant="outline" className="gap-2">
-                    Edit Address
-                  </Button>
-                </Link>
-              </div>
-            ) : isShippedOrBeyond ? (
-              <div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Order already shipped. Contact support for cancellation.
-                </p>
-                <Button variant="outline" className="gap-2">
-                  <Phone className="w-4 h-4" />
-                  Request Cancellation
-                </Button>
-              </div>
-            ) : null}
-          </Card>
-        )}
+          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+            <span className="font-semibold text-gray-900">Total</span>
+            <span className="text-lg font-bold text-gray-900">{formatINRCurrency(order.totalAmount)}</span>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex flex-wrap gap-2">
+            {canCancel && (
+              <Button variant="destructive" onClick={handleCancelOrder} disabled={cancelling}>
+                <>
+                  <Ban className="w-4 h-4 mr-1.5" />
+                  Cancel Order
+                </>
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleDownloadInvoice}>
+              <FileDown className="w-4 h-4 mr-1.5" />
+              Download Invoice (PDF)
+            </Button>
+          </div>
+        </section>
       </div>
+
+      {showAddressModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Delivery Address</h3>
+              <button
+                type="button"
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+                onClick={() => setShowAddressModal(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddress} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="First name"
+                  value={addressForm.firstName}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                  required
+                />
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Last name"
+                  value={addressForm.lastName}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                />
+              </div>
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="Phone"
+                value={addressForm.phone}
+                onChange={(e) => setAddressForm((prev) => ({ ...prev, phone: e.target.value }))}
+                required
+              />
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="Street"
+                value={addressForm.street}
+                onChange={(e) => setAddressForm((prev) => ({ ...prev, street: e.target.value }))}
+                required
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="City"
+                  value={addressForm.city}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, city: e.target.value }))}
+                  required
+                />
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="State"
+                  value={addressForm.state}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, state: e.target.value }))}
+                  required
+                />
+              </div>
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="ZIP"
+                value={addressForm.zip}
+                onChange={(e) => setAddressForm((prev) => ({ ...prev, zip: e.target.value }))}
+                required
+              />
+
+              <div className="pt-2 flex gap-2">
+                <Button type="submit" disabled={savingAddress}>
+                  {savingAddress ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-1.5" />
+                      Save Address
+                    </>
+                  )}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowAddressModal(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <CancelOrderModal
+        open={showCancelModal}
+        isProcessing={cancelling}
+        onOpenChange={(open) => {
+          if (!open && !cancelling) setShowCancelModal(false);
+        }}
+        onConfirm={handleConfirmCancelOrder}
+      />
+
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 rounded-lg px-4 py-3 text-sm text-white shadow-lg ${
+            toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

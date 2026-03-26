@@ -2,38 +2,34 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CartItem, Product } from '../types';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, quantity: number) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  clearCart: () => void;
+  addToCart: (product: Product, quantity: number) => Promise<void>;
+  removeFromCart: (productId: string) => Promise<void>;
+  isInCart: (productId: string) => boolean;
+  toggleCartItem: (product: Product, quantity?: number) => Promise<void>;
+  updateQuantity: (productId: string, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  isCartActionPending: (productId: string) => boolean;
   getCartTotal: () => number;
   getCartCount: () => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-function getUserId(): string | null {
-  try {
-    const stored = localStorage.getItem('user');
-    if (stored) {
-      const user = JSON.parse(stored);
-      return user._id || null;
-    }
-  } catch {}
-  return null;
-}
-
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?._id || null;
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [pendingProductIds, setPendingProductIds] = useState<Record<string, boolean>>({});
 
   // Load cart from MongoDB on mount (if user is logged in)
   const loadCart = useCallback(async () => {
-    const userId = getUserId();
     if (!userId) {
+      setCart([]);
       setMounted(true);
       return;
     }
@@ -44,7 +40,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const items = await res.json();
-        const mapped: CartItem[] = items.map((item: any) => ({
+        const mapped: CartItem[] = (Array.isArray(items) ? items : []).map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
           product: item.product || undefined,
@@ -56,7 +52,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setMounted(true);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     loadCart();
@@ -69,40 +65,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('user-auth-change', handleAuthChange);
   }, [loadCart]);
 
-  const addToCart = (product: Product, quantity: number) => {
-    const pid = product._id || product.id;
-    const userId = getUserId();
-
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.productId === pid);
-
-      if (existingItem) {
-        return prevCart.map((item) =>
-          item.productId === pid
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-
-      return [
-        ...prevCart,
-        {
-          productId: pid,
-          quantity,
-          product,
-        },
-      ];
+  const markPending = (productId: string, pending: boolean) => {
+    setPendingProductIds((prev) => {
+      if (pending) return { ...prev, [productId]: true };
+      const next = { ...prev };
+      delete next[productId];
+      return next;
     });
+  };
 
-    // Sync to MongoDB
-    if (userId) {
-      fetch('/api/cart', {
+  const addToCart = async (product: Product, quantity: number) => {
+    const pid = product._id || product.id;
+    if (!pid) return;
+
+    if (isInCart(pid)) {
+      return;
+    }
+
+    markPending(pid, true);
+    try {
+      const optimisticItem: CartItem = {
+        productId: pid,
+        quantity: Math.max(1, quantity || 1),
+        product,
+      };
+
+      setCart((prevCart) => {
+        if (prevCart.some((item) => item.productId === pid)) return prevCart;
+        return [...prevCart, optimisticItem];
+      });
+
+      if (!userId) return;
+
+      const res = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
           productId: pid,
-          quantity,
+          quantity: Math.max(1, quantity || 1),
           product: {
             name: product.name,
             price: product.price,
@@ -111,61 +112,121 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             inStock: product.inStock,
           },
         }),
-      }).catch((err) => console.error('Error syncing cart add:', err));
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to add to cart');
+      }
+    } catch (err) {
+      console.error('Error syncing cart add:', err);
+      setCart((prevCart) => {
+        return prevCart.filter((item) => item.productId !== pid);
+      });
+    } finally {
+      markPending(pid, false);
     }
   };
 
-  const removeFromCart = (productId: string) => {
-    const userId = getUserId();
+  const removeFromCart = async (productId: string) => {
+    if (!productId) return;
 
-    setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
+    markPending(productId, true);
 
-    // Sync to MongoDB
-    if (userId) {
-      fetch('/api/cart', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, productId, quantity: 0 }),
-      }).catch((err) => console.error('Error syncing cart remove:', err));
+    const previousCart = cart;
+
+    setCart((prevCart) => {
+      return prevCart.filter((item) => item.productId !== productId);
+    });
+
+    try {
+      if (!userId) return;
+
+      const res = await fetch(`/api/cart/${encodeURIComponent(productId)}?userId=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to remove from cart');
+      }
+    } catch (err) {
+      console.error('Error syncing cart remove:', err);
+      setCart(previousCart);
+    } finally {
+      markPending(productId, false);
     }
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
+  const isInCart = (productId: string) => {
+    return cart.some((item) => item.productId === productId);
+  };
+
+  const toggleCartItem = async (product: Product, quantity = 1) => {
+    const pid = product._id || product.id;
+    if (!pid || pendingProductIds[pid]) return;
+
+    if (isInCart(pid)) {
+      await removeFromCart(pid);
       return;
     }
+    await addToCart(product, quantity);
+  };
 
-    const userId = getUserId();
+  const updateQuantity = async (productId: string, quantity: number) => {
+    const safeQuantity = Math.max(1, quantity);
 
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.productId === productId ? { ...item, quantity } : item
-      )
-    );
+    if (!productId) return;
+    markPending(productId, true);
 
-    // Sync to MongoDB
-    if (userId) {
-      fetch('/api/cart', {
+    const previousCart = cart;
+
+    setCart((prevCart) => {
+      return prevCart.map((item) =>
+        item.productId === productId ? { ...item, quantity: safeQuantity } : item
+      );
+    });
+
+    try {
+      if (!userId) return;
+
+      const res = await fetch('/api/cart', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, productId, quantity }),
-      }).catch((err) => console.error('Error syncing cart update:', err));
+        body: JSON.stringify({ userId, productId, quantity: safeQuantity }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to update cart quantity');
+      }
+    } catch (err) {
+      console.error('Error syncing cart update:', err);
+      setCart(previousCart);
+    } finally {
+      markPending(productId, false);
     }
   };
 
-  const clearCart = () => {
-    const userId = getUserId();
+  const clearCart = async () => {
+    const previousCart = cart;
 
     setCart([]);
 
-    // Sync to MongoDB
-    if (userId) {
-      fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
+    try {
+      if (!userId) return;
+      const res = await fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
         method: 'DELETE',
-      }).catch((err) => console.error('Error syncing cart clear:', err));
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to clear cart');
+      }
+    } catch (err) {
+      console.error('Error syncing cart clear:', err);
+      setCart(previousCart);
     }
   };
+
+  const isCartActionPending = (productId: string) => Boolean(pendingProductIds[productId]);
 
   const getCartTotal = () => {
     return cart.reduce((total, item) => {
@@ -183,8 +244,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         cart,
         addToCart,
         removeFromCart,
+        isInCart,
+        toggleCartItem,
         updateQuantity,
         clearCart,
+        isCartActionPending,
         getCartTotal,
         getCartCount,
       }}

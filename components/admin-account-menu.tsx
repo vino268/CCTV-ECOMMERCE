@@ -4,22 +4,34 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, KeyRound, HelpCircle, Settings, LogOut, ChevronDown } from 'lucide-react';
+import LogoutConfirmModal from '@/components/logout-confirm-modal';
 
 export default function AdminAccountMenu() {
   const [open, setOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Get admin info from localStorage
+  // Get admin info from backend
   const [adminName, setAdminName] = useState('A');
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('adminInfo');
-      if (stored) {
-        const admin = JSON.parse(stored);
-        setAdminName(admin.name || admin.email?.charAt(0)?.toUpperCase() || 'A');
+    const loadAdmin = async () => {
+      try {
+        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const admin = data?.admin;
+        if (admin) {
+          setAdminName(admin.name || admin.email?.charAt(0)?.toUpperCase() || 'A');
+        }
+      } catch {
+        // Ignore profile fetch issues here.
       }
-    } catch {}
+
+    };
+
+    loadAdmin();
   }, []);
 
   // Close on outside click
@@ -33,12 +45,16 @@ export default function AdminAccountMenu() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminInfo');
-    // Clear cookie
-    document.cookie = 'adminToken=; path=/; max-age=0';
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await fetch('/api/admin/logout', { method: 'POST' });
+    setShowLogoutModal(false);
     router.replace('/admin/login');
+  };
+
+  const handleOpenLogoutModal = () => {
+    setOpen(false);
+    setShowLogoutModal(true);
   };
 
   const initial = adminName.length === 1 ? adminName : adminName.charAt(0).toUpperCase();
@@ -91,7 +107,7 @@ export default function AdminAccountMenu() {
           {/* Logout */}
           <div className="border-t border-border py-1">
             <button
-              onClick={handleLogout}
+              onClick={handleOpenLogoutModal}
               className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
             >
               <LogOut className="w-4 h-4" />
@@ -100,6 +116,15 @@ export default function AdminAccountMenu() {
           </div>
         </div>
       )}
+
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        isProcessing={isLoggingOut}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !isLoggingOut) setShowLogoutModal(false);
+        }}
+        onConfirm={handleLogout}
+      />
     </div>
   );
 }

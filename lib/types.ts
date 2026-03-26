@@ -1,11 +1,14 @@
 export interface Product {
   _id?: string;
   id: string;
+  sku?: string;
   name: string;
   price: number;
   rating: number;
   reviews: number;
   image: string;
+  images?: string[];
+  features?: string[];
   category: string;
   specs: {
     [key: string]: string;

@@ -34,18 +34,10 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const stored = localStorage.getItem('adminInfo');
-      if (!stored) {
-        setMessage({ type: 'error', text: 'Not authenticated' });
-        return;
-      }
-      const admin = JSON.parse(stored);
-
-      const res = await fetch('/api/admin/change-password', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: admin.email,
           currentPassword,
           newPassword,
         }),

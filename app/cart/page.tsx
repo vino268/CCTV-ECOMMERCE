@@ -5,40 +5,40 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Trash2, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { formatPrice } from '@/lib/currency';
+import { useAuth } from '@/lib/contexts/auth-context';
 
 export default function CartPage() {
   const { cart, removeFromCart, updateQuantity, getCartTotal, clearCart } =
     useCart();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   const cartTotal = getCartTotal();
-  const shippingCost = cartTotal > 100 ? 0 : 9.99;
-  const tax = cartTotal * 0.08;
-  const total = cartTotal + shippingCost + tax;
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Cart items already contain product data from the cart context
   const cartItems = cart;
 
   if (cart.length === 0) {
     return (
-      <div className="bg-background min-h-screen">
+      <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           {/* Empty Cart State */}
-          <div className="text-center py-16">
+          <div className="text-center py-20 bg-white rounded-xl shadow-md border border-gray-100">
             <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center text-4xl">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-4xl">
                 🛒
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Your Cart is Empty
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">
+              Cart is empty
             </h1>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
               You haven't added any items to your cart yet. Start shopping now to
               secure your property!
             </p>
             <Link href="/products">
-              <Button size="lg" className="gap-2">
+              <Button size="lg" className="gap-2 bg-blue-600 hover:bg-blue-700 rounded-xl">
                 <ShoppingBag className="w-4 h-4" />
                 Continue Shopping
               </Button>
@@ -50,195 +50,162 @@ export default function CartPage() {
   }
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
-            className="p-2 hover:bg-muted rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-3xl font-bold text-foreground">Shopping Cart</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
+            Shopping Cart
+          </h1>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Cart Items */}
-          <div className="lg:col-span-2">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      <th className="text-left px-6 py-4 font-semibold">
-                        Product
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Price
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Quantity
-                      </th>
-                      <th className="text-right px-6 py-4 font-semibold">
-                        Total
-                      </th>
-                      <th className="text-center px-6 py-4 font-semibold">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cartItems.map((item) => (
-                      <tr
-                        key={item.productId}
-                        className="border-b border-border hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex gap-4 items-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-primary/10 to-secondary/10 rounded flex items-center justify-center text-2xl">
-                              📷
-                            </div>
-                            <div>
-                              <p className="font-semibold text-foreground">
-                                {item.product?.name}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                SKU: {item.productId}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          ${item.product?.price.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex border border-border rounded-lg w-24 mx-auto">
+          <div className="lg:col-span-2 space-y-6">
+            {cartItems.map((item) => {
+              const price = item.product?.price || 0;
+              const subtotal = price * item.quantity;
+
+              return (
+                <div
+                  key={item.productId}
+                  className="bg-white rounded-xl shadow-md border border-gray-100 p-5 md:p-6"
+                >
+                  <div className="grid md:grid-cols-[112px_1fr] gap-4 md:gap-6">
+                    <div className="w-28 h-28 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden">
+                      {item.product?.image ? (
+                        <img
+                          src={item.product.image}
+                          alt={item.product?.name || 'Product image'}
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-3xl">📷</span>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                        <div>
+                          <h3 className="text-lg font-semibold tracking-tight text-gray-900">
+                            {item.product?.name}
+                          </h3>
+                          <p className="text-sm text-gray-500">SKU: {item.productId}</p>
+                        </div>
+                        <button
+                          onClick={() => removeFromCart(item.productId)}
+                          className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="text-sm font-medium">Remove</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Price</p>
+                          <p className="text-base font-semibold text-gray-900">
+                            {formatPrice(price)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Quantity</p>
+                          <div className="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
                             <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.productId,
-                                  item.quantity - 1
-                                )
-                              }
-                              className="px-3 py-1 hover:bg-muted transition-colors"
+                              onClick={() => updateQuantity(item.productId, Math.max(1, item.quantity - 1))}
+                              className="w-10 h-10 hover:bg-gray-100 transition-colors"
                             >
                               −
                             </button>
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updateQuantity(
-                                  item.productId,
-                                  Math.max(
-                                    1,
-                                    parseInt(e.target.value) || 1
-                                  )
-                                )
-                              }
-                              className="w-12 text-center py-1 border-l border-r border-border focus:outline-none"
-                            />
+                            <div className="w-12 h-10 border-l border-r border-gray-200 flex items-center justify-center text-sm font-semibold">
+                              {item.quantity}
+                            </div>
                             <button
-                              onClick={() =>
-                                updateQuantity(
-                                  item.productId,
-                                  item.quantity + 1
-                                )
-                              }
-                              className="px-3 py-1 hover:bg-muted transition-colors"
+                              onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                              className="w-10 h-10 hover:bg-gray-100 transition-colors"
                             >
                               +
                             </button>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-semibold">
-                          $
-                          {(
-                            (item.product?.price || 0) * item.quantity
-                          ).toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <button
-                            onClick={() => removeFromCart(item.productId)}
-                            className="p-2 hover:bg-destructive/10 rounded transition-colors text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
 
-              <div className="px-6 py-4 bg-muted/30 flex justify-between items-center">
-                <Link href="/products">
-                  <Button variant="outline" className="gap-2">
-                    <ArrowLeft className="w-4 h-4" />
-                    Continue Shopping
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  onClick={() => clearCart()}
-                  className="text-destructive"
-                >
-                  Clear Cart
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Subtotal</p>
+                          <p className="text-lg font-bold text-blue-700 tracking-tight">
+                            {formatPrice(subtotal)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:justify-between">
+              <Link href="/products" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto gap-2 rounded-xl border-blue-600 text-blue-700 hover:bg-blue-50">
+                  <ArrowLeft className="w-4 h-4" />
+                  Continue Shopping
                 </Button>
-              </div>
+              </Link>
+              <Button
+                variant="outline"
+                onClick={() => clearCart()}
+                className="w-full sm:w-auto rounded-xl text-red-600 border-red-200 hover:bg-red-50"
+              >
+                Clear Cart
+              </Button>
             </div>
           </div>
 
           {/* Cart Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-lg p-6 sticky top-20 space-y-4">
-              <h2 className="text-xl font-bold text-foreground">
+            <div className="bg-white border border-gray-100 rounded-xl p-6 sticky top-20 space-y-5 shadow-md">
+              <h2 className="text-xl font-bold tracking-tight text-gray-900">
                 Order Summary
               </h2>
 
-              <div className="space-y-3 border-b border-border pb-4">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+              <div className="space-y-3 border-b border-gray-200 pb-4">
+                <div className="flex justify-between text-gray-600">
+                  <span>Total Items</span>
+                  <span className="font-semibold text-gray-900">{totalItems}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Shipping</span>
-                  <span>
-                    {shippingCost === 0 ? (
-                      <span className="text-primary font-semibold">Free</span>
-                    ) : (
-                      `$${shippingCost.toFixed(2)}`
-                    )}
-                  </span>
+                <div className="flex justify-between text-gray-600">
+                  <span>Total Price</span>
+                  <span className="font-semibold text-gray-900">{formatPrice(cartTotal)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Tax</span>
-                  <span>${tax.toFixed(2)}</span>
+                <div className="flex justify-between text-gray-600">
+                  <span>Delivery</span>
+                  <span className="font-semibold text-green-700">Free Shipping</span>
                 </div>
               </div>
 
-              <div className="flex justify-between text-lg font-bold text-foreground">
+              <div className="flex justify-between text-2xl font-extrabold tracking-tight text-gray-900">
                 <span>Total</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
+                <span className="text-blue-700">{formatPrice(cartTotal)}</span>
               </div>
-
-              {cartTotal < 100 && (
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-foreground">
-                  Add ${(100 - cartTotal).toFixed(2)} more for free shipping!
-                </div>
-              )}
 
               <Button
-                className="w-full"
+                className="w-full rounded-xl bg-blue-600 hover:bg-blue-700"
                 size="lg"
+                disabled={cartItems.length === 0}
                 onClick={() => {
-                  const user = localStorage.getItem('user');
-                  if (user) {
+                  console.log('Proceed to Checkout click', {
+                    cartItemsCount: cartItems.length,
+                    isAuthenticated,
+                  });
+                  if (isAuthenticated) {
                     router.push('/checkout');
                   } else {
-                    localStorage.setItem('redirectAfterLogin', '/checkout');
-                    router.push('/account');
+                    router.push('/login?redirect=/checkout');
                   }
                 }}
               >
@@ -246,7 +213,7 @@ export default function CartPage() {
               </Button>
 
               <Link href="/products">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full rounded-xl border-blue-600 text-blue-700 hover:bg-blue-50">
                   Continue Shopping
                 </Button>
               </Link>
