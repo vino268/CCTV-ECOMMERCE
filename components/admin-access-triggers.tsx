@@ -14,6 +14,26 @@ export function AdminAccessTriggers() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const forceAdminLogin = async () => {
+    try {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+    } catch {
+      // Ignore localStorage access issues in restricted environments.
+    }
+
+    try {
+      await fetch('/api/admin/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore network errors and still proceed to login.
+    }
+
+    router.push('/admin/login');
+  };
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
@@ -23,7 +43,7 @@ export function AdminAccessTriggers() {
       if (key !== 'a') return;
       if (pathname === '/admin/login') return;
 
-      router.push('/admin/login');
+      void forceAdminLogin();
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -31,7 +51,7 @@ export function AdminAccessTriggers() {
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [router, pathname]);
+  }, [pathname]);
 
   return null;
 }

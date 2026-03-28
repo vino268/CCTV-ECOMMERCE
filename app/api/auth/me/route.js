@@ -36,9 +36,21 @@ export async function GET(req) {
       );
     }
 
+    const userPayload = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      address: user.address,
+      avatar: user.avatar || "",
+      profileImage: user.avatar || "",
+      role: user.role,
+      createdAt: user.createdAt,
+    };
+
     return NextResponse.json({
       authenticated: true,
-      user,
+      user: userPayload,
     });
   } catch {
     return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });

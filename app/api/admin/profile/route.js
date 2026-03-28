@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
+import User from "@/models/User";
 import { jwtVerify } from "jose";
 
 async function verifyAdmin(request) {
@@ -42,9 +43,15 @@ export async function GET(req) {
     }
 
     await connectDB();
-    const admin = await Admin.findById(auth.adminId).select(
+    const adminFromAdminModel = await Admin.findById(auth.adminId).select(
       "-password -resetToken -resetTokenExpiry"
     );
+
+    const adminFromUserModel =
+      adminFromAdminModel ||
+      (await User.findOne({ _id: auth.adminId, role: "admin" }).select("-password"));
+
+    const admin = adminFromUserModel;
 
     if (!admin) {
       return NextResponse.json(
@@ -53,7 +60,17 @@ export async function GET(req) {
       );
     }
 
-    return NextResponse.json({ success: true, admin });
+    const adminPayload = {
+      _id: admin._id,
+      name: admin.name || "",
+      email: admin.email || "",
+      phone: admin.phone || "",
+      role: admin.role || "admin",
+      profileImage: admin.profileImage || admin.avatar || "",
+      createdAt: admin.createdAt,
+    };
+
+    return NextResponse.json({ success: true, admin: adminPayload });
   } catch (error) {
     console.error("Get admin profile error:", error);
     return NextResponse.json(

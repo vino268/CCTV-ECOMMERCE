@@ -78,13 +78,20 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || data.message || 'Login failed');
+        const serverMessage = data.error || data.message || 'Login failed';
+        if (String(serverMessage).toLowerCase().includes('admins must login from admin panel')) {
+          setError('⚠️ Admin accounts are not allowed here. Please use Admin Login.');
+          return;
+        }
+
+        setError(serverMessage);
         return;
       }
 
-      if (String(data?.role || '').toLowerCase() === 'admin') {
-        router.replace('/admin/dashboard');
-        return;
+      try {
+        localStorage.setItem('user', JSON.stringify(data));
+      } catch {
+        // Ignore localStorage errors in restricted environments.
       }
 
       await refreshUser();
@@ -146,6 +153,12 @@ export default function LoginPage() {
         setError(loginData.error || 'Account created but login failed. Please sign in.');
         setMode('signin');
         return;
+      }
+
+      try {
+        localStorage.setItem('user', JSON.stringify(loginData));
+      } catch {
+        // Ignore localStorage errors in restricted environments.
       }
 
       await refreshUser();

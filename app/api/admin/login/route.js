@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
+import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -16,17 +17,30 @@ export async function POST(req) {
       );
     }
 
-    const admin = await Admin.findOne({ email: email.toLowerCase() });
-    console.log("Admin found:", admin ? admin.email : "NOT FOUND");
+    const normalizedEmail = email.toLowerCase();
 
-    if (!admin) {
+    // Support admin accounts in User collection while enforcing role-based access.
+    const userAccount = await User.findOne({ email: normalizedEmail });
+    if (userAccount && String(userAccount.role || "").toLowerCase() !== "admin") {
       return NextResponse.json(
-        { success: false, message: "Admin not found" },
-        { status: 401 }
+        { success: false, message: "Access denied. Admin only" },
+        { status: 403 }
       );
     }
 
-    // Support both bcrypt-hashed and plain-text passwords
+    const admin =
+      userAccount && String(userAccount.role || "").toLowerCase() === "admin"
+        ? userAccount
+        : await Admin.findOne({ email: normalizedEmail });
+
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, message: "Access denied. Admin only" },
+        { status: 403 }
+      );
+    }
+
+    // Support both bcrypt-hashed and plain-text passwords for legacy admin accounts.
     const isBcryptHash = admin.password.startsWith("$2a$") || admin.password.startsWith("$2b$");
     let isMatch = false;
 
@@ -35,8 +49,6 @@ export async function POST(req) {
     } else {
       isMatch = password === admin.password;
     }
-
-    console.log("Password match:", isMatch);
 
     if (!isMatch) {
       return NextResponse.json(
@@ -55,6 +67,7 @@ export async function POST(req) {
       _id: admin._id,
       name: admin.name,
       email: admin.email,
+      profileImage: admin.profileImage || admin.avatar || "",
       role: admin.role,
     };
 
@@ -64,17 +77,26 @@ export async function POST(req) {
       { expiresIn: "7d" }
     );
 
-    const response = NextResponse.json({ success: true, token, admin: adminData });
+    const response = NextResponse.json({
+      success: true,
+      token,
+      role: "admin",
+      admin: adminData,
+    });
     response.cookies.set("adminToken", token, {
-      httpOnly: false,
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });
+    response.cookies.set("userToken", "", {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+    });
     return response;
   } catch (error) {
-    console.error("Admin login error:", error);
     return NextResponse.json(
       { success: false, message: "Login failed" },
       { status: 500 }

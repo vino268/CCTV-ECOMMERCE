@@ -3,10 +3,12 @@
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/lib/types';
 import { useCart } from '@/lib/contexts/cart-context';
+import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import {
   ArrowRight,
@@ -14,6 +16,8 @@ import {
   ShieldCheck,
   Headphones,
   Star,
+  ShoppingCart,
+  Check,
   Camera,
   CheckCircle2,
   Wallet,
@@ -27,8 +31,68 @@ import {
   Settings,
 } from 'lucide-react';
 
+type HomeProductCardProps = {
+  product: Product & { isInCart: boolean };
+  isPending: boolean;
+  onAddToCart: (product: Product) => Promise<void>;
+  onBuyNow: (product: Product) => Promise<void>;
+};
+
+function HomeProductCard({ product, isPending, onAddToCart, onBuyNow }: HomeProductCardProps) {
+  const productId = product._id || product.id;
+  const primaryImage = product.images?.[0] || product.image || '/images/product-1.jpg';
+
+  return (
+    <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 p-4 flex flex-col h-full">
+      <div>
+        <Link href={`/products/${productId}`}>
+          <div className="bg-gray-100 rounded-xl overflow-hidden h-[200px] flex items-center justify-center">
+            <Image
+              src={primaryImage}
+              alt={product.name}
+              width={400}
+              height={180}
+              unoptimized
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </Link>
+
+        <Link href={`/products/${productId}`}>
+          <h3 className="mt-4 font-semibold text-gray-800 text-sm line-clamp-2 min-h-[2.5rem]">
+            {product.name}
+          </h3>
+        </Link>
+
+        <p className="text-blue-600 font-bold text-lg mt-2">{formatPrice(product.price)}</p>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onAddToCart(product)}
+          disabled={isPending || !product.inStock}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isPending ? 'Please wait...' : product.isInCart ? '✓ Added' : 'Add to Cart'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onBuyNow(product)}
+          disabled={!product.inStock}
+          className="flex-1 bg-blue-900 hover:bg-blue-800 text-white py-2 rounded-lg text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Buy Now
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
+  const router = useRouter();
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
@@ -189,6 +253,43 @@ export default function Home() {
     ));
   };
 
+  const handleAddToCart = async (product: Product) => {
+    await toggleCartItem(product, 1);
+  };
+
+  const handleBuyNow = async (product: Product) => {
+    if (!product.inStock) return;
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
+    const productId = product._id || product.id;
+
+    try {
+      const res = await fetch('/api/orders/buy-now', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId,
+          quantity: 1,
+        }),
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.orderId) {
+        router.push(`/checkout?orderId=${data.orderId}`);
+      }
+    } catch {
+      // Keep silent here to avoid interrupting browsing flow.
+    }
+  };
+
   return (
     <div className="w-full overflow-x-hidden bg-[#f8fafc]">
       <section className="w-full min-h-screen bg-gradient-to-r from-[#1e3a8a] to-[#6d28d9]">
@@ -301,9 +402,7 @@ export default function Home() {
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">
-                Featured Products
-              </h2>
+              <h2 className="mb-4 text-2xl font-semibold text-gray-800">Recent Products</h2>
               <p className="text-sm text-gray-600">Top picks from our newest and best-selling inventory</p>
             </div>
             <Link href="/products">
@@ -314,7 +413,7 @@ export default function Home() {
           </div>
 
           {productsLoading ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div key={idx} className="animate-pulse rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                   <div className="h-44 rounded-lg bg-gray-200" />
@@ -326,63 +425,26 @@ export default function Home() {
             </div>
           ) : featuredProducts.length === 0 ? (
             <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-              No products available
+              No recent products available
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredProducts.map((product) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
+              {featuredProducts.slice(0, 6).map((product) => {
                 const productId = product._id || product.id;
-                const rating = Number.isFinite(product.rating) ? product.rating : 4;
-                const alreadyInCart = isInCart(productId);
+                const productWithCart = {
+                  ...product,
+                  isInCart: isInCart(productId),
+                };
                 const pending = isCartActionPending(productId);
 
                 return (
-                  <div
+                  <HomeProductCard
                     key={productId}
-                    className="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
-                  >
-                    <Link href={`/products/${productId}`}>
-                      <div className="relative h-44 overflow-hidden rounded-lg bg-slate-100">
-                        <Image
-                          src={product.image || '/images/product-1.jpg'}
-                          alt={product.name}
-                          fill
-                          unoptimized
-                          className="object-contain p-3 transition duration-500 group-hover:scale-105"
-                        />
-                      </div>
-                    </Link>
-
-                    <Link href={`/products/${productId}`}>
-                      <h3 className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-gray-900 transition-colors hover:text-blue-700">
-                        {product.name}
-                      </h3>
-                    </Link>
-
-                    <div className="mt-2 flex items-center gap-1">
-                      {renderStars(rating)}
-                      <span className="ml-1 text-xs text-gray-500">{rating.toFixed(1)}</span>
-                    </div>
-
-                    <p className="mt-2 text-lg font-bold text-blue-700">{formatPrice(product.price)}</p>
-
-                    <div className="mt-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleCartItem(product, 1)}
-                        disabled={pending || !product.inStock}
-                        className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {alreadyInCart ? 'Added' : pending ? 'Please wait...' : 'Add to Cart'}
-                      </button>
-                      <Link
-                        href={`/products/${productId}`}
-                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-center text-xs font-semibold text-gray-700 transition hover:border-blue-600 hover:text-blue-700"
-                      >
-                        View Details
-                      </Link>
-                    </div>
-                  </div>
+                    product={productWithCart}
+                    isPending={pending}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                  />
                 );
               })}
             </div>

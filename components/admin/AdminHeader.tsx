@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import LogoutConfirmModal from '@/components/logout-confirm-modal'
 import {
   Bell,
   LogOut,
+  Menu,
   Search,
   ShoppingCart,
   UserPlus,
@@ -31,6 +31,7 @@ type Notification = {
 
 type AdminHeaderProps = {
   onLogout: () => void
+  onMenuOpen?: () => void
 }
 
 function timeAgo(dateStr: string) {
@@ -52,16 +53,14 @@ const notifIcon: Record<string, typeof Bell> = {
   system: Bell,
 }
 
-export default function AdminHeader({ onLogout }: AdminHeaderProps) {
-  const pathname = usePathname()
+export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [bellOpen, setBellOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [adminName, setAdminName] = useState('Admin')
-  const bellRef = useRef<HTMLDivElement>(null)
-
+  const [adminProfileImage, setAdminProfileImage] = useState('')
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
     const load = () =>
@@ -78,6 +77,21 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
   }, [])
 
   useEffect(() => {
+    try {
+      const storedAdminRaw = localStorage.getItem('admin') || localStorage.getItem('adminUser')
+      if (storedAdminRaw) {
+        const storedAdmin = JSON.parse(storedAdminRaw)
+        if (storedAdmin?.name?.trim()) {
+          setAdminName(storedAdmin.name.trim())
+        }
+        if (storedAdmin?.profileImage || storedAdmin?.avatar) {
+          setAdminProfileImage(String(storedAdmin.profileImage || storedAdmin.avatar))
+        }
+      }
+    } catch {
+      // Ignore localStorage parsing issues.
+    }
+
     const loadAdmin = async () => {
       try {
         const res = await fetch('/api/admin/profile', { cache: 'no-store' })
@@ -88,6 +102,20 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
           setAdminName(admin.name.trim())
         } else if (admin?.email) {
           setAdminName(String(admin.email).split('@')[0])
+        }
+
+        if (admin?.profileImage || admin?.avatar) {
+          const profileImage = String(admin.profileImage || admin.avatar)
+          setAdminProfileImage(profileImage)
+        }
+
+        try {
+          if (admin) {
+            localStorage.setItem('admin', JSON.stringify(admin))
+            localStorage.setItem('adminUser', JSON.stringify(admin))
+          }
+        } catch {
+          // Ignore localStorage write errors.
         }
       } catch {
         // Keep fallback name.
@@ -102,7 +130,7 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement
 
-      if (bellRef.current && !bellRef.current.contains(target)) {
+      if (!target.closest('.notification-menu')) {
         setBellOpen(false)
       }
 
@@ -183,24 +211,194 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
     year: 'numeric',
   })
 
-  const section = pathname?.split('/')[2] || 'dashboard'
-  const purposeMap: Record<string, string> = {
-    dashboard: 'Manage your CCTV business efficiently',
-    orders: 'Track orders and fulfillment operations',
-    customers: 'Manage customer relationships and support',
-    products: 'Control catalog, stock, and pricing',
-    services: 'Handle installation and service requests',
-    settings: 'Configure platform settings and preferences',
-  }
-  const subtitle = `TN Automation Admin Dashboard — ${purposeMap[section] || 'Manage your CCTV business efficiently'}`
   const adminInitial = (adminName || 'A').charAt(0).toUpperCase()
 
   return (
-    <header className="bg-white border-b px-4 py-3">
-      <div className="flex items-center justify-between gap-4">
+    <header className="mt-0 px-4 pt-2 pb-2 md:px-4 md:py-3 bg-transparent">
+      <div className="md:hidden">
+        <div className="flex items-center justify-between px-0 py-1">
+          <div className="flex items-center gap-2">
+            {onMenuOpen && (
+              <button
+                type="button"
+                onClick={onMenuOpen}
+                aria-label="Open sidebar"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+            )}
+            <h2 className="text-lg font-semibold text-gray-800">Admin</h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative notification-menu">
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={() => {
+                  setBellOpen((v) => !v)
+                  setOpenMenu(false)
+                  if (!bellOpen && unreadCount > 0) handleMarkAllRead()
+                }}
+                className="relative inline-flex h-8 w-8 items-center justify-center text-gray-600"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {bellOpen && (
+                <div className="absolute right-0 top-10 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                  <div className="flex items-center justify-between border-b px-4 py-3">
+                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                    {notifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAll}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-400">
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.map((n) => {
+                        const Icon = notifIcon[n.type] || Bell
+                        const href = notifLink[n.type] || '/admin/dashboard'
+                        return (
+                          <div
+                            key={n._id}
+                            className={`flex items-start gap-3 border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50 ${
+                              !n.isRead ? 'bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <Link href={href} onClick={() => setBellOpen(false)} className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-800">{n.message}</p>
+                              <p className="mt-0.5 text-xs text-gray-400">
+                                {n.orderId && (
+                                  <span className="mr-2 font-medium text-gray-500">{n.orderId}</span>
+                                )}
+                                {timeAgo(n.createdAt)}
+                              </p>
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOne(n._id)}
+                              className="mt-0.5 flex-shrink-0 rounded p-1 text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                              aria-label="Delete notification"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="border-t px-4 py-2">
+                      <Link
+                        href="/admin/notifications"
+                        onClick={() => setBellOpen(false)}
+                        className="block text-center text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        View All Notifications
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="relative profile-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenMenu((v) => !v)
+                  setBellOpen(false)
+                }}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-white transition ${
+                  adminProfileImage
+                    ? 'border-2 border-blue-500 bg-white hover:opacity-90'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {adminProfileImage ? (
+                  <img
+                    src={adminProfileImage}
+                    alt="admin"
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  adminInitial
+                )}
+              </button>
+
+              {openMenu && (
+                <div className="absolute right-0 top-10 z-50 w-56 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-900">{adminName}</p>
+                    <p className="text-xs text-gray-500 truncate">Administrator</p>
+                  </div>
+
+                  <div className="py-1">
+                    {menuItems.map((item) => {
+                      const Icon = item.icon
+                      return (
+                        <Link
+                          key={`${item.href}-${item.label}`}
+                          href={item.href}
+                          onClick={() => setOpenMenu(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <Icon className="h-4 w-4 text-gray-400" />
+                          {item.label}
+                          {item.label === 'Notifications' && unreadCount > 0 && (
+                            <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                              {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
+                          )}
+                        </Link>
+                      )
+                    })}
+                  </div>
+
+                  <div className="border-t border-gray-100 py-1">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-xs text-gray-500">Today • {today}</div>
+      </div>
+
+      <div className="hidden md:flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Welcome back, {adminName} 👋</h1>
-          <p className="text-sm text-gray-500">{subtitle}</p>
+          <p className="text-sm text-gray-500">Admin Panel</p>
           <p className="text-xs text-gray-400 mt-1">Today: {today}</p>
         </div>
 
@@ -216,7 +414,7 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
           </div>
 
           {/* Notification Bell */}
-          <div className="relative" ref={bellRef}>
+          <div className="relative notification-menu">
             <button
               type="button"
               aria-label="Notifications"
@@ -316,9 +514,21 @@ export default function AdminHeader({ onLogout }: AdminHeaderProps) {
                 setOpenMenu((v) => !v)
                 setBellOpen(false)
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-900 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                adminProfileImage
+                  ? 'border-2 border-blue-500 bg-white hover:opacity-90'
+                  : 'bg-blue-900 hover:bg-blue-800'
+              }`}
             >
-              {adminInitial}
+              {adminProfileImage ? (
+                <img
+                  src={adminProfileImage}
+                  alt="admin"
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                adminInitial
+              )}
             </button>
 
             {openMenu && (

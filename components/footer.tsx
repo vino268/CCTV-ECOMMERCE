@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Facebook, Twitter, Instagram, Linkedin, Youtube, Phone, Mail, MapPin } from 'lucide-react';
 
 type Settings = {
@@ -19,8 +20,31 @@ const fallback: Settings = {
 };
 
 export function Footer() {
+  const router = useRouter();
   const [s, setS] = useState<Settings>(fallback);
   const [loaded, setLoaded] = useState(false);
+
+  const handleAdminAccess = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+
+    try {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+    } catch {
+      // Ignore localStorage access issues in restricted environments.
+    }
+
+    try {
+      await fetch('/api/admin/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore network errors and still proceed to login.
+    }
+
+    router.push('/admin/login');
+  };
 
   useEffect(() => {
     fetch('/api/settings')
@@ -164,6 +188,7 @@ export function Footer() {
               <span className="inline-block h-3 w-3 opacity-0" aria-hidden="true" />
               <Link
                 href="/admin/login"
+                onClick={handleAdminAccess}
                 aria-label="Admin Login"
                 className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 opacity-0 translate-y-2 group-hover/admin-secret:pointer-events-auto group-hover/admin-secret:opacity-100 group-hover/admin-secret:translate-y-0 transition-all duration-300 text-xs text-gray-400 hover:text-white whitespace-nowrap"
               >

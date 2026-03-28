@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -56,13 +56,29 @@ export default function AdminLoginPage() {
         return;
       }
 
-      const role = String(data?.role || '').toLowerCase();
-      if (role === 'admin') {
-        router.replace('/admin/dashboard');
-        return;
+      try {
+        if (data?.token) {
+          localStorage.setItem('adminToken', data.token);
+          localStorage.setItem('token', data.token);
+        }
+        const role = String(data?.role || data?.admin?.role || '').toLowerCase();
+        if (role) {
+          localStorage.setItem('role', role);
+        }
+        if (data?.admin) {
+          localStorage.setItem('admin', JSON.stringify(data.admin));
+          localStorage.setItem('adminUser', JSON.stringify(data.admin));
+        }
+
+        if (role === 'admin') {
+          router.push('/admin/dashboard');
+          return;
+        }
+      } catch {
+        // Ignore localStorage issues and continue with cookie-based auth.
       }
 
-      router.replace('/');
+      router.push('/');
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {

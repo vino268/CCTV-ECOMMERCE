@@ -8,6 +8,8 @@ export interface AuthUser {
   email: string;
   phone?: string;
   address?: string;
+  avatar?: string;
+  profileImage?: string;
   role?: string;
 }
 
@@ -37,10 +39,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       const nextUser = data?.user || null;
       setUser(nextUser);
+      try {
+        if (nextUser) {
+          localStorage.setItem('user', JSON.stringify(nextUser));
+        } else {
+          localStorage.removeItem('user');
+        }
+      } catch {
+        // Ignore localStorage errors in restricted environments.
+      }
       window.dispatchEvent(new Event('user-auth-change'));
       return nextUser;
     } catch {
       setUser(null);
+      try {
+        localStorage.removeItem('user');
+      } catch {
+        // Ignore localStorage errors in restricted environments.
+      }
       window.dispatchEvent(new Event('user-auth-change'));
       return null;
     }
@@ -54,6 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(null);
+    try {
+      localStorage.removeItem('user');
+    } catch {
+      // Ignore localStorage errors in restricted environments.
+    }
     window.dispatchEvent(new Event('user-auth-change'));
   }, []);
 

@@ -11,7 +11,6 @@ import {
   Trash2,
   PanelLeftClose,
   PanelLeftOpen,
-  Menu,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -46,6 +45,17 @@ export default function AdminLayout({
   useEffect(() => {
     if (isPublicPage) {
       setAuthChecked(true);
+      return;
+    }
+
+    try {
+      const role = localStorage.getItem('role');
+      if (role !== 'admin') {
+        router.replace('/admin/login?error=unauthorized');
+        return;
+      }
+    } catch {
+      router.replace('/admin/login?error=unauthorized');
       return;
     }
 
@@ -96,20 +106,7 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Mobile Top Bar */}
-      <div className="flex items-center justify-between bg-slate-800 text-gray-100 p-4 shadow md:hidden fixed top-0 left-0 w-full z-40">
-        <button
-          onClick={() => setMobileSidebarOpen(true)}
-          aria-label="Open sidebar"
-          className="p-1"
-        >
-          <Menu className="w-6 h-6" />
-        </button>
-        <h1 className="font-semibold">Admin</h1>
-        <div />
-      </div>
-
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       {overlay}
       <aside
@@ -193,14 +190,14 @@ export default function AdminLayout({
 
       {/* Main Content */}
       <main
-        className={`flex-1 overflow-y-auto transition-all duration-300 px-4 pb-4 ${
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 px-3 pt-0 pb-0 md:px-4 ${
           isCollapsed ? 'md:ml-[70px]' : 'md:ml-64'
         } bg-gray-50`}
       >
-        <div className="sticky top-0 z-50 bg-white shadow-sm">
-          <AdminHeader onLogout={handleLogout} />
+        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b shadow-sm">
+          <AdminHeader onLogout={handleLogout} onMenuOpen={() => setMobileSidebarOpen(true)} />
         </div>
-        <div className="pt-4">
+        <div className="first-section flex-1 overflow-y-auto mt-0 px-3 py-2 md:px-0 md:pt-4 md:pb-0">
           {children}
         </div>
       </main>
