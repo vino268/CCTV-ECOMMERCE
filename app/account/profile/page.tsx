@@ -4,15 +4,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, Save, Camera, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Camera, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
+import DeleteAccountModal from '@/components/delete-account-modal';
 
 interface UserProfile {
   _id: string;
   name: string;
   email: string;
   phone: string;
-  avatar: string;
+  avatar: string | null;
   dob: string | null;
   address: string;
   role: string;
@@ -22,9 +23,13 @@ interface UserProfile {
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
 
+function getInitial(name?: string, email?: string) {
+  return (name || email || 'U').charAt(0).toUpperCase();
+}
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, loading: authLoading, refreshUser } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, refreshUser, updateUser, logout } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,6 +38,11 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [removingAvatar, setRemovingAvatar] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -123,6 +133,11 @@ export default function ProfilePage() {
         setProfile(updated);
         setAvatarPreview(updated.avatar || avatarUrl || '');
         setAvatarFile(null);
+        updateUser({
+          name: updated.name || formData.name,
+          avatar: updated.avatar || avatarUrl || '',
+          profileImage: updated.avatar || avatarUrl || '',
+        });
         await refreshUser();
 
         if (avatarFile) {
@@ -143,6 +158,42 @@ export default function ProfilePage() {
     } finally {
       setUploadingAvatar(false);
       setSaving(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!profile) return;
+
+    setRemovingAvatar(true);
+    setMessage('');
+    setMessageType('');
+
+    try {
+      const res = await fetch('/api/user/upload-avatar', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || 'Failed to remove profile image');
+      }
+
+      const nextProfile = { ...profile, avatar: null };
+      setProfile(nextProfile);
+      setAvatarPreview('');
+      setAvatarFile(null);
+      updateUser({ avatar: '', profileImage: '' });
+      await refreshUser();
+
+      setMessage('Profile image removed');
+      setMessageType('success');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove profile image';
+      setMessage(errorMessage);
+      setMessageType('error');
+    } finally {
+      setRemovingAvatar(false);
     }
   };
 
@@ -168,6 +219,38 @@ export default function ProfilePage() {
     setAvatarFile(file);
     const objectUrl = URL.createObjectURL(file);
     setAvatarPreview(objectUrl);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword.trim()) {
+      setDeleteError('Password is required');
+      return;
+    }
+
+    setDeletingAccount(true);
+    setDeleteError('');
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/delete-account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setDeleteError(data?.error || 'Unable to delete account');
+        return;
+      }
+
+      await logout();
+      router.replace('/login?accountDeleted=1');
+    } catch (error) {
+      setDeleteError('Unable to delete account right now. Please try again.');
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   if (loading) {
@@ -198,12 +281,12 @@ export default function ProfilePage() {
 
         <div className="flex items-center gap-4 mb-8">
           <div className="relative">
-            <label className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center overflow-hidden cursor-pointer">
+            <label className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center overflow-hidden cursor-pointer">
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Profile avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-xl font-bold">
-                  {(formData.name || profile.name || profile.email || 'U').charAt(0).toUpperCase()}
+                <span className="text-2xl font-bold">
+                  {getInitial(formData.name || profile.name, profile.email)}
                 </span>
               )}
               <input
@@ -223,13 +306,30 @@ export default function ProfilePage() {
               />
             </label>
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-foreground">
               Profile Information
             </h1>
             <p className="text-sm text-muted-foreground">
               Update your personal details
             </p>
+            {(avatarPreview || profile.avatar) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-2"
+                onClick={handleRemoveAvatar}
+                disabled={removingAvatar || saving || uploadingAvatar}
+              >
+                {removingAvatar ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                {removingAvatar ? 'Removing...' : 'Remove Image'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -352,7 +452,46 @@ export default function ProfilePage() {
             })}
           </p>
         </div>
+
+        <div className="mt-8 rounded-xl border border-red-200 bg-white p-6 shadow-lg">
+          <h2 className="text-lg font-semibold text-red-600">Delete Account</h2>
+          <p className="mt-1 text-sm text-gray-600">
+            Permanently remove your account and all related data.
+          </p>
+          <Button
+            type="button"
+            variant="destructive"
+            className="mt-4 rounded-xl bg-red-500 hover:bg-red-600"
+            onClick={() => {
+              setDeleteError('');
+              setDeletePassword('');
+              setShowDeleteModal(true);
+            }}
+          >
+            Delete Account
+          </Button>
+        </div>
       </div>
+
+      <DeleteAccountModal
+        open={showDeleteModal}
+        password={deletePassword}
+        isProcessing={deletingAccount}
+        errorMessage={deleteError}
+        onPasswordChange={(value) => {
+          setDeletePassword(value);
+          if (deleteError) setDeleteError('');
+        }}
+        onOpenChange={(open) => {
+          if (!open && deletingAccount) return;
+          setShowDeleteModal(open);
+          if (!open) {
+            setDeletePassword('');
+            setDeleteError('');
+          }
+        }}
+        onConfirm={handleDeleteAccount}
+      />
     </div>
   );
 }

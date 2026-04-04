@@ -13,6 +13,7 @@ import {
   Lock,
   KeyRound,
   ImagePlus,
+  Trash2,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
@@ -26,7 +27,33 @@ interface AdminProfile {
   email: string;
   phone: string;
   role: string;
+  profileImage?: string | null;
   createdAt: string;
+}
+
+function getInitial(name?: string, email?: string) {
+  return (name || email || 'A').charAt(0).toUpperCase();
+}
+
+function syncAdminStorage(admin: AdminProfile | null) {
+  try {
+    if (admin) {
+      localStorage.setItem('admin', JSON.stringify(admin));
+      localStorage.setItem('adminUser', JSON.stringify(admin));
+    }
+  } catch {
+    // Ignore localStorage errors in restricted environments.
+  }
+  window.dispatchEvent(new Event('admin-profile-change'));
+}
+
+function getAdminAuthHeaders() {
+  const token =
+    (typeof window !== 'undefined' &&
+      (localStorage.getItem('adminToken') || localStorage.getItem('token'))) ||
+    '';
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export default function AdminProfilePage() {
@@ -35,6 +62,8 @@ export default function AdminProfilePage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string>('');
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
+  const [removeAvatarOnSave, setRemoveAvatarOnSave] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -57,7 +86,13 @@ export default function AdminProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        const res = await fetch('/api/admin/profile', {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: {
+            ...getAdminAuthHeaders(),
+          },
+        });
         const data = await res.json();
 
         if (data.success) {
@@ -65,6 +100,7 @@ export default function AdminProfilePage() {
           setName(data.admin.name || '');
           setEmail(data.admin.email || '');
           setPhone(data.admin.phone || '');
+          setAvatarPreview(data.admin.profileImage || '');
         } else {
           setProfileMessage({ type: 'error', text: data.message || 'Failed to load profile' });
         }
@@ -129,11 +165,30 @@ export default function AdminProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAvatarPreview(String(reader.result || ''));
-    };
-    reader.readAsDataURL(file);
+    const validTypes = ['image/jpeg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      setProfileMessage({ type: 'error', text: 'Only JPG and PNG images are allowed' });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileMessage({ type: 'error', text: 'Image size must be 2MB or less' });
+      return;
+    }
+
+    setProfileMessage(null);
+    setSelectedAvatarFile(file);
+    setRemoveAvatarOnSave(false);
+
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarPreview(objectUrl);
+  };
+
+  const handleRemoveAvatar = () => {
+    setSelectedAvatarFile(null);
+    setAvatarPreview('');
+    setRemoveAvatarOnSave(true);
+    setProfileMessage(null);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -144,20 +199,85 @@ export default function AdminProfilePage() {
 
     setSavingProfile(true);
     try {
+      let nextProfileImage = admin?.profileImage || '';
+
+      if (selectedAvatarFile) {
+        const formData = new FormData();
+        formData.append('file', selectedAvatarFile);
+
+        const uploadRes = await fetch('/api/admin/upload-avatar', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+          headers: {
+            ...getAdminAuthHeaders(),
+          },
+        });
+
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok || !uploadData?.success) {
+          if (uploadRes.status === 401) {
+            throw new Error('Session expired. Please login again.');
+          }
+          throw new Error(uploadData?.message || 'Failed to upload profile image');
+        }
+
+        nextProfileImage = String(uploadData?.profileImage || uploadData?.admin?.profileImage || '');
+      } else if (removeAvatarOnSave) {
+        const removeRes = await fetch('/api/admin/upload-avatar', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            ...getAdminAuthHeaders(),
+          },
+        });
+
+        const removeData = await removeRes.json().catch(() => ({}));
+        if (!removeRes.ok || !removeData?.success) {
+          if (removeRes.status === 401) {
+            throw new Error('Session expired. Please login again.');
+          }
+          throw new Error(removeData?.message || 'Failed to remove profile image');
+        }
+
+        nextProfileImage = '';
+      }
+
       const res = await fetch('/api/admin/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAdminAuthHeaders(),
+        },
         body: JSON.stringify({ name, email, phone }),
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        throw new Error('Session expired. Please login again.');
+      }
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      setAdmin(data.admin);
+      const mergedAdmin = {
+        ...data.admin,
+        profileImage: nextProfileImage,
+      };
+      setAdmin(mergedAdmin);
+      syncAdminStorage(mergedAdmin);
+      setSelectedAvatarFile(null);
+      setRemoveAvatarOnSave(false);
+      setAvatarPreview('');
 
-      setProfileMessage({ type: 'success', text: 'Profile updated successfully' });
+      if (selectedAvatarFile) {
+        setProfileMessage({ type: 'success', text: 'Profile and image updated successfully' });
+      } else if (removeAvatarOnSave) {
+        setProfileMessage({ type: 'success', text: 'Profile updated and image removed successfully' });
+      } else {
+        setProfileMessage({ type: 'success', text: 'Profile updated successfully' });
+      }
     } catch (error: any) {
       setProfileMessage({ type: 'error', text: error.message || 'Failed to update profile' });
     } finally {
@@ -175,11 +295,18 @@ export default function AdminProfilePage() {
     try {
       const res = await fetch('/api/admin/password', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAdminAuthHeaders(),
+        },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        throw new Error('Session expired. Please login again.');
+      }
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to update password');
       }
@@ -203,6 +330,8 @@ export default function AdminProfilePage() {
     );
   }
 
+  const displayAvatar = removeAvatarOnSave ? '' : avatarPreview || admin?.profileImage || '';
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-3xl font-bold text-gray-900">Admin Profile</h1>
@@ -212,15 +341,15 @@ export default function AdminProfilePage() {
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
+              {displayAvatar ? (
+                <img src={displayAvatar} alt="Avatar preview" className="w-full h-full object-cover" />
               ) : (
-                (admin?.name || admin?.email || 'A').charAt(0).toUpperCase()
+                getInitial(admin?.name, admin?.email)
               )}
             </div>
             <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center cursor-pointer hover:bg-blue-700 transition">
               <ImagePlus className="w-3.5 h-3.5" />
-              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleAvatarChange} />
             </label>
           </div>
 
@@ -234,6 +363,22 @@ export default function AdminProfilePage() {
               <Calendar className="w-4 h-4" />
               Joined {joinedDate}
             </p>
+            {(displayAvatar || removeAvatarOnSave) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 gap-2"
+                onClick={handleRemoveAvatar}
+                disabled={savingProfile}
+              >
+                <Trash2 className="w-4 h-4" />
+                Remove Image
+              </Button>
+            )}
+            {(selectedAvatarFile || removeAvatarOnSave) && (
+              <p className="mt-2 text-xs text-blue-600">Avatar changes will apply after clicking Save Changes.</p>
+            )}
           </div>
         </div>
       </section>

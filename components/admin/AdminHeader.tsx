@@ -61,6 +61,51 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [adminName, setAdminName] = useState('Admin')
   const [adminProfileImage, setAdminProfileImage] = useState('')
+
+  const getInitial = (name?: string) => (name || 'A').charAt(0).toUpperCase()
+
+  const readAdminFromStorage = () => {
+    try {
+      const storedAdminRaw = localStorage.getItem('admin') || localStorage.getItem('adminUser')
+      if (!storedAdminRaw) return null
+      return JSON.parse(storedAdminRaw)
+    } catch {
+      return null
+    }
+  }
+
+  const loadAdminProfile = async () => {
+    const storedAdmin = readAdminFromStorage()
+    if (storedAdmin?.name?.trim()) {
+      setAdminName(storedAdmin.name.trim())
+    }
+    setAdminProfileImage(String(storedAdmin?.profileImage || storedAdmin?.avatar || ''))
+
+    try {
+      const res = await fetch('/api/admin/profile', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      const admin = data?.admin
+      if (admin?.name?.trim()) {
+        setAdminName(admin.name.trim())
+      } else if (admin?.email) {
+        setAdminName(String(admin.email).split('@')[0])
+      }
+
+      setAdminProfileImage(String(admin?.profileImage || admin?.avatar || ''))
+
+      try {
+        if (admin) {
+          localStorage.setItem('admin', JSON.stringify(admin))
+          localStorage.setItem('adminUser', JSON.stringify(admin))
+        }
+      } catch {
+        // Ignore localStorage write errors.
+      }
+    } catch {
+      // Keep fallback data.
+    }
+  }
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
     const load = () =>
@@ -77,52 +122,14 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   }, [])
 
   useEffect(() => {
-    try {
-      const storedAdminRaw = localStorage.getItem('admin') || localStorage.getItem('adminUser')
-      if (storedAdminRaw) {
-        const storedAdmin = JSON.parse(storedAdminRaw)
-        if (storedAdmin?.name?.trim()) {
-          setAdminName(storedAdmin.name.trim())
-        }
-        if (storedAdmin?.profileImage || storedAdmin?.avatar) {
-          setAdminProfileImage(String(storedAdmin.profileImage || storedAdmin.avatar))
-        }
-      }
-    } catch {
-      // Ignore localStorage parsing issues.
+    void loadAdminProfile()
+
+    const handleAdminProfileChange = () => {
+      void loadAdminProfile()
     }
 
-    const loadAdmin = async () => {
-      try {
-        const res = await fetch('/api/admin/profile', { cache: 'no-store' })
-        if (!res.ok) return
-        const data = await res.json()
-        const admin = data?.admin
-        if (admin?.name?.trim()) {
-          setAdminName(admin.name.trim())
-        } else if (admin?.email) {
-          setAdminName(String(admin.email).split('@')[0])
-        }
-
-        if (admin?.profileImage || admin?.avatar) {
-          const profileImage = String(admin.profileImage || admin.avatar)
-          setAdminProfileImage(profileImage)
-        }
-
-        try {
-          if (admin) {
-            localStorage.setItem('admin', JSON.stringify(admin))
-            localStorage.setItem('adminUser', JSON.stringify(admin))
-          }
-        } catch {
-          // Ignore localStorage write errors.
-        }
-      } catch {
-        // Keep fallback name.
-      }
-    }
-
-    loadAdmin()
+    window.addEventListener('admin-profile-change', handleAdminProfileChange)
+    return () => window.removeEventListener('admin-profile-change', handleAdminProfileChange)
   }, [])
 
   // Close dropdowns when clicking outside
@@ -211,7 +218,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
     year: 'numeric',
   })
 
-  const adminInitial = (adminName || 'A').charAt(0).toUpperCase()
+  const adminInitial = getInitial(adminName)
 
   return (
     <header className="mt-0 px-4 pt-2 pb-2 md:px-4 md:py-3 bg-transparent">

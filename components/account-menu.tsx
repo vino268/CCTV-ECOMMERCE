@@ -7,11 +7,8 @@ import { User } from 'lucide-react';
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
 import { useAuth } from '@/lib/contexts/auth-context';
 
-interface UserData {
-  _id?: string;
-  name: string;
-  email: string;
-  role?: string;
+function getInitial(name?: string, email?: string) {
+  return (name || email || 'U').charAt(0).toUpperCase();
 }
 
 export function AccountMenu() {
@@ -19,6 +16,7 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const router = useRouter();
 
   // Close menu when clicking outside
@@ -70,12 +68,9 @@ export function AccountMenu() {
   }
 
   // Logged in — show avatar button + dropdown
-  const initials = user.name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+  const userProfileImage = user.profileImage || user.avatar || '';
+  const avatarSrc = userProfileImage || '/default-avatar.svg';
+  const initial = getInitial(user.name, user.email);
 
   return (
     <div className="relative profile-menu">
@@ -86,18 +81,27 @@ export function AccountMenu() {
         }}
         className="flex items-center gap-2 p-1.5 hover:bg-muted rounded-lg transition-colors"
       >
-        <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-          {initials}
-        </div>
+        {!avatarError ? (
+          <img
+            src={avatarSrc}
+            alt={user.name}
+            className="w-9 h-9 rounded-full object-cover border"
+            onError={() => setAvatarError(true)}
+          />
+        ) : (
+          <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+            {initial}
+          </div>
+        )}
         <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">
           {user.name.split(' ')[0]}
         </span>
       </button>
 
       {open && (
-        <div className="absolute top-14 right-0 sm:right-0 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 w-[92vw] sm:w-64 max-w-[320px] bg-white rounded-xl shadow-xl border z-[9999] overflow-hidden">
+        <div className="absolute top-14 right-0 sm:right-0 left-1/2 sm:left-auto -translate-x-1/2 sm:translate-x-0 w-[92vw] sm:w-56 max-w-[320px] rounded-xl shadow-lg border bg-white p-2 z-[9999]">
           <div className="absolute -top-2 right-6 w-4 h-4 bg-white rotate-45 border-l border-t" />
-          <div className="p-3 border-b border-gray-100">
+          <div className="px-3 py-2 border-b border-gray-100 mb-1">
             <p className="font-semibold text-sm text-gray-900 truncate">{user.name}</p>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
           </div>
@@ -106,30 +110,30 @@ export function AccountMenu() {
             <Link
               href="/account"
               onClick={() => setOpen(false)}
-              className="px-4 py-3 text-left text-sm hover:bg-gray-100 text-gray-700"
+              className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >
-              My Account
+              My Profile
             </Link>
 
             <Link
               href="/account/orders"
               onClick={() => setOpen(false)}
-              className="px-4 py-3 text-left text-sm hover:bg-gray-100 text-gray-700"
+              className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >
               My Orders
             </Link>
 
             <Link
-              href="/account/profile"
+              href="/account/address"
               onClick={() => setOpen(false)}
-              className="px-4 py-3 text-left text-sm hover:bg-gray-100 text-gray-700"
+              className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >
-              My Address
+              Saved Addresses
             </Link>
 
             <button
               onClick={handleOpenLogoutModal}
-              className="px-4 py-3 text-left text-sm text-red-500 hover:bg-gray-100"
+              className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-red-500"
             >
               Logout
             </button>

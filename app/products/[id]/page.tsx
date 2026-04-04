@@ -4,11 +4,13 @@ import { Product } from '@/lib/types';
 import { ProductCard } from '@/components/product-card';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/contexts/cart-context';
-import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check } from 'lucide-react';
+import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 export default function ProductDetailPage({
   params,
@@ -22,9 +24,12 @@ export default function ProductDetailPage({
   const [notFound, setNotFound] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [currentImage, setCurrentImage] = useState(0);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [currentModalIndex, setCurrentModalIndex] = useState(0);
   const [isBuyingNow, setIsBuyingNow] = useState(false);
   const [isCartBtnAnimating, setIsCartBtnAnimating] = useState(false);
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
 
   // Fetch product from MongoDB API
@@ -65,6 +70,34 @@ export default function ProductDetailPage({
     fetchProduct();
   }, [id]);
 
+  useEffect(() => {
+    if (!showImageModal) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowImageModal(false);
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        setCurrentModalIndex((prev) => (prev === productImages.length - 1 ? 0 : prev + 1));
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setCurrentModalIndex((prev) => (prev === 0 ? productImages.length - 1 : prev - 1));
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [showImageModal]);
+
   if (loading) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
@@ -88,19 +121,34 @@ export default function ProductDetailPage({
 
   const handleAddToCart = async () => {
     if (cartPending) return;
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/products');
+      return;
+    }
     setIsCartBtnAnimating(true);
     setTimeout(() => setIsCartBtnAnimating(false), 350);
     await toggleCartItem(product, quantity);
   };
 
   const handleBuyNow = async () => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
     try {
       setIsBuyingNow(true);
       const productId = product._id || product.id;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
       const res = await fetch('/api/orders/buy-now', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           productId,
@@ -137,9 +185,11 @@ export default function ProductDetailPage({
   const alreadyInCart = isInCart(product._id || product.id);
   const cartPending = isCartActionPending(product._id || product.id);
   const productImages = (Array.isArray(product.images) ? product.images : [])
-    .filter((img) => typeof img === 'string' && img.trim().length > 0);
-  if (productImages.length === 0 && product.image) {
-    productImages.push(product.image);
+    .map((img) => getSafeImageSrc(img, ''))
+    .filter(Boolean);
+  const mainImage = getSafeImageSrc(product.image, '');
+  if (productImages.length === 0 && mainImage) {
+    productImages.push(mainImage);
   }
 
   return (
@@ -168,7 +218,11 @@ export default function ProductDetailPage({
                 <img
                   src={productImages[currentImage]}
                   alt={product.name}
-                  className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-110"
+                  className="max-h-full max-w-full cursor-zoom-in rounded-lg object-contain transition-transform duration-500 group-hover:scale-110"
+                  onClick={() => {
+                    setCurrentModalIndex(currentImage);
+                    setShowImageModal(true);
+                  }}
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg flex items-center justify-center text-6xl">
@@ -247,7 +301,7 @@ export default function ProductDetailPage({
             </div>
 
             {/* Description */}
-            <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
+            <p className="mt-3 text-base md:text-lg text-muted-foreground leading-relaxed whitespace-normal break-words break-all">
               {product.description}
             </p>
 
@@ -399,6 +453,85 @@ export default function ProductDetailPage({
           </div>
         )}
       </div>
+
+      {showImageModal && productImages[currentModalIndex] && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+          onClick={() => setShowImageModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product image preview"
+        >
+          <div
+            className="relative flex h-full w-full flex-col md:flex-row"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute left-0 top-0 z-20 flex w-full items-center justify-between border-b border-white/20 bg-black/40 px-4 py-3 backdrop-blur-sm">
+              <span className="text-sm font-semibold text-white">Product Images</span>
+              <button
+                type="button"
+                onClick={() => setShowImageModal(false)}
+                className="rounded-md p-1 text-white transition hover:bg-white/10"
+                aria-label="Close image preview"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="relative mt-14 flex flex-1 items-center justify-center p-4 md:p-8">
+              {productImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentModalIndex((prev) => (prev === 0 ? productImages.length - 1 : prev - 1))}
+                  className="absolute left-3 z-10 rounded-full bg-white/80 p-2 text-gray-900 shadow-md transition-all duration-300 hover:bg-white md:left-6 md:p-3"
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" />
+                </button>
+              )}
+
+              <img
+                src={productImages[currentModalIndex]}
+                alt={`${product.name} preview`}
+                className="max-h-[85vh] max-w-[90%] rounded-lg object-contain transition-all duration-300"
+              />
+
+              {productImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentModalIndex((prev) => (prev === productImages.length - 1 ? 0 : prev + 1))}
+                  className="absolute right-3 z-10 rounded-full bg-white/80 p-2 text-gray-900 shadow-md transition-all duration-300 hover:bg-white md:right-6 md:p-3"
+                  aria-label="Next image"
+                >
+                  <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />
+                </button>
+              )}
+            </div>
+
+            <div className="w-full border-t border-gray-200 bg-white p-3 md:w-28 md:border-l md:border-t-0 md:p-3">
+              <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-y-auto md:overflow-x-hidden">
+                {productImages.map((img, index) => {
+                  const active = currentModalIndex === index;
+                  return (
+                    <button
+                      key={`${img}-modal-${index}`}
+                      type="button"
+                      onClick={() => setCurrentModalIndex(index)}
+                      className={`overflow-hidden rounded-md border transition ${
+                        active
+                          ? 'border-blue-500 ring-2 ring-blue-200'
+                          : 'border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <img src={img} alt={`Preview ${index + 1}`} className="h-16 w-20 object-cover md:h-16 md:w-full" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

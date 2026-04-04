@@ -9,8 +9,15 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim() || "";
+    const status = (searchParams.get("status") || "all").toLowerCase();
 
-    const query = { role: "user", isDeleted: false };
+    const query = { role: "user" };
+
+    if (status === "active") {
+      query.isDeleted = false;
+    } else if (status === "deleted") {
+      query.isDeleted = true;
+    }
 
     if (search) {
       // Escape special regex characters to prevent injection

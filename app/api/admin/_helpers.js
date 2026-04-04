@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
+function extractAdminToken(request) {
+  const cookieToken = request.cookies.get("adminToken")?.value;
+  if (cookieToken) return cookieToken;
+
+  const authHeader = request.headers.get("authorization") || "";
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+
+  return "";
+}
+
 export async function verifyAdmin(request) {
-  const token = request.cookies.get("adminToken")?.value;
+  const token = extractAdminToken(request);
   if (!token) {
     return { ok: false, status: 401, message: "Unauthorized" };
   }

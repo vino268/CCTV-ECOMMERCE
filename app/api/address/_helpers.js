@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import User from "@/models/User";
 
 export async function verifyUser(request) {
-  const token = request.cookies.get("userToken")?.value;
+  const cookieToken = request.cookies.get("userToken")?.value;
+  const authHeader = request.headers.get("authorization") || "";
+  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  const token = cookieToken || bearerToken;
   if (!token) {
     return { ok: false, status: 401, message: "Unauthorized" };
   }
@@ -16,9 +21,17 @@ export async function verifyUser(request) {
       return { ok: false, status: 403, message: "Forbidden" };
     }
 
-    const user = await User.findById(String(payload.userId)).select("_id isBlocked");
+    const user = await User.findById(String(payload.userId)).select("_id isBlocked isDeleted");
     if (!user) {
       return { ok: false, status: 401, message: "Unauthorized" };
+    }
+
+    if (user.isDeleted) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Your account has been deleted",
+      };
     }
 
     if (user.isBlocked) {

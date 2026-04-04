@@ -8,6 +8,7 @@ import { Heart, Trash2, ShoppingBag } from 'lucide-react';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { formatPrice } from '@/lib/currency';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 export default function WishlistPage() {
   const router = useRouter();
@@ -84,6 +85,7 @@ export default function WishlistPage() {
               if (!product) return null;
 
               const productId = product._id || product.id;
+              const productImage = getSafeImageSrc(product.image, '/products/default.jpg');
 
               return (
                 <div
@@ -101,9 +103,9 @@ export default function WishlistPage() {
 
                   <Link href={`/products/${productId}`}>
                     <div className="relative h-44 w-full rounded-xl bg-gray-50 overflow-hidden">
-                      {product.image ? (
+                      {productImage ? (
                         <Image
-                          src={product.image}
+                          src={productImage}
                           alt={product.name}
                           fill
                           unoptimized

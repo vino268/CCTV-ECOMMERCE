@@ -40,6 +40,12 @@ export async function middleware(request) {
   if (isProtectedUserRoute) {
     const token = request.cookies.get("userToken")?.value;
 
+    const requestedPath = `${pathname}${request.nextUrl.search || ""}`;
+    const loginUrl = new URL(request.url);
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("redirect", requestedPath);
+
     if (!token) {
       if (isProtectedUserApi) {
         return NextResponse.json(
@@ -48,15 +54,7 @@ export async function middleware(request) {
         );
       }
 
-      if (pathname.startsWith("/checkout")) {
-        console.log("Middleware redirect to login for checkout", {
-          pathname,
-          hasUserToken: Boolean(token),
-        });
-        return NextResponse.redirect(new URL("/login?redirect=/checkout", request.url));
-      }
-
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(loginUrl);
     }
 
     try {
@@ -109,16 +107,7 @@ export async function middleware(request) {
         return response;
       }
 
-      if (pathname.startsWith("/checkout")) {
-        console.log("Middleware invalid token redirect for checkout", {
-          pathname,
-        });
-        const response = NextResponse.redirect(new URL("/login?redirect=/checkout", request.url));
-        response.cookies.delete("userToken");
-        return response;
-      }
-
-      const response = NextResponse.redirect(new URL("/login", request.url));
+      const response = NextResponse.redirect(loginUrl);
       response.cookies.delete("userToken");
       return response;
     }

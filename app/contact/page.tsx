@@ -1,6 +1,59 @@
+"use client";
+
+import { useState } from 'react';
 import { Clock, Mail, MapPin, Phone } from 'lucide-react';
 
 export default function ContactPage() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    subject: '',
+    message: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setStatus(null);
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        setStatus({ type: 'success', message: data.message || 'Message sent successfully!' });
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          subject: '',
+          message: '',
+        });
+      } else {
+        setStatus({ type: 'error', message: data.message || 'Failed to send message' });
+      }
+    } catch {
+      setStatus({ type: 'error', message: 'Failed to send message' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <section className="bg-gradient-to-b from-white to-gray-50 min-h-screen">
       <div className="max-w-5xl mx-auto px-6 py-12">
@@ -15,38 +68,69 @@ export default function ContactPage() {
           <div className="bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 p-6 md:p-7 w-full flex flex-col gap-5">
             <h2 className="text-2xl font-semibold text-gray-900">Send us a Message</h2>
 
-            <form className="space-y-4 pt-1">
+            {status && (
+              <div
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  status.type === 'success'
+                    ? 'border-green-200 bg-green-50 text-green-700'
+                    : 'border-red-200 bg-red-50 text-red-700'
+                }`}
+              >
+                {status.message}
+              </div>
+            )}
+
+            <form className="space-y-4 pt-1" onSubmit={handleSubmit}>
               <input
                 type="text"
+                name="name"
                 placeholder="Full Name"
+                value={formData.name}
+                onChange={handleChange}
+                required
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
               <input
                 type="email"
+                name="email"
                 placeholder="Email Address"
+                value={formData.email}
+                onChange={handleChange}
+                required
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
               <input
                 type="tel"
+                name="phone"
                 placeholder="Phone Number"
+                value={formData.phone}
+                onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
               <input
                 type="text"
+                name="subject"
                 placeholder="Subject"
+                value={formData.subject}
+                onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
               />
               <textarea
                 rows={5}
+                name="message"
                 placeholder="Message"
+                value={formData.message}
+                onChange={handleChange}
+                required
                 className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none transition"
               />
 
               <button
                 type="submit"
+                disabled={submitting}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors duration-300"
               >
-                Send Message
+                {submitting ? 'Sending...' : 'Send Message'}
               </button>
             </form>
           </div>

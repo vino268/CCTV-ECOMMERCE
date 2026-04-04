@@ -10,6 +10,7 @@ import { Product } from '@/lib/types';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
+import { getSafeImageSrc } from '@/lib/product-image';
 import {
   ArrowRight,
   Wrench,
@@ -25,10 +26,10 @@ import {
   Shield,
   IndianRupee,
   LifeBuoy,
-  CircleDot,
-  RotateCw,
-  Server,
-  Settings,
+  HardDrive,
+  Cable,
+  Network,
+  Tag,
 } from 'lucide-react';
 
 type HomeProductCardProps = {
@@ -38,9 +39,15 @@ type HomeProductCardProps = {
   onBuyNow: (product: Product) => Promise<void>;
 };
 
+type HomeCategory = {
+  _id: string;
+  name: string;
+  productCount: number;
+};
+
 function HomeProductCard({ product, isPending, onAddToCart, onBuyNow }: HomeProductCardProps) {
   const productId = product._id || product.id;
-  const primaryImage = product.images?.[0] || product.image || '/images/product-1.jpg';
+  const primaryImage = getSafeImageSrc(product.images?.[0] || product.image, '/products/default.jpg');
 
   return (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 p-4 flex flex-col h-full">
@@ -95,6 +102,7 @@ export default function Home() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [topCategories, setTopCategories] = useState<HomeCategory[]>([]);
 
   const featureStrip = [
     {
@@ -116,39 +124,6 @@ export default function Home() {
       icon: Wallet,
       title: 'Secure Payments',
       desc: 'Safe and trusted checkout process',
-    },
-  ];
-
-  const categoryCards = [
-    {
-      title: 'Bullet Cameras',
-      desc: 'Long-range outdoor coverage',
-      icon: Camera,
-      href: '/products?search=bullet',
-    },
-    {
-      title: 'Dome Cameras',
-      desc: 'Compact design for indoor spaces',
-      icon: CircleDot,
-      href: '/products?search=dome',
-    },
-    {
-      title: 'PTZ Cameras',
-      desc: 'Remote pan, tilt, and zoom control',
-      icon: RotateCw,
-      href: '/products?search=ptz',
-    },
-    {
-      title: 'DVR & NVR',
-      desc: 'Reliable recording and playback units',
-      icon: Server,
-      href: '/products?search=dvr',
-    },
-    {
-      title: 'Accessories',
-      desc: 'Mounts, cables, and setup tools',
-      icon: Settings,
-      href: '/products?search=accessories',
     },
   ];
 
@@ -233,6 +208,73 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    const loadTopCategories = async () => {
+      try {
+        const [categoriesRes, productsRes] = await Promise.all([
+          fetch('/api/categories', { cache: 'no-store' }),
+          fetch('/api/products', { cache: 'no-store' }),
+        ]);
+
+        const categoriesData = await categoriesRes.json();
+        const productsData = await productsRes.json();
+
+        if (!Array.isArray(categoriesData) || !Array.isArray(productsData)) {
+          setTopCategories([]);
+          return;
+        }
+
+        const counts = new Map<string, number>();
+        for (const product of productsData) {
+          if (typeof product?.category === 'string') {
+            const key = product.category.trim().toLowerCase();
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+        }
+
+        const normalized = categoriesData
+          .map((cat: any) => {
+            const name = typeof cat?.name === 'string' ? cat.name.trim() : '';
+            return {
+              _id: cat?._id || name,
+              name,
+              productCount: counts.get(name.toLowerCase()) || 0,
+            };
+          })
+          .filter((cat) => cat.name);
+
+        const withProducts = normalized.filter((cat) => cat.productCount > 0);
+        const withoutProducts = normalized.filter((cat) => cat.productCount === 0);
+        const selected = [...withProducts, ...withoutProducts].slice(0, 6);
+
+        setTopCategories(selected);
+      } catch {
+        setTopCategories([]);
+      }
+    };
+
+    loadTopCategories();
+  }, []);
+
+  const getCategoryMeta = (name: string) => {
+    const key = name.toLowerCase();
+
+    if (key.includes('camera')) {
+      return { icon: Camera, description: 'Reliable coverage for indoor and outdoor surveillance.' };
+    }
+    if (key.includes('dvr') || key.includes('nvr') || key.includes('storage')) {
+      return { icon: HardDrive, description: 'Smart recording solutions for secure video backups.' };
+    }
+    if (key.includes('accessor') || key.includes('cable')) {
+      return { icon: Cable, description: 'Essential mounts, cables, and setup components.' };
+    }
+    if (key.includes('network') || key.includes('router')) {
+      return { icon: Network, description: 'Stable networking gear for uninterrupted monitoring.' };
+    }
+
+    return { icon: Tag, description: 'Browse high-demand products in this category.' };
+  };
+
   const featuredProducts = useMemo(() => {
     return [...products]
       .sort((a, b) => {
@@ -254,6 +296,11 @@ export default function Home() {
   };
 
   const handleAddToCart = async (product: Product) => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/products');
+      return;
+    }
     await toggleCartItem(product, 1);
   };
 
@@ -269,10 +316,12 @@ export default function Home() {
     const productId = product._id || product.id;
 
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch('/api/orders/buy-now', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           productId,
@@ -282,6 +331,11 @@ export default function Home() {
       });
 
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        router.push('/login?redirect=/checkout');
+        return;
+      }
+
       if (res.ok && data?.orderId) {
         router.push(`/checkout?orderId=${data.orderId}`);
       }
@@ -365,35 +419,48 @@ export default function Home() {
 
       <section className="py-14">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-7 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Shop by Category</h2>
-              <p className="mt-1 text-sm text-gray-600">Choose the right surveillance setup for your space</p>
-            </div>
-            <Link href="/products" className="text-sm font-semibold text-blue-700 hover:text-blue-800">
-              Browse All
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-5">
-            {categoryCards.map((category) => (
-              <Link
-                key={category.title}
-                href={category.href}
-                className="group rounded-xl border border-gray-200 bg-white p-6 text-center shadow-md transition-all duration-300 hover:-translate-y-2 hover:scale-[1.02] hover:shadow-xl"
-              >
-                <div className="mx-auto inline-flex rounded-full bg-blue-100 p-4 text-blue-600 transition-transform duration-300 group-hover:scale-110">
-                  <category.icon className="h-10 w-10" />
-                </div>
-                <div className="mt-5 space-y-2">
-                  <p className="text-lg font-semibold text-gray-900">{category.title}</p>
-                  <p className="text-sm text-gray-600">{category.desc}</p>
-                  <div className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 transition-colors group-hover:text-blue-800">
-                    Explore <ArrowRight className="h-4 w-4" />
-                  </div>
-                </div>
+          <div className="category-section">
+            <div className="category-header">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Shop by Category</h2>
+                <p className="mt-1 text-sm text-gray-600">Choose the right surveillance setup for your space</p>
+              </div>
+              <Link href="/products" className="category-browse-link">
+                Browse All <ArrowRight className="h-4 w-4" />
               </Link>
-            ))}
+            </div>
+
+            <div className="category-grid">
+              {topCategories.map((category) => {
+                const meta = getCategoryMeta(category.name);
+                const Icon = meta.icon;
+
+                return (
+                  <div
+                    className="category-card"
+                    key={category._id}
+                    onClick={() => router.push(`/products?category=${encodeURIComponent(category.name)}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(`/products?category=${encodeURIComponent(category.name)}`);
+                      }
+                    }}
+                  >
+                    <div className="icon text-blue-600">
+                      <Icon className="h-7 w-7" />
+                    </div>
+                    <h3>{category.name}</h3>
+                    <p>{meta.description}</p>
+                    <span className="category-btn inline-flex items-center gap-1">
+                      Explore <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>

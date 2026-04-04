@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Edit2, Trash2, Plus, X, RefreshCw, Upload, Link } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, RefreshCw, Upload } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface AddFormData {
   sku: string;
@@ -66,8 +67,6 @@ export default function AdminProductsPage() {
     description: '',
   });
   const [editInStock, setEditInStock] = useState(true);
-  const [editImageSource, setEditImageSource] = useState<'upload' | 'url'>('upload');
-  const [editImageUrl, setEditImageUrl] = useState('');
   const [editImagePreview, setEditImagePreview] = useState('');
   const [isEditImageUploading, setIsEditImageUploading] = useState(false);
   const [editImageError, setEditImageError] = useState('');
@@ -356,10 +355,8 @@ export default function AdminProductsPage() {
       description: product.description || '',
     });
     setEditInStock(product.inStock);
-    const mainImage = product.image || product.images?.[0] || '';
+    const mainImage = getSafeImageSrc(product.image || product.images?.[0], '');
     setEditImagePreview(mainImage);
-    setEditImageUrl(mainImage);
-    setEditImageSource(mainImage ? 'url' : 'upload');
     setEditImageError('');
   };
 
@@ -421,81 +418,37 @@ export default function AdminProductsPage() {
   };
 
   const ImageInput = ({
-    source,
-    setSource,
-    url,
-    setUrl,
     preview,
     setPreview,
     fileRef,
   }: {
-    source: 'upload' | 'url';
-    setSource: (v: 'upload' | 'url') => void;
-    url: string;
-    setUrl: (v: string) => void;
     preview: string;
     setPreview: (v: string) => void;
     fileRef: React.RefObject<HTMLInputElement | null>;
   }) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1">Product Image</label>
-      <div className="flex gap-2 mb-3">
-        <Button
-          type="button"
-          size="sm"
-          variant={source === 'upload' ? 'default' : 'outline'}
-          onClick={() => setSource('upload')}
-          className="gap-1"
-        >
-          <Upload className="w-3 h-3" /> Upload
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={source === 'url' ? 'default' : 'outline'}
-          onClick={() => setSource('url')}
-          className="gap-1"
-        >
-          <Link className="w-3 h-3" /> URL
-        </Button>
-      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
 
-      {source === 'upload' ? (
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-
-            try {
-              setIsEditImageUploading(true);
-              setEditImageError('');
-              const uploadedUrl = await uploadImageFile(file);
-              setPreview(uploadedUrl);
-              setUrl(uploadedUrl);
-            } catch (err: any) {
-              setEditImageError(err.message || 'Failed to upload image.');
-            } finally {
-              setIsEditImageUploading(false);
-            }
-          }}
-          className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-        />
-      ) : (
-        <input
-          type="text"
-          placeholder="https://example.com/image.jpg"
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            setPreview(e.target.value);
-            if (editImageError) setEditImageError('');
-          }}
-          className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
-      )}
+          try {
+            setIsEditImageUploading(true);
+            setEditImageError('');
+            const uploadedUrl = await uploadImageFile(file);
+            setPreview(uploadedUrl);
+          } catch (err: any) {
+            setEditImageError(err.message || 'Failed to upload image.');
+          } finally {
+            setIsEditImageUploading(false);
+          }
+        }}
+        className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+      />
 
       {isEditImageUploading && <p className="mt-2 text-xs text-muted-foreground">Uploading image...</p>}
       {editImageError && <p className="mt-2 text-xs text-red-600">{editImageError}</p>}
@@ -511,7 +464,6 @@ export default function AdminProductsPage() {
             type="button"
             onClick={() => {
               setPreview('');
-              setUrl('');
               if (fileRef.current) fileRef.current.value = '';
             }}
             className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
@@ -566,15 +518,18 @@ export default function AdminProductsPage() {
             Add Category
           </Button>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 flex flex-col gap-4">
           {categories.map((cat) => (
-            <div key={cat._id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <span className="text-sm text-foreground">{cat.name}</span>
-              <div className="flex gap-2">
+            <div
+              key={cat._id}
+              className="bg-white rounded-xl shadow-sm border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between hover:shadow-md transition"
+            >
+              <h3 className="text-gray-800 font-medium text-sm break-words md:text-base">{cat.name}</h3>
+              <div className="flex gap-2 md:w-auto">
                 <Button
                   type="button"
-                  size="sm"
                   variant="outline"
+                  className="flex-1 md:flex-none border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
                   onClick={() => {
                     setCategoryModalType('edit');
                     setSelectedCategory(cat);
@@ -587,9 +542,7 @@ export default function AdminProductsPage() {
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
+                  className="flex-1 md:flex-none bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition"
                   onClick={() => {
                     setCategoryModalType('delete');
                     setSelectedCategory(cat);
@@ -634,7 +587,7 @@ export default function AdminProductsPage() {
                       <td className="p-4 whitespace-nowrap">
                         {product.image ? (
                           <img
-                            src={product.image}
+                            src={getSafeImageSrc(product.image, '/products/default.jpg')}
                             alt={product.name}
                             className="w-12 h-12 object-cover rounded-md border border-border"
                           />
@@ -792,10 +745,6 @@ export default function AdminProductsPage() {
               </div>
 
               <ImageInput
-                source={editImageSource}
-                setSource={setEditImageSource}
-                url={editImageUrl}
-                setUrl={setEditImageUrl}
                 preview={editImagePreview}
                 setPreview={setEditImagePreview}
                 fileRef={editFileRef}
@@ -979,26 +928,9 @@ export default function AdminProductsPage() {
                     </button>
                   </div>
 
-                  <input
-                    type="text"
-                    placeholder="Paste image URL and press Enter"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const target = e.target as HTMLInputElement;
-                        const value = target.value.trim();
-                        if (!value) return;
-                        if (value.startsWith('data:')) {
-                          setAddImageError('Data URLs are not supported. Upload the file instead.');
-                          return;
-                        }
-                        setAddImageError('');
-                        setAddImages((prev) => [...prev, value]);
-                        target.value = '';
-                      }
-                    }}
-                    className="w-full border p-2 rounded-lg mt-3"
-                  />
+                  <p className="text-xs text-gray-500 mt-3">
+                    External image URLs are blocked. Upload files only.
+                  </p>
 
                   {isAddImageUploading && (
                     <p className="text-xs text-gray-500 mt-2">Uploading image files...</p>
@@ -1011,7 +943,7 @@ export default function AdminProductsPage() {
                     {addImages.map((img, i) => (
                       <div key={`${img}-${i}`} className="relative group">
                         <img
-                          src={img}
+                          src={getSafeImageSrc(img, '/products/default.jpg')}
                           alt={`Preview ${i + 1}`}
                           className="w-full h-28 object-cover rounded-lg border"
                         />

@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCart } from '@/lib/contexts/cart-context';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
-import { useAuth } from '@/lib/contexts/auth-context';
 import { ShoppingCart, Menu, X, Search, Heart } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AccountMenu } from '@/components/account-menu';
@@ -13,7 +12,6 @@ import { AccountMenu } from '@/components/account-menu';
 export function Navbar() {
   const { getCartCount } = useCart();
   const { getWishlistCount } = useWishlist();
-  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,7 +22,6 @@ export function Navbar() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cartCount = getCartCount();
   const wishlistCount = getWishlistCount();
-  const userProfileImage = user?.profileImage || user?.avatar || '';
 
   const navLinks = [
     { href: '/', label: 'Home' },
@@ -127,30 +124,19 @@ export function Navbar() {
         <div className="flex items-center justify-between w-full py-2.5 min-h-[72px] gap-2">
           {/* Logo */}
           <Link
-            href={userProfileImage ? '/account/profile' : '/'}
-            onClick={userProfileImage ? undefined : handleLogoSecretClick}
+            href="/"
+            onClick={handleLogoSecretClick}
             className="flex items-center gap-2 flex-shrink-0 min-w-0"
           >
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              {userProfileImage ? (
-                <Image
-                  src={userProfileImage}
-                  alt="Profile"
-                  width={40}
-                  height={40}
-                  unoptimized
-                  className="h-10 w-10 rounded-full object-cover border border-gray-200"
-                />
-              ) : (
-                <Image
-                  src="/images/tnlogo.png"
-                  alt="TN Automation"
-                  width={50}
-                  height={50}
-                  className="h-10 w-auto object-contain mix-blend-multiply"
-                  priority
-                />
-              )}
+              <Image
+                src="/images/tnlogo.png"
+                alt="TN Automation"
+                width={50}
+                height={50}
+                className="h-10 w-auto object-contain mix-blend-multiply"
+                priority
+              />
               <span className="hidden sm:block text-blue-600 font-bold text-xl tracking-wide whitespace-nowrap">TN AUTOMATION</span>
             </div>
           </Link>

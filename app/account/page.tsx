@@ -40,6 +40,8 @@ interface UserData {
   email: string;
   phone: string;
   address: string;
+  avatar?: string;
+  profileImage?: string;
   role: string;
   createdAt: string;
 }
@@ -470,7 +472,7 @@ export default function AccountPage() {
   const sidebarItems: Array<{ key: AccountTab | 'logout'; label: string; icon: any }> = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'orders', label: 'My Orders', icon: Package },
-    { key: 'address', label: 'My Address', icon: MapPin },
+    { key: 'address', label: 'Saved Addresses', icon: MapPin },
     { key: 'wishlist', label: 'Wishlist', icon: Heart },
     { key: 'logout', label: 'Logout', icon: LogOut },
   ];
@@ -493,9 +495,11 @@ export default function AccountPage() {
           <aside className="lg:sticky lg:top-24 self-start">
             <div className="rounded-2xl border border-blue-100 bg-white shadow-sm p-4">
               <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
-                <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-semibold">
-                  {getInitial(user.name, user.email)}
-                </div>
+                <img
+                  src={user?.avatar || user?.profileImage || '/default-avatar.svg'}
+                  alt="profile"
+                  className="w-14 h-14 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-semibold text-gray-900 leading-tight">{user.name}</p>
                   <p className="text-xs text-gray-500 truncate max-w-[150px]">{user.email}</p>
@@ -537,7 +541,7 @@ export default function AccountPage() {
           <section className="space-y-6">
             <header className="rounded-2xl border border-blue-100 bg-white shadow-sm p-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Account</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Profile</h1>
                 <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
                   <Mail className="h-4 w-4" /> {user.email}
                 </p>
@@ -710,7 +714,7 @@ export default function AccountPage() {
               <div className="space-y-4">
                 <div className={`${cardClass} flex items-center justify-between gap-3`}>
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">My Address</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">Saved Addresses</h2>
                     <p className="text-sm text-gray-500 mt-1">Manage delivery locations and default address</p>
                   </div>
                   <Button onClick={openNewAddressForm} disabled={savingAddress} className="bg-blue-600 hover:bg-blue-700">

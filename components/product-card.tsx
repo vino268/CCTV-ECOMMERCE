@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
 import { formatPrice } from '@/lib/currency';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface ProductCardProps {
   product: Product;
@@ -24,6 +25,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [toast, setToast] = useState('');
   const [imageError, setImageError] = useState(false);
   const productId = product._id || product.id;
+  const productImage = getSafeImageSrc(product.image, '/products/default.jpg');
   const alreadyInCart = isInCart(productId);
   const cartPending = isCartActionPending(productId);
   const wishlisted = isWishlisted(productId);
@@ -37,6 +39,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleAddToCart = async () => {
     if (!product.inStock) return;
     if (cartPending) return;
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setToast('Please login first');
+      router.push('/login?redirect=/products');
+      return;
+    }
     setIsCartBtnAnimating(true);
     setTimeout(() => setIsCartBtnAnimating(false), 350);
     await toggleCartItem(product, 1);
@@ -52,10 +60,12 @@ export function ProductCard({ product }: ProductCardProps) {
     }
 
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch('/api/orders/buy-now', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           productId,
@@ -65,6 +75,12 @@ export function ProductCard({ product }: ProductCardProps) {
       });
 
       const data = await res.json().catch(() => ({}));
+
+      if (res.status === 401 || res.status === 403) {
+        setToast('Session expired, please login again');
+        router.push('/login?redirect=/checkout');
+        return;
+      }
 
       if (res.ok && data?.orderId) {
         router.push(`/checkout?orderId=${data.orderId}`);
@@ -85,7 +101,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <div className="group relative bg-white rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_28px_rgba(0,0,0,0.12)] hover:-translate-y-[5px] transition-all duration-300 p-4 flex flex-col justify-between w-full h-full max-w-sm mx-auto border border-gray-100">
+    <div className="group relative mx-auto flex h-full w-full flex-col justify-between rounded-xl border border-gray-100 bg-white p-3.5 shadow-[0_4px_14px_rgba(0,0,0,0.07)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_24px_rgba(0,0,0,0.1)] md:p-4">
       {!product.inStock && (
         <span className="absolute left-3 top-3 z-20 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white">
           Out of Stock
@@ -95,7 +111,7 @@ export function ProductCard({ product }: ProductCardProps) {
       <button
         type="button"
         onClick={handleWishlistToggle}
-        className="absolute right-3 top-3 z-20 rounded-full bg-white/95 p-2 shadow-sm hover:shadow transition"
+        className="absolute right-2.5 top-2.5 z-20 rounded-full bg-white/95 p-2 shadow-sm transition hover:shadow"
         aria-label="Toggle wishlist"
       >
         <Heart className={`w-4 h-4 ${wishlisted ? 'fill-red-500 text-red-500' : 'text-gray-500'}`} />
@@ -103,15 +119,15 @@ export function ProductCard({ product }: ProductCardProps) {
 
       <div>
         <Link href={`/products/${productId}`}>
-          <div className="relative h-56 w-full bg-white rounded-xl p-3 flex items-center justify-center overflow-hidden shadow-sm">
-            {product.image && !imageError ? (
+          <div className="relative flex h-52 w-full items-center justify-center overflow-hidden rounded-lg bg-white p-2.5 shadow-sm">
+            {productImage && !imageError ? (
               <Image
-                src={product.image}
+                src={productImage}
                 alt={product.name}
                 fill
                 unoptimized
                 onError={() => setImageError(true)}
-                className="object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+                className="object-contain p-2.5 transition-transform duration-500 group-hover:scale-105"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
@@ -122,21 +138,21 @@ export function ProductCard({ product }: ProductCardProps) {
         </Link>
 
         <Link href={`/products/${productId}`}>
-          <h3 className="mt-4 text-base font-bold tracking-tight text-gray-900 line-clamp-2 hover:text-blue-700 transition-colors min-h-[2.75rem]">
+          <h3 className="mt-3 min-h-[2.5rem] line-clamp-2 text-[15px] font-semibold tracking-tight text-gray-900 transition-colors hover:text-blue-700 md:text-base">
             {product.name}
           </h3>
         </Link>
 
-        <div className="mt-3 flex items-center gap-2">
-          <p className="text-blue-700 text-xl font-bold tracking-tight">{formatPrice(product.price)}</p>
+        <div className="mt-2.5 flex items-center gap-2">
+          <p className="text-lg font-bold tracking-tight text-blue-700 md:text-xl">{formatPrice(product.price)}</p>
         </div>
       </div>
 
-      <div className="flex gap-2 mt-5">
+      <div className="mt-4 flex gap-2">
         <button
           onClick={handleAddToCart}
           disabled={!product.inStock || cartPending}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${
+          className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
             alreadyInCart
               ? 'bg-green-600 hover:bg-green-700 text-white'
               : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white'
@@ -180,7 +196,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <button
           onClick={handleBuyNow}
           disabled={!product.inStock}
-          className="flex-1 bg-blue-900 text-white hover:bg-blue-800 active:scale-[0.99] py-2.5 rounded-xl text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex-1 rounded-lg bg-blue-900 py-2 text-sm font-medium text-white transition hover:bg-blue-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
         >
           Buy Now
         </button>

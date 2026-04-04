@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, CheckCircle2, Plus, RefreshCw, Upload, X } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'features', string>>;
 
@@ -60,7 +61,6 @@ export default function AddProductPage() {
   const [imageNames, setImageNames] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [imageUrlInput, setImageUrlInput] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
@@ -198,14 +198,6 @@ export default function AddProductPage() {
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
     setImageNames((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const addImageFromUrl = () => {
-    const url = imageUrlInput.trim();
-    if (!url) return;
-    setImages((prev) => [...prev, url]);
-    setImageNames((prev) => [...prev, `URL ${prev.length + 1}`]);
-    setImageUrlInput('');
   };
 
   const validate = (): FormErrors => {
@@ -494,18 +486,9 @@ export default function AddProductPage() {
             </Button>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-            <input
-              type="text"
-              value={imageUrlInput}
-              onChange={(e) => setImageUrlInput(e.target.value)}
-              placeholder="Or paste image URL"
-              className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-            <Button type="button" variant="outline" onClick={addImageFromUrl}>
-              Add URL
-            </Button>
-          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Use only uploaded files. External image URLs are blocked.
+          </p>
 
           {imageNames.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">Selected: {imageNames.join(', ')}</p>
@@ -516,7 +499,7 @@ export default function AddProductPage() {
               {images.map((image, index) => (
                 <div key={`${image}-${index}`} className="relative">
                   <img
-                    src={image}
+                    src={getSafeImageSrc(image, '/products/default.jpg')}
                     alt={`Product preview ${index + 1}`}
                     className="w-full h-28 object-cover rounded-md border border-border"
                   />

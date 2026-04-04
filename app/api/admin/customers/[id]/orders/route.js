@@ -8,7 +8,7 @@ export async function GET(req, { params }) {
     await connectDB();
     const { id } = await params;
 
-    const user = await User.findOne({ _id: id, isDeleted: false }).select("email");
+    const user = await User.findOne({ _id: id, role: "user" }).select("email");
     if (!user) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }

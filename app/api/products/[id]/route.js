@@ -2,21 +2,45 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import AdminLog from "@/models/AdminLog";
+import {
+  isAllowedProductImageInput,
+  normalizeProductImageList,
+} from "@/lib/product-image";
 
 function normalizeImages(data) {
-  const images = Array.isArray(data.images)
-    ? data.images.filter((img) => typeof img === "string" && img.trim())
-    : [];
-
-  if (images.length === 0 && data.image) {
-    images.push(data.image);
-  }
+  const images = normalizeProductImageList(data.images, data.image);
 
   return {
     ...data,
     images,
     image: images[0] || "",
   };
+}
+
+function hasDisallowedImageInputs(data) {
+  const candidates = [];
+
+  if (Array.isArray(data.images)) {
+    for (const entry of data.images) {
+      if (typeof entry === "string") {
+        candidates.push(entry);
+      } else if (entry && typeof entry === "object" && typeof entry.url === "string") {
+        candidates.push(entry.url);
+      }
+    }
+  } else if (typeof data.images === "string") {
+    candidates.push(data.images);
+  }
+
+  if (typeof data.image === "string") {
+    candidates.push(data.image);
+  }
+
+  return candidates.some((candidate) => {
+    const value = String(candidate || "").trim();
+    if (!value) return false;
+    return !isAllowedProductImageInput(value);
+  });
 }
 
 function normalizeProductPayload(data) {
@@ -48,13 +72,6 @@ function validateProductPayload(data) {
   }
   if (!data.category) fieldErrors.category = "Category is required.";
   if (!data.description) fieldErrors.description = "Description is required.";
-  if (Array.isArray(data.images) && data.images.some((img) => typeof img === "string" && img.startsWith("data:"))) {
-    fieldErrors.images = "Base64 image payloads are not allowed. Upload image files and use URLs.";
-  }
-  if (typeof data.image === "string" && data.image.startsWith("data:")) {
-    fieldErrors.image = "Base64 image payloads are not allowed. Upload image files and use URLs.";
-  }
-
   return fieldErrors;
 }
 
@@ -105,7 +122,16 @@ export async function PUT(req, { params }) {
   try {
     await connectDB();
     const { id } = await params;
-    const data = normalizeProductPayload(normalizeImages(await req.json()));
+    const requestBody = await req.json();
+
+    if (hasDisallowedImageInputs(requestBody)) {
+      return validationErrorResponse({
+        images:
+          "External image URLs are not allowed. Use uploaded images (/uploads/...) or local assets (/products/...).",
+      });
+    }
+
+    const data = normalizeProductPayload(normalizeImages(requestBody));
 
     const fieldErrors = validateProductPayload(data);
     if (Object.keys(fieldErrors).length > 0) {

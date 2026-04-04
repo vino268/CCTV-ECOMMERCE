@@ -215,7 +215,7 @@ export default function MyAddressPage() {
               <ArrowLeft className="w-4 h-4 mr-1" />
               Back
             </Button>
-            <h1 className="text-2xl font-bold text-gray-900">My Addresses</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Saved Addresses</h1>
           </div>
 
           <Button onClick={openAddModal} className="bg-slate-900 hover:bg-black">

@@ -87,6 +87,17 @@ export async function POST(req) {
       );
     }
 
+    if (user.isDeleted) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Your account has been deleted",
+          error: "Your account has been deleted",
+        },
+        { status: 403 }
+      );
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -119,6 +130,7 @@ export async function POST(req) {
       .sign(secret);
 
     const userResponse = {
+      token,
       userId: String(user._id),
       _id: user._id,
       name: user.name,

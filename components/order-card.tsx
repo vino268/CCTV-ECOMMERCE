@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Ban, Eye, Loader2, MessageCircle, PackageCheck, PhoneCall, RefreshCw } from 'lucide-react';
 import { formatINRCurrency } from '@/lib/currency';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface OrderProduct {
   productId: string;
@@ -103,9 +104,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const orderId = order._id || order.id;
 
   const firstProduct = order.products?.[0];
-  const placeholderImage =
-    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%236b7280" font-family="Arial" font-size="16">No Image</text></svg>';
-  const productImage = firstProduct?.productImage || firstProduct?.image || placeholderImage;
+  const productImage = getSafeImageSrc(firstProduct?.productImage || firstProduct?.image, '/products/default.jpg');
   const itemCount = (order.products || []).reduce((sum, p) => sum + (p.quantity || 0), 0);
 
   const handleViewDetails = () => {
@@ -278,12 +277,12 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
             )}
 
             {firstProduct?.productId && (
-              <Link href={`/products/${firstProduct.productId}`}>
-                <Button size="sm" className="gap-1.5 bg-slate-900 text-white hover:bg-black">
+              <Button asChild size="sm" className="gap-1.5 bg-slate-900 text-white hover:bg-black">
+                <Link href={`/products/${firstProduct.productId}`}>
                   <RefreshCw className="h-4 w-4" />
                   Reorder
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             )}
 
             <Button
@@ -295,38 +294,6 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
             >
               {navigatingAction === 'track' ? (
                 <>
-
-            {showSupportActions && (
-              <>
-                <a href="tel:+919999999999">
-                  <Button
-                    size="sm"
-                    className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
-                    type="button"
-                  >
-                    <PhoneCall className="h-4 w-4" />
-                    Call Support
-                  </Button>
-                </a>
-
-                <a
-                  href={`https://wa.me/919999999999?text=${encodeURIComponent(
-                    `Hi, I need support for order ${order.orderNumber || order._id}`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Button
-                    size="sm"
-                    className="gap-1.5 bg-green-500 text-white hover:bg-green-600"
-                    type="button"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    WhatsApp Support
-                  </Button>
-                </a>
-              </>
-            )}
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Tracking...
                 </>
@@ -337,6 +304,30 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
                 </>
               )}
             </Button>
+
+            {showSupportActions && (
+              <>
+                <Button asChild size="sm" className="gap-1.5 bg-green-600 text-white hover:bg-green-700">
+                  <a href="tel:+917845283678">
+                    <PhoneCall className="h-4 w-4" />
+                    Call Support
+                  </a>
+                </Button>
+
+                <Button asChild size="sm" className="gap-1.5 bg-green-500 text-white hover:bg-green-600">
+                  <a
+                    href={`https://wa.me/917845283678?text=${encodeURIComponent(
+                      `Hi, I need support for order ${order.orderNumber || order._id}`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp Support
+                  </a>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

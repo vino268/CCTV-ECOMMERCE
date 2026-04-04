@@ -14,6 +14,8 @@ interface Customer {
   address?: string;
   createdAt: string;
   isBlocked?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   totalOrders?: number;
   totalSpent?: number;
 }
@@ -29,7 +31,7 @@ interface CustomerOrder {
 
 const ITEMS_PER_PAGE = 10;
 
-type CustomerFilter = 'All' | 'New Customers' | 'Frequent Buyers' | 'No Orders';
+type CustomerFilter = 'all' | 'active' | 'deleted';
 
 function normalizeStatus(status: string) {
   if (status === 'Confirmed') return 'Ordered';
@@ -49,7 +51,7 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<CustomerFilter>('All');
+  const [filter, setFilter] = useState<CustomerFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -65,6 +67,7 @@ export default function AdminCustomersPage() {
       setLoading(true);
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      params.set('status', filter);
 
       const res = await fetch(`/api/admin/customers?${params.toString()}`, {
         cache: 'no-store',
@@ -86,35 +89,38 @@ export default function AdminCustomersPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, filter]);
 
   useEffect(() => {
     fetchCustomers();
   }, []);
 
+  useEffect(() => {
+    const onVisibleOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCustomers();
+      }
+    };
+
+    window.addEventListener('focus', onVisibleOrFocus);
+    document.addEventListener('visibilitychange', onVisibleOrFocus);
+
+    return () => {
+      window.removeEventListener('focus', onVisibleOrFocus);
+      document.removeEventListener('visibilitychange', onVisibleOrFocus);
+    };
+  }, []);
+
   const filteredCustomers = useMemo(() => {
-    const now = new Date();
-    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    if (filter === 'active') {
+      return customers.filter((customer) => !customer.isDeleted);
+    }
 
-    return customers.filter((customer) => {
-      const totalOrders = customer.totalOrders || 0;
-      const totalSpent = customer.totalSpent || 0;
-      const joinedAt = new Date(customer.createdAt).getTime();
+    if (filter === 'deleted') {
+      return customers.filter((customer) => !!customer.isDeleted);
+    }
 
-      if (filter === 'New Customers') {
-        return now.getTime() - joinedAt <= THIRTY_DAYS;
-      }
-
-      if (filter === 'Frequent Buyers') {
-        return totalOrders >= 3 || totalSpent >= 20000;
-      }
-
-      if (filter === 'No Orders') {
-        return totalOrders === 0;
-      }
-
-      return true;
-    });
+    return customers;
   }, [customers, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE));
@@ -206,7 +212,7 @@ export default function AdminCustomersPage() {
 
   const resetFilters = () => {
     setSearch('');
-    setFilter('All');
+    setFilter('all');
     setCurrentPage(1);
     fetchCustomers();
   };
@@ -245,10 +251,9 @@ export default function AdminCustomersPage() {
           }}
           className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="All">All Customers</option>
-          <option value="New Customers">New Customers</option>
-          <option value="Frequent Buyers">Frequent Buyers</option>
-          <option value="No Orders">No Orders</option>
+          <option value="all">All Users</option>
+          <option value="active">Active Users</option>
+          <option value="deleted">Deleted Users</option>
         </select>
 
         <Button variant="outline" onClick={resetFilters} className="w-full sm:w-auto">Reset</Button>
@@ -285,7 +290,7 @@ export default function AdminCustomersPage() {
                     <tr
                       key={customer._id}
                       className={`border-b hover:bg-gray-50 transition ${
-                        isImportant ? 'bg-amber-50/40' : ''
+                        customer.isDeleted ? 'opacity-50' : isImportant ? 'bg-amber-50/40' : ''
                       }`}
                     >
                       <td className="px-4 py-3">
@@ -315,15 +320,34 @@ export default function AdminCustomersPage() {
                         {formatINRCurrency(totalSpent)}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                            customer.isBlocked
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}
-                        >
-                          {customer.isBlocked ? 'Blocked' : 'Active'}
-                        </span>
+                        <div className="space-y-1">
+                          {customer.isDeleted ? (
+                            <>
+                              <span className="text-red-500 text-xs font-medium">
+                                Deleted
+                              </span>
+                              {customer.deletedAt ? (
+                                <p className="text-xs text-gray-400">
+                                  Deleted on: {new Date(customer.deletedAt).toLocaleDateString('en-IN', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                </p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                customer.isBlocked
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-green-100 text-green-700'
+                              }`}
+                            >
+                              {customer.isBlocked ? 'Blocked' : 'Active'}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
@@ -345,7 +369,7 @@ export default function AdminCustomersPage() {
                                 : 'text-amber-700 border-amber-200 hover:bg-amber-50'
                             }`}
                             onClick={() => handleToggleBlockCustomer(customer)}
-                            disabled={actionLoadingId === customer._id}
+                            disabled={actionLoadingId === customer._id || !!customer.isDeleted}
                           >
                             {customer.isBlocked ? (
                               <>
@@ -365,9 +389,9 @@ export default function AdminCustomersPage() {
                               setDeleteItem(customer);
                               setDeleteType('customer');
                             }}
-                            disabled={actionLoadingId === customer._id}
+                            disabled={actionLoadingId === customer._id || !!customer.isDeleted}
                           >
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                            <Trash2 className="w-3.5 h-3.5" /> {customer.isDeleted ? 'Deleted' : 'Delete'}
                           </Button>
                         </div>
                       </td>
@@ -445,8 +469,18 @@ export default function AdminCustomersPage() {
                     Total Spent: {formatINRCurrency(selectedCustomer.totalSpent || 0)}
                   </p>
                   <p className="text-sm text-gray-700">
-                    Status: {selectedCustomer.isBlocked ? 'Blocked' : 'Active'}
+                    Status: {selectedCustomer.isDeleted ? 'Deleted' : selectedCustomer.isBlocked ? 'Blocked' : 'Active'}
                   </p>
+                  {selectedCustomer.isDeleted && selectedCustomer.deletedAt ? (
+                    <p className="text-xs text-gray-400">
+                      Deleted on:{' '}
+                      {new Date(selectedCustomer.deletedAt).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

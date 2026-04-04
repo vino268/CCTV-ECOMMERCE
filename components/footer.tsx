@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Facebook, Twitter, Instagram, Linkedin, Youtube, Phone, Mail, MapPin } from 'lucide-react';
+import { Instagram, Youtube, Phone, Mail, MapPin } from 'lucide-react';
 
 type Settings = {
   storeName: string;
@@ -72,18 +72,20 @@ export function Footer() {
   }, []);
 
   const socialLinks = [
-    { href: s.social.facebook, icon: Facebook, label: 'Facebook' },
     { href: s.social.instagram, icon: Instagram, label: 'Instagram' },
-    { href: s.social.twitter, icon: Twitter, label: 'Twitter' },
-    { href: s.social.linkedin, icon: Linkedin, label: 'LinkedIn' },
     { href: s.social.youtube, icon: Youtube, label: 'YouTube' },
   ];
+
+  const companyName = 'TN Automation';
+  const companyDescription =
+    s.description ||
+    'Smart ecommerce solutions for cameras, automation products, and reliable customer support.';
 
   if (!loaded) return null;
 
   return (
     <footer
-      className="w-full mt-10 text-white"
+      className="w-full text-white"
       style={{
         background: 'linear-gradient(135deg, #1e3a8a, #2563eb, #7c3aed)',
         position: 'relative',
@@ -101,16 +103,16 @@ export function Footer() {
         }}
         aria-hidden="true"
       />
-      <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-20 py-16 flex flex-col md:flex-row gap-12 md:gap-24 items-start justify-between">
+      <div className="relative z-10 mx-auto grid w-full max-w-[1200px] grid-cols-1 gap-7 px-4 py-7 sm:px-5 sm:py-8 md:grid-cols-[1.15fr_1fr] md:items-center md:gap-10 md:px-6 md:py-9">
         {/* Company Info */}
-        <div className="flex-1 min-w-[220px] text-center md:text-left">
-          {s.storeName && <h3 className="text-2xl font-bold mb-4 tracking-tight text-white drop-shadow-lg">{s.storeName}</h3>}
-          {s.description && (
-            <p className="text-blue-100 text-base leading-relaxed mb-8 max-w-sm mx-auto md:mx-0">
-              {s.description}
-            </p>
-          )}
-          <div className="flex gap-4 mt-2 justify-center md:justify-start">
+        <div className="min-w-0 text-center md:flex md:min-h-[150px] md:flex-col md:justify-center md:text-left">
+          <h3 className="mb-2 text-base font-semibold tracking-tight text-white sm:text-[17px]">
+            {companyName}
+          </h3>
+          <p className="mx-auto mb-3 max-w-md text-[13px] leading-5 text-blue-100 md:mx-0 md:text-sm">
+            {companyDescription}
+          </p>
+          <div className="flex items-center justify-center gap-2.5 md:justify-start">
             {socialLinks.map(
               (link) =>
                 link.href && (
@@ -120,9 +122,9 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={link.label}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-blue-100 hover:bg-white/20 hover:text-white shadow-md transition-all duration-200 hover:shadow-blue-400/40"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/12 text-blue-100 transition-all duration-200 hover:bg-white/25 hover:text-white"
                   >
-                    <link.icon className="h-5 w-5" />
+                    <link.icon className="h-4 w-4" />
                   </a>
                 )
             )}
@@ -130,34 +132,34 @@ export function Footer() {
         </div>
 
         {/* Contact Details */}
-        <div className="flex-1 min-w-[220px] text-center md:text-left">
-          <h4 className="text-base font-semibold uppercase tracking-wider text-blue-100 mb-5 border-b border-blue-200/30 pb-2">
-            Contact Us
+        <div className="min-w-0 text-center md:flex md:min-h-[150px] md:w-full md:max-w-[420px] md:flex-col md:items-center md:justify-center md:justify-self-start md:text-center">
+          <h4 className="mb-3 w-full text-center text-sm font-semibold uppercase tracking-wide text-blue-100">
+            Contact
           </h4>
-          <ul className="space-y-4 text-base">
+          <ul className="flex w-full max-w-[340px] flex-col items-stretch space-y-2 text-[13px] sm:text-sm">
             {s.contact.address && (
-              <li className="flex items-start justify-center md:justify-start gap-3">
-                <MapPin className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-200" />
-                <span className="text-blue-50">{s.contact.address}</span>
+              <li className="flex items-start justify-start gap-2 text-left text-blue-50">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-200" />
+                <span className="max-w-[300px] leading-5">{s.contact.address}</span>
               </li>
             )}
             {s.contact.phone && (
-              <li className="flex items-center justify-center md:justify-start gap-3">
-                <Phone className="h-5 w-5 flex-shrink-0 text-blue-200" />
+              <li className="flex items-center justify-start gap-2 text-left text-blue-50">
+                <Phone className="h-4 w-4 shrink-0 text-blue-200" />
                 <a
                   href={`tel:${s.contact.phone}`}
-                  className="text-blue-50 hover:text-white transition-colors duration-200"
+                  className="transition-colors duration-200 hover:text-white"
                 >
                   {s.contact.phone}
                 </a>
               </li>
             )}
             {s.contact.email && (
-              <li className="flex items-center justify-center md:justify-start gap-3">
-                <Mail className="h-5 w-5 flex-shrink-0 text-blue-200" />
+              <li className="flex items-center justify-start gap-2 text-left text-blue-50">
+                <Mail className="h-4 w-4 shrink-0 text-blue-200" />
                 <a
                   href={`mailto:${s.contact.email}`}
-                  className="text-blue-50 hover:text-white transition-colors duration-200"
+                  className="transition-colors duration-200 hover:text-white"
                 >
                   {s.contact.email}
                 </a>
@@ -168,20 +170,18 @@ export function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="relative z-10 border-t border-blue-200/30">
-        <div className="max-w-7xl mx-auto px-6 md:px-20 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-blue-100">
-          <p className="tracking-wide text-center md:text-left">&copy; {new Date().getFullYear()} {s.storeName}. All rights reserved.</p>
-          <div className="flex items-center gap-7 flex-wrap justify-center md:justify-end">
-            <Link href="/privacy" className="hover:text-white hover:underline transition-colors">
+      <div className="relative z-10 border-t border-white/20">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center justify-between gap-2 px-4 py-3 text-[13px] text-blue-100 sm:px-5 sm:py-3.5 md:flex-row md:gap-4 md:px-6 md:text-sm">
+          <p className="text-center md:text-left">&copy; {new Date().getFullYear()} {companyName}. All rights reserved.</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-end">
+            <Link href="/privacy" className="transition-colors hover:text-white hover:underline">
               Privacy Policy
             </Link>
-            <span className="h-4 w-px bg-blue-200/30 mx-2 hidden md:inline-block"></span>
-            <Link href="/refund-policy" className="hover:text-white hover:underline transition-colors">
+            <Link href="/refund-policy" className="transition-colors hover:text-white hover:underline">
               Refund Policy
             </Link>
-            <span className="h-4 w-px bg-blue-200/30 mx-2 hidden md:inline-block"></span>
-            <Link href="/terms" className="hover:text-white hover:underline transition-colors">
-              Terms of Service
+            <Link href="/terms" className="transition-colors hover:text-white hover:underline">
+              Terms
             </Link>
 
             <div className="relative group/admin-secret select-none">

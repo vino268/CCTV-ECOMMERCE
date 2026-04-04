@@ -18,6 +18,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   loading: boolean;
   refreshUser: () => Promise<AuthUser | null>;
+  updateUser: (updates: Partial<AuthUser> | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -32,6 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/me', { cache: 'no-store' });
       if (!res.ok) {
         setUser(null);
+        try {
+          localStorage.removeItem('token');
+        } catch {
+          // Ignore localStorage errors in restricted environments.
+        }
         window.dispatchEvent(new Event('user-auth-change'));
         return null;
       }
@@ -54,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       try {
         localStorage.removeItem('user');
+        localStorage.removeItem('token');
       } catch {
         // Ignore localStorage errors in restricted environments.
       }
@@ -72,9 +79,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     try {
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
     } catch {
       // Ignore localStorage errors in restricted environments.
     }
+    window.dispatchEvent(new Event('user-auth-change'));
+  }, []);
+
+  const updateUser = useCallback((updates: Partial<AuthUser> | null) => {
+    setUser((prev) => {
+      const nextUser = prev ? { ...prev, ...(updates || {}) } : prev;
+
+      try {
+        if (nextUser) {
+          localStorage.setItem('user', JSON.stringify(nextUser));
+        }
+      } catch {
+        // Ignore localStorage errors in restricted environments.
+      }
+
+      return nextUser;
+    });
+
     window.dispatchEvent(new Event('user-auth-change'));
   }, []);
 
@@ -102,9 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: Boolean(user),
       loading,
       refreshUser,
+      updateUser,
       logout,
     }),
-    [user, loading, refreshUser, logout]
+    [user, loading, refreshUser, updateUser, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

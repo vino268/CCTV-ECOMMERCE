@@ -359,20 +359,40 @@ export default function AdminOrdersPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 lg:justify-end items-center">
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => setSelectedOrder(order)}>
-                        <Eye className="w-3.5 h-3.5" /> View
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-md border-gray-300 px-3 text-xs text-gray-700 hover:bg-gray-100"
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" /> View
                       </Button>
 
-                      <select value={displayStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} disabled={updatingId === order._id} className="rounded-md border border-gray-300 px-2.5 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <select
+                        value={displayStatus}
+                        onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                        disabled={updatingId === order._id}
+                        className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
                         {ORDER_STATUSES.map((status) => (
                           <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
 
                       {!isDelivered && (
-                        <Button size="sm" className={`gap-1 text-white ${canCancel ? 'bg-red-600 hover:bg-red-700' : 'bg-red-400 opacity-60 cursor-not-allowed'}`} onClick={() => handleCancelOrder(order._id)} disabled={!canCancel || cancellingId === order._id}>
-                          <Ban className="w-3.5 h-3.5" />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-8 rounded-md px-3 text-xs transition-colors ${
+                            canCancel
+                              ? 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : 'border-gray-200 bg-gray-100 text-gray-400 opacity-70 cursor-not-allowed'
+                          }`}
+                          onClick={() => handleCancelOrder(order._id)}
+                          disabled={!canCancel || cancellingId === order._id}
+                        >
+                          <Ban className="mr-1 h-3.5 w-3.5" />
                           {cancellingId === order._id ? 'Cancelling...' : canCancel ? 'Cancel' : 'Locked'}
                         </Button>
                       )}
@@ -380,10 +400,10 @@ export default function AdminOrdersPage() {
                       <button
                         type="button"
                         onClick={() => handleDeleteClick(order._id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 inline-flex items-center gap-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex h-8 items-center gap-1 rounded-md bg-red-500 px-3 text-xs text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={deletingId === order._id}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="h-3.5 w-3.5" />
                         {deletingId === order._id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>

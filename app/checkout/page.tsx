@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  ShieldCheck,
   ShoppingBag,
   Truck,
   User,
@@ -22,6 +21,7 @@ import { formatPrice } from '@/lib/currency';
 import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface BuyNowOrderState {
   productId: string;
@@ -151,9 +151,6 @@ export default function CheckoutPage() {
 
   // Checkout items can come from cart or a buy-now single item session
   const cartItems = checkoutItems;
-
-  const placeholderImage =
-    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160"><rect width="100%" height="100%" fill="%23e2e8f0"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2364758b" font-family="Arial" font-size="14">No Image</text></svg>';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -410,24 +407,19 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
           </Button>
         </Link>
 
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900">Checkout</h1>
-          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700">
-            <ShieldCheck className="h-4 w-4" />
-            Secure Checkout 🔒
-          </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="checkout-container">
           {/* Left: Delivery Form */}
-          <div className="lg:col-span-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:p-7">
+          <div className="checkout-left border border-slate-200 sm:p-6 lg:p-7">
               <div className="mb-6 flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-blue-600" />
-                <h2 className="text-xl font-bold text-slate-900">Delivery Address</h2>
+                <h2 className="section-title text-slate-900">Delivery Address</h2>
               </div>
 
-              <div className="space-y-4">
+              <div className="delivery-form space-y-4">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">Full Name *</label>
                   <div className="relative">
@@ -544,15 +536,13 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                   </Button>
                 </div>
               </div>
-            </div>
           </div>
 
           {/* Right: Sticky Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-20 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="checkout-right order-summary border border-slate-200 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-blue-600" />
-                <h2 className="text-xl font-bold text-slate-900">
+                <h2 className="section-title mb-0 text-slate-900">
                 Order Summary
                 </h2>
               </div>
@@ -562,7 +552,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                   <div key={item.productId} className="flex items-center gap-3 rounded-lg border border-slate-100 p-2.5">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100">
                       <img
-                        src={item.product?.image || placeholderImage}
+                        src={getSafeImageSrc(item.product?.image, '/products/default.jpg')}
                         alt={item.product?.name || 'Product image'}
                         className="h-full w-full object-cover"
                       />
@@ -591,7 +581,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
 
               <div className="mb-4 flex justify-between text-xl font-bold text-slate-900">
                 <span>Total</span>
-                <span className="text-blue-700">{formatPrice(total)}</span>
+                <span className="total-price">{formatPrice(total)}</span>
               </div>
 
               <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
@@ -603,7 +593,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                 onClick={handlePlaceOrder}
                 disabled={isProcessing || cartItems.length === 0}
                 size="lg"
-                className="w-full rounded-xl bg-blue-600 font-semibold text-white transition hover:bg-blue-700"
+                className="place-order-btn"
               >
                 {isProcessing ? (
                   <>
@@ -614,7 +604,6 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                   'Place Order'
                 )}
               </Button>
-            </div>
           </div>
         </div>
       </div>

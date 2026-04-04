@@ -31,6 +31,19 @@ export default function LoginPage() {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const getSafeRedirectPath = () => {
+    const redirectParam = searchParams.get('redirect');
+    if (!redirectParam) return '/';
+
+    // Allow only same-origin absolute paths.
+    if (redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
+      return redirectParam;
+    }
+
+    return '/';
+  };
 
   useEffect(() => {
     const queryMode = searchParams.get('mode');
@@ -38,31 +51,28 @@ export default function LoginPage() {
       setMode('signup');
     }
 
+    if (searchParams.get('accountDeleted') === '1') {
+      setMode('signin');
+      setSuccess('Your account has been successfully deleted');
+    } else {
+      setSuccess('');
+    }
+
     if (authLoading) return;
 
     if (isAuthenticated) {
-      const redirectParam = searchParams.get('redirect');
-      if (redirectParam) {
-        router.replace(redirectParam);
-        return;
-      }
-      router.replace('/');
+      router.replace(getSafeRedirectPath());
     }
   }, [router, searchParams, isAuthenticated, authLoading]);
 
   const handleRedirectAfterAuth = () => {
-    // Support ?redirect= param for post-login redirect
-    const redirectParam = searchParams.get('redirect');
-    if (redirectParam) {
-      router.replace(redirectParam);
-      return;
-    }
-    router.replace('/');
+    router.push(getSafeRedirectPath());
   };
 
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -90,6 +100,9 @@ export default function LoginPage() {
 
       try {
         localStorage.setItem('user', JSON.stringify(data));
+        if (data?.token) {
+          localStorage.setItem('token', data.token);
+        }
       } catch {
         // Ignore localStorage errors in restricted environments.
       }
@@ -106,6 +119,7 @@ export default function LoginPage() {
   const handleSignUp = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (signupForm.password !== signupForm.confirmPassword) {
       setError('Passwords do not match');
@@ -157,6 +171,9 @@ export default function LoginPage() {
 
       try {
         localStorage.setItem('user', JSON.stringify(loginData));
+        if (loginData?.token) {
+          localStorage.setItem('token', loginData.token);
+        }
       } catch {
         // Ignore localStorage errors in restricted environments.
       }
@@ -232,6 +249,12 @@ export default function LoginPage() {
             {error && (
               <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-5 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {success}
               </div>
             )}
 

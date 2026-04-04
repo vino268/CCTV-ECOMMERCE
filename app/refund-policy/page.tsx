@@ -74,15 +74,13 @@ export default function RefundPolicyPage() {
           </section>
 
           {/* Need Help? */}
-          <section className="bg-white rounded-2xl shadow p-6 flex gap-4 items-start">
+          <section className="help-box-wrapper bg-white rounded-2xl shadow p-6 flex gap-4 items-start">
             <Info className="h-8 w-8 text-blue-600 mt-1" />
-            <div>
+            <div className="help-box">
               <h2 className="text-xl font-semibold mb-2 text-gray-900">Need Help?</h2>
-              <ul className="text-gray-700 space-y-1">
-                <li className="flex items-center gap-2"><Mail className="h-5 w-5 text-blue-500" /> support@tnautomation.com</li>
-                <li className="flex items-center gap-2"><Phone className="h-5 w-5 text-blue-500" /> +91 XXXXX XXXXX</li>
-                <li className="flex items-center gap-2"><Clock className="h-5 w-5 text-blue-500" /> Support Hours: Mon–Sat (9AM – 7PM)</li>
-              </ul>
+              <p className="flex items-center gap-2"><Mail className="h-5 w-5 text-blue-500" /> tnautomation@yahoo.com</p>
+              <p className="flex items-center gap-2"><Phone className="h-5 w-5 text-blue-500" /> +91 78452 83678</p>
+              <p className="flex items-center gap-2"><Clock className="h-5 w-5 text-blue-500" /> Support Hours: Mon–Sat (9AM – 7PM)</p>
             </div>
           </section>
         </div>

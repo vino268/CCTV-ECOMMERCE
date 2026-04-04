@@ -25,6 +25,17 @@ export async function GET(req) {
       return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.isDeleted) {
+      return NextResponse.json(
+        {
+          authenticated: false,
+          message: "Your account has been deleted",
+          error: "Your account has been deleted",
+        },
+        { status: 403 }
+      );
+    }
+
     if (user.isBlocked) {
       return NextResponse.json(
         {

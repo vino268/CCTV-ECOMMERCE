@@ -51,13 +51,13 @@ export default function HelpPage() {
           </div>
           <div className="flex items-center gap-3 text-sm">
             <Phone className="w-4 h-4 text-muted-foreground" />
-            <a href="tel:+918778500296" className="text-foreground hover:text-primary transition-colors">
-              +91 8778500296
+            <a href="tel:+917845283678" className="text-foreground hover:text-primary transition-colors">
+              +91 78452 83678
             </a>
           </div>
           <div className="pt-1">
             <a
-              href="https://wa.me/918778500296"
+              href="https://wa.me/917845283678"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 transition-colors"

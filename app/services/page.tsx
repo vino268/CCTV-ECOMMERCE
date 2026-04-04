@@ -28,6 +28,7 @@ export default function ServicesPage() {
   const [message, setMessage] = useState('');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const serviceProcessSteps = [
     {
@@ -71,10 +72,11 @@ export default function ServicesPage() {
       setMessage('');
       setFormError('');
       setFormSuccess('');
+      setSubmitting(false);
     }
   }, [activeService]);
 
-  const handleBookingSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleBookingSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!name.trim() || !phoneNumber.trim()) {
@@ -83,11 +85,51 @@ export default function ServicesPage() {
       return;
     }
 
+    const selectedServiceType = activeService?.name?.trim();
+
+    if (!selectedServiceType) {
+      setFormError('Please select a service and try again.');
+      setFormSuccess('');
+      return;
+    }
+
+    setSubmitting(true);
     setFormError('');
-    setFormSuccess('Your request has been submitted successfully. Our team will contact you shortly.');
-    setName('');
-    setPhoneNumber('');
-    setMessage('');
+
+    try {
+      const response = await fetch('/api/support', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phoneNumber.trim(),
+          serviceType: selectedServiceType,
+          message: message.trim(),
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        setFormError(result.message || 'Failed to send request. Please try again.');
+        setFormSuccess('');
+        return;
+      }
+
+      setFormSuccess(
+        result.message || `${selectedServiceType} request sent successfully!`
+      );
+      setName('');
+      setPhoneNumber('');
+      setMessage('');
+    } catch {
+      setFormError('Failed to send request. Please try again.');
+      setFormSuccess('');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -216,7 +258,9 @@ export default function ServicesPage() {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Online Support</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+              {activeService?.name || 'Service Support'}
+            </h2>
             <button
               type="button"
               onClick={() => setActiveService(null)}
@@ -267,9 +311,10 @@ export default function ServicesPage() {
 
             <button
               type="submit"
+              disabled={submitting}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors duration-300"
             >
-              Submit Request
+              {submitting ? 'Sending...' : 'Submit Request'}
             </button>
           </form>
 

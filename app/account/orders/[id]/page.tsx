@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface OrderProduct {
   productId: string;
@@ -460,7 +461,7 @@ export default function OrderDetailsPage() {
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-14 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
                     {item.image ? (
-                      <img src={item.image} alt={item.productName} className="h-full w-full object-cover" />
+                      <img src={getSafeImageSrc(item.image, '/products/default.jpg')} alt={item.productName} className="h-full w-full object-cover" />
                     ) : (
                       <Package className="w-6 h-6 text-gray-400" />
                     )}

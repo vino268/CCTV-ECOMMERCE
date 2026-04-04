@@ -5,7 +5,7 @@ import Order from "@/models/Order";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
 async function getUserById(id) {
-  return User.findOne({ _id: id, isDeleted: false }).select("-password");
+  return User.findOne({ _id: id, role: "user" }).select("-password");
 }
 
 function userOrderQuery(user) {

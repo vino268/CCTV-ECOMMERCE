@@ -2,31 +2,45 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import AdminLog from "@/models/AdminLog";
+import {
+  isAllowedProductImageInput,
+  normalizeProductImageList,
+} from "@/lib/product-image";
 
 function normalizeImages(data) {
-  const images = Array.isArray(data.images)
-    ? data.images
-        .map((img) => {
-          if (typeof img === "string") return img.trim();
-          if (img && typeof img === "object" && typeof img.url === "string") {
-            return img.url.trim();
-          }
-          return "";
-        })
-        .filter(Boolean)
-    : typeof data.images === "string" && data.images.trim()
-    ? [data.images.trim()]
-    : [];
-
-  if (images.length === 0 && data.image) {
-    images.push(data.image);
-  }
+  const images = normalizeProductImageList(data.images, data.image);
 
   return {
     ...data,
     images,
     image: images[0] || "",
   };
+}
+
+function hasDisallowedImageInputs(data) {
+  const candidates = [];
+
+  if (Array.isArray(data.images)) {
+    for (const entry of data.images) {
+      if (typeof entry === "string") {
+        candidates.push(entry);
+      } else if (entry && typeof entry === "object" && typeof entry.url === "string") {
+        candidates.push(entry.url);
+      }
+    }
+  } else if (typeof data.images === "string") {
+    candidates.push(data.images);
+  }
+
+  if (typeof data.image === "string") {
+    candidates.push(data.image);
+  }
+
+  return candidates.some((candidate) => {
+    const value = String(candidate || "").trim();
+    if (!value) return false;
+    return !isAllowedProductImageInput(value);
+  });
 }
 
 function normalizeProductPayload(data) {
@@ -65,13 +79,6 @@ function validateProductPayload(data) {
   }
   if (!data.category) fieldErrors.category = "Category is required.";
   if (!data.description) fieldErrors.description = "Description is required.";
-  if (Array.isArray(data.images) && data.images.some((img) => typeof img === "string" && img.startsWith("data:"))) {
-    fieldErrors.images = "Base64 image payloads are not allowed. Upload image files and use URLs.";
-  }
-  if (typeof data.image === "string" && data.image.startsWith("data:")) {
-    fieldErrors.image = "Base64 image payloads are not allowed. Upload image files and use URLs.";
-  }
-
   return fieldErrors;
 }
 
@@ -94,12 +101,47 @@ function validationErrorResponse(fieldErrors) {
   );
 }
 
-// GET /api/products — return all products
-export async function GET() {
+// GET /api/products — return products (supports pagination via page + limit)
+export async function GET(req) {
   try {
     await connectDB();
-    const products = await Product.find().sort({ createdAt: -1 });
-    return NextResponse.json(products);
+
+    const { searchParams } = new URL(req.url);
+    const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10);
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '12', 10);
+
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 100)
+      : 12;
+    const skip = (page - 1) * limit;
+
+    const isPaginatedRequest = searchParams.has('page') || searchParams.has('limit');
+
+    // Preserve legacy response shape for existing consumers.
+    if (!isPaginatedRequest) {
+      const products = await Product.find().sort({ createdAt: -1 });
+      return NextResponse.json(products);
+    }
+
+    const [products, total] = await Promise.all([
+      Product.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Product.countDocuments(),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    const hasMore = skip + products.length < total;
+
+    return NextResponse.json({
+      products,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch products" },
@@ -128,6 +170,13 @@ export async function POST(req) {
     }
 
     console.log("Incoming Data:", requestBody);
+
+    if (hasDisallowedImageInputs(requestBody)) {
+      return validationErrorResponse({
+        images:
+          "External image URLs are not allowed. Use uploaded images (/uploads/...) or local assets (/products/...).",
+      });
+    }
 
     const data = normalizeProductPayload(normalizeImages(requestBody));
 

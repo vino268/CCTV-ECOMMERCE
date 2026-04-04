@@ -7,6 +7,7 @@ import { Trash2, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatPrice } from '@/lib/currency';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 export default function CartPage() {
   const { cart, removeFromCart, updateQuantity, getCartTotal, clearCart } =
@@ -71,6 +72,7 @@ export default function CartPage() {
             {cartItems.map((item) => {
               const price = item.product?.price || 0;
               const subtotal = price * item.quantity;
+              const productImage = getSafeImageSrc(item.product?.image, '/products/default.jpg');
 
               return (
                 <div
@@ -79,9 +81,9 @@ export default function CartPage() {
                 >
                   <div className="grid md:grid-cols-[112px_1fr] gap-4 md:gap-6">
                     <div className="w-28 h-28 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden">
-                      {item.product?.image ? (
+                      {productImage ? (
                         <img
-                          src={item.product.image}
+                          src={productImage}
                           alt={item.product?.name || 'Product image'}
                           className="max-w-full max-h-full object-contain"
                         />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { jwtVerify } from "jose";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
@@ -61,6 +62,8 @@ export async function POST(req) {
 
     const avatarUrl = `/uploads/avatars/${fileName}`;
 
+    await User.findByIdAndUpdate(user._id, { $set: { avatar: avatarUrl } });
+
     return NextResponse.json({
       success: true,
       avatarUrl,
@@ -70,6 +73,43 @@ export async function POST(req) {
     console.error("Upload avatar error:", error);
     return NextResponse.json(
       { success: false, message: "Failed to upload profile image" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/user/upload-avatar
+export async function DELETE(req) {
+  try {
+    const token = req.cookies.get("userToken")?.value;
+    if (!token) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    const { payload } = await jwtVerify(token, secret);
+    const userId = String(payload.userId || payload.id || "");
+
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    await connectDB();
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { avatar: null } },
+      { new: true }
+    ).select("_id avatar");
+
+    if (!user) {
+      return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Profile image removed" });
+  } catch (error) {
+    console.error("Remove avatar error:", error);
+    return NextResponse.json(
+      { success: false, message: "Failed to remove profile image" },
       { status: 500 }
     );
   }
