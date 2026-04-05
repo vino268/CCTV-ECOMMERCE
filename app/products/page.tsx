@@ -17,17 +17,6 @@ import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-reac
 const PAGE_SIZE = 12;
 const BASE_URL = 'https://cctv-ecommerce.onrender.com';
 
-type PaginatedProductsResponse = {
-  products?: Product[];
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
-};
-
 export default function ProductsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,45 +28,26 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState('featured');
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const fetchProductsPage = async (targetPage: number, append: boolean) => {
-    if (append) {
-      setIsLoadingMore(true);
-    } else {
-      setIsInitialLoading(true);
-    }
+  const fetchProducts = async () => {
+    setIsInitialLoading(true);
 
     try {
-      const res = await fetch(
-        `${BASE_URL}/api/products?page=${targetPage}&limit=${PAGE_SIZE}`,
-        { cache: 'no-store' }
-      );
-      const data = (await res.json()) as PaginatedProductsResponse | Product[];
-
-      const nextBatch = Array.isArray(data) ? data : data.products || [];
-
-      setProducts((prev) => (append ? [...prev, ...nextBatch] : nextBatch));
-      setPage(targetPage);
-
-      if (Array.isArray(data)) {
-        setHasMore(nextBatch.length === PAGE_SIZE);
-      } else {
-        setHasMore(Boolean(data.pagination?.hasMore));
-      }
+      const res = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
+      const data = (await res.json()) as Product[];
+      console.log('Products:', data);
+      setProducts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load products', error);
-      setHasMore(false);
+      setProducts([]);
     } finally {
       setIsInitialLoading(false);
-      setIsLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchProductsPage(1, false);
+    fetchProducts();
   }, []);
 
   useEffect(() => {
@@ -89,8 +59,8 @@ export default function ProductsPage() {
   }, []);
 
   const handleLoadMore = () => {
-    if (isLoadingMore || isInitialLoading || !hasMore) return;
-    fetchProductsPage(page + 1, true);
+    if (isInitialLoading || !hasMore) return;
+    setPage((prev) => prev + 1);
   };
 
   const fetchCategories = async () => {
@@ -144,6 +114,16 @@ export default function ProductsPage() {
 
     return filtered;
   }, [products, selectedCategory, sortBy, searchTerm]);
+
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, page * PAGE_SIZE);
+  }, [filteredProducts, page]);
+
+  const hasMore = visibleProducts.length < filteredProducts.length;
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedCategory, sortBy, searchTerm]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -246,7 +226,7 @@ export default function ProductsPage() {
             {/* Sort */}
             <div className="mb-5 flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
               <p className="text-sm text-gray-600">
-                Showing {filteredProducts.length} products
+                Showing {visibleProducts.length} products
               </p>
 
               {isMounted ? (
@@ -271,14 +251,14 @@ export default function ProductsPage() {
             {/* Grid */}
             {!showEmptyState && (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 md:gap-5">
-                {filteredProducts.map((product: any) => (
+                {visibleProducts.map((product: Product) => (
                   <div key={product._id} className="animate-[fadeIn_320ms_ease]">
                     <ProductCard product={product} />
                   </div>
                 ))}
 
-                {(isInitialLoading || isLoadingMore) &&
-                  Array.from({ length: isInitialLoading ? PAGE_SIZE : 3 }).map((_, index) => (
+                {isInitialLoading &&
+                  Array.from({ length: PAGE_SIZE }).map((_, index) => (
                     <div
                       key={`product-skeleton-${index}`}
                       className="h-[360px] animate-pulse rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
@@ -316,10 +296,10 @@ export default function ProductsPage() {
                   <button
                     type="button"
                     onClick={handleLoadMore}
-                    disabled={isLoadingMore || isInitialLoading}
+                    disabled={isInitialLoading}
                     className="inline-flex min-w-[160px] items-center justify-center rounded-lg bg-[#2563eb] px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {isLoadingMore ? 'Loading...' : 'Load More'}
+                    Load More
                   </button>
                 ) : (
                   !isInitialLoading && products.length > 0 && (
