@@ -6,7 +6,7 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\
 
 export async function GET(req: Request) {
   try {
-    await ConnectDB();
+    await connectDB();
 
     const { searchParams } = new URL(req.url);
     const sku = (searchParams.get('sku') || '').trim().toUpperCase();
