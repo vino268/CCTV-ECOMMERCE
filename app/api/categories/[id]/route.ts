@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db";
+import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await dbConnect();
+    await ConnectDB();
     const { id } = await params;
     await Category.findByIdAndDelete(id);
     return NextResponse.json({ message: "Deleted" });
@@ -15,7 +15,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await dbConnect();
+    await ConnectDB();
     const { id } = await params;
     const { name } = await req.json();
 

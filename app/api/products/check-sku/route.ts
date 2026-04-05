@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import { connectDB } from "@/lib/mongodb";
 import Product from '@/models/Product';
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export async function GET(req: Request) {
   try {
-    await dbConnect();
+    await ConnectDB();
 
     const { searchParams } = new URL(req.url);
     const sku = (searchParams.get('sku') || '').trim().toUpperCase();
