@@ -75,7 +75,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = async (product: Product, quantity: number) => {
-    const pid = product._id || product.id;
+    const pid = product._id ?? '';
     if (!pid) return;
 
     if (isInCart(pid)) {
@@ -162,7 +162,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleCartItem = async (product: Product, quantity = 1) => {
-    const pid = product._id || product.id;
+    const pid = product._id ?? '';
     if (!pid || pendingProductIds[pid]) return;
 
     if (isInCart(pid)) {

@@ -49,7 +49,7 @@ function normalizeObjectId(value: unknown): string | null {
 }
 
 function getProductId(product: Product) {
-  return String(product._id || product.id || '');
+  return String(product._id || '');
 }
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
@@ -64,8 +64,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const product = productRaw
       ? {
           ...productRaw,
-          id: String(productRaw._id || productRaw.id || ''),
-          _id: String(productRaw._id || productRaw.id || ''),
+          id: String(productRaw._id || ''),
+          _id: String(productRaw._id || ''),
           specs: productRaw.specs || {},
         }
       : null;

@@ -23,6 +23,8 @@ interface AddProductForm {
   description: string;
 }
 
+const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+
 function generateSku(category: string) {
   const prefixMap: Record<string, string> = {
     Cameras: 'CAM',
@@ -79,7 +81,7 @@ export default function AddProductPage() {
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const res = await fetch('/api/categories', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch categories');
       const data = await res.json();
       setCategories(Array.isArray(data) ? data : []);
@@ -101,7 +103,7 @@ export default function AddProductPage() {
     try {
       setIsAddingCategory(true);
       setCategoryMessage('');
-      const res = await fetch('/api/categories', {
+      const res = await fetch(`${BASE_URL}/api/categories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -148,7 +150,7 @@ export default function AddProductPage() {
         const formData = new FormData();
         formData.append('file', file);
 
-        const res = await fetch('/api/products/upload-image', {
+        const res = await fetch(`${BASE_URL}/api/products/upload-image`, {
           method: 'POST',
           body: formData,
         });
@@ -233,7 +235,7 @@ export default function AddProductPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch('/api/products', {
+      const res = await fetch(`${BASE_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

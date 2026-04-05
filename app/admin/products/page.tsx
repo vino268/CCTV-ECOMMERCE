@@ -30,6 +30,8 @@ interface CategoryItem {
   name: string;
 }
 
+const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,7 @@ export default function AdminProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/products', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setProducts(data);
@@ -91,7 +93,7 @@ export default function AdminProductsPage() {
 
   async function fetchCategories() {
     try {
-      const res = await fetch('/api/categories', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch categories');
       const data = await res.json();
       setCategories(Array.isArray(data) ? data : []);
@@ -139,19 +141,19 @@ export default function AdminProductsPage() {
       let res: Response;
 
       if (categoryModalType === 'add') {
-        res = await fetch('/api/categories', {
+        res = await fetch(`${BASE_URL}/api/categories`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else if (categoryModalType === 'edit') {
-        res = await fetch(`/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(`${BASE_URL}/api/categories/${selectedCategory?._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else {
-        res = await fetch(`/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(`${BASE_URL}/api/categories/${selectedCategory?._id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -187,7 +189,7 @@ export default function AdminProductsPage() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/products/upload-image', {
+    const res = await fetch(`${BASE_URL}/api/products/upload-image`, {
       method: 'POST',
       body: formData,
     });
@@ -233,7 +235,7 @@ export default function AdminProductsPage() {
     try {
       setCheckingSku(true);
 
-      const res = await fetch(`/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`);
+      const res = await fetch(`${BASE_URL}/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`);
       const data = await res.json();
 
       if (data.exists) {
@@ -313,7 +315,7 @@ export default function AdminProductsPage() {
 
     try {
       setIsAddSubmitting(true);
-      const res = await fetch('/api/products', {
+      const res = await fetch(`${BASE_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -364,7 +366,7 @@ export default function AdminProductsPage() {
     e.preventDefault();
     if (!editProduct) return;
 
-    const id = editProduct._id || editProduct.id;
+    const id = editProduct._id;
 
     if (!editFormData.sku.trim() || !editFormData.name.trim() || !editFormData.category.trim()) {
       return;
@@ -373,7 +375,7 @@ export default function AdminProductsPage() {
     const imageList = editImagePreview ? [editImagePreview] : [];
 
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -400,11 +402,11 @@ export default function AdminProductsPage() {
   const confirmDelete = async () => {
     if (!deleteItem || deleteType !== 'product') return;
 
-    const id = deleteItem._id || deleteItem.id;
+    const id = deleteItem._id;
 
     try {
       setIsDeleteSubmitting(true);
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${BASE_URL}/api/products/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setDeleteItem(null);
         setDeleteType('');
@@ -581,7 +583,7 @@ export default function AdminProductsPage() {
               </thead>
               <tbody>
                 {products.map((product) => {
-                  const id = product._id || product.id;
+                  const id = product._id;
                   return (
                     <tr key={id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
                       <td className="p-4 whitespace-nowrap">

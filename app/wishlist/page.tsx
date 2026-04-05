@@ -84,7 +84,7 @@ export default function WishlistPage() {
               const product = item.productId;
               if (!product) return null;
 
-              const productId = product._id || product.id;
+              const productId = product._id ?? '';
               const productImage = getSafeImageSrc(product.image, '/products/default.jpg');
 
               return (

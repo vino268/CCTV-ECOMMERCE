@@ -12,6 +12,8 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
+const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+
 export default function ProductDetailPage({
   params,
 }: {
@@ -32,11 +34,14 @@ export default function ProductDetailPage({
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  const toAbsoluteImageUrl = (value: string) =>
+    value.startsWith('/') ? `${BASE_URL}${value}` : value;
+
   // Fetch product from MongoDB API
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const res = await fetch(`/api/products/${id}`, { cache: 'no-store' });
+        const res = await fetch(`${BASE_URL}/api/products/${id}`, { cache: 'no-store' });
         if (!res.ok) {
           setNotFound(true);
           return;
@@ -46,15 +51,15 @@ export default function ProductDetailPage({
         setCurrentImage(0);
 
         // Fetch related products from API
-        const allRes = await fetch('/api/products', { cache: 'no-store' });
+        const allRes = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
         if (allRes.ok) {
           const allProducts: Product[] = await allRes.json();
-          const pid = data._id || data.id;
+          const pid = data._id;
           const related = allProducts
             .filter(
               (p) =>
                 p.category === data.category &&
-                (p._id || p.id) !== pid
+                p._id !== pid
             )
             .slice(0, 3);
           setRelatedProducts(related);
@@ -140,7 +145,7 @@ export default function ProductDetailPage({
 
     try {
       setIsBuyingNow(true);
-      const productId = product._id || product.id;
+      const productId: string = product._id ?? '';
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
       const res = await fetch('/api/orders/buy-now', {
@@ -182,12 +187,13 @@ export default function ProductDetailPage({
   const highlights = Array.isArray(product.features)
     ? product.features.filter((item) => Boolean(item && item.trim()))
     : [];
-  const alreadyInCart = isInCart(product._id || product.id);
-  const cartPending = isCartActionPending(product._id || product.id);
+  const productId: string = product._id ?? '';
+  const alreadyInCart = isInCart(productId);
+  const cartPending = isCartActionPending(productId);
   const productImages = (Array.isArray(product.images) ? product.images : [])
-    .map((img) => getSafeImageSrc(img, ''))
+    .map((img) => toAbsoluteImageUrl(getSafeImageSrc(img, '')))
     .filter(Boolean);
-  const mainImage = getSafeImageSrc(product.image, '');
+  const mainImage = toAbsoluteImageUrl(getSafeImageSrc(product.image, ''));
   if (productImages.length === 0 && mainImage) {
     productImages.push(mainImage);
   }
@@ -447,7 +453,7 @@ export default function ProductDetailPage({
             </h2>
             <div className="grid md:grid-cols-3 gap-6">
               {relatedProducts.map((relatedProduct) => (
-                <ProductCard key={relatedProduct._id || relatedProduct.id} product={relatedProduct} />
+                <ProductCard key={relatedProduct._id} product={relatedProduct} />
               ))}
             </div>
           </div>

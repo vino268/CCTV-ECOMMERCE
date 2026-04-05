@@ -15,6 +15,7 @@ import {
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
 const PAGE_SIZE = 12;
+const BASE_URL = 'https://cctv-ecommerce.onrender.com';
 
 type PaginatedProductsResponse = {
   products?: Product[];
@@ -51,7 +52,7 @@ export default function ProductsPage() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/products?page=${targetPage}&limit=${PAGE_SIZE}`,
+        `${BASE_URL}/api/products?page=${targetPage}&limit=${PAGE_SIZE}`,
         { cache: 'no-store' }
       );
       const data = (await res.json()) as PaginatedProductsResponse | Product[];
@@ -94,7 +95,7 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       const data = await res.json();
 
       setCategories([

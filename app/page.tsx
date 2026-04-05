@@ -32,6 +32,8 @@ import {
   Tag,
 } from 'lucide-react';
 
+const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+
 type HomeProductCardProps = {
   product: Product & { isInCart: boolean };
   isPending: boolean;
@@ -46,7 +48,7 @@ type HomeCategory = {
 };
 
 function HomeProductCard({ product, isPending, onAddToCart, onBuyNow }: HomeProductCardProps) {
-  const productId = product._id || product.id;
+  const productId = product._id ?? '';
   const primaryImage = getSafeImageSrc(product.images?.[0] || product.image, '/products/default.jpg');
 
   return (
@@ -195,7 +197,7 @@ export default function Home() {
   useEffect(() => {
     const loadRecentProducts = () => {
       setProductsLoading(true);
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/products/recent`, { cache: 'no-store' })
+      fetch(`${BASE_URL}/api/products/recent`, { cache: 'no-store' })
         .then((res) => res.json())
         .then((data) => setProducts(Array.isArray(data) ? data : []))
         .catch((err) => setProducts([]));
@@ -212,8 +214,8 @@ export default function Home() {
     const loadTopCategories = async () => {
       try {
         const [categoriesRes, productsRes] = await Promise.all([
-          fetch('/api/categories', { cache: 'no-store' }),
-          fetch('/api/products', { cache: 'no-store' }),
+          fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' }),
+          fetch(`${BASE_URL}/api/products`, { cache: 'no-store' }),
         ]);
 
         const categoriesData = await categoriesRes.json();
@@ -313,7 +315,7 @@ export default function Home() {
       return;
     }
 
-    const productId = product._id || product.id;
+    const productId = product._id ?? '';
 
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -497,7 +499,7 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
               {featuredProducts.slice(0, 6).map((product) => {
-                const productId = product._id || product.id;
+                const productId = product._id ?? '';
                 const productWithCart = {
                   ...product,
                   isInCart: isInCart(productId),
