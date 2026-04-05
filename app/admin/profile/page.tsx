@@ -47,13 +47,19 @@ function syncAdminStorage(admin: AdminProfile | null) {
   window.dispatchEvent(new Event('admin-profile-change'));
 }
 
-function getAdminAuthHeaders() {
-  const token =
-    (typeof window !== 'undefined' &&
-      (localStorage.getItem('adminToken') || localStorage.getItem('token'))) ||
-    '';
+function getAdminAuthHeaders(): HeadersInit {
+  const headers = new Headers();
 
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (typeof window === 'undefined') {
+    return headers;
+  }
+
+  const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  return headers;
 }
 
 export default function AdminProfilePage() {
@@ -89,9 +95,7 @@ export default function AdminProfilePage() {
         const res = await fetch('/api/admin/profile', {
           cache: 'no-store',
           credentials: 'include',
-          headers: {
-            ...getAdminAuthHeaders(),
-          },
+          headers: getAdminAuthHeaders(),
         });
         const data = await res.json();
 
@@ -209,9 +213,7 @@ export default function AdminProfilePage() {
           method: 'POST',
           body: formData,
           credentials: 'include',
-          headers: {
-            ...getAdminAuthHeaders(),
-          },
+          headers: getAdminAuthHeaders(),
         });
 
         const uploadData = await uploadRes.json().catch(() => ({}));
@@ -227,9 +229,7 @@ export default function AdminProfilePage() {
         const removeRes = await fetch('/api/admin/upload-avatar', {
           method: 'DELETE',
           credentials: 'include',
-          headers: {
-            ...getAdminAuthHeaders(),
-          },
+          headers: getAdminAuthHeaders(),
         });
 
         const removeData = await removeRes.json().catch(() => ({}));
@@ -246,10 +246,11 @@ export default function AdminProfilePage() {
       const res = await fetch('/api/admin/profile', {
         method: 'PUT',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAdminAuthHeaders(),
-        },
+        headers: (() => {
+          const headers = new Headers(getAdminAuthHeaders());
+          headers.set('Content-Type', 'application/json');
+          return headers;
+        })(),
         body: JSON.stringify({ name, email, phone }),
       });
 
@@ -296,10 +297,11 @@ export default function AdminProfilePage() {
       const res = await fetch('/api/admin/password', {
         method: 'PUT',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAdminAuthHeaders(),
-        },
+        headers: (() => {
+          const headers = new Headers(getAdminAuthHeaders());
+          headers.set('Content-Type', 'application/json');
+          return headers;
+        })(),
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
