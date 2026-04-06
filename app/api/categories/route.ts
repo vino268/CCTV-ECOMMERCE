@@ -6,7 +6,18 @@ try {
 await connectDB();
 
 const db = mongoose.connection.useDb("tn_automation");
-const categories = await db.collection("categories").find({}).toArray();
+
+const categories = await db
+  .collection("products")
+  .aggregate([
+    {
+      $group: {
+        _id: "$category",
+        count: { $sum: 1 }
+      }
+    }
+  ])
+  .toArray();
 
 return new Response(JSON.stringify({
   success: true,
