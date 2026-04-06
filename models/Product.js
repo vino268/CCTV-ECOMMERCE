@@ -1,10 +1,5 @@
 import mongoose from "mongoose";
 
-// Delete cached model so schema changes take effect on hot reload
-if (mongoose.models.Product) {
-  delete mongoose.models.Product;
-}
-
 const ProductSchema = new mongoose.Schema({
   sku: {
     type: String,
@@ -60,6 +55,8 @@ const ProductSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+}, {
+  collection: "products",
 });
 
-export default mongoose.model("Product", ProductSchema);
+export default mongoose.models.Product || mongoose.model("Product", ProductSchema);
