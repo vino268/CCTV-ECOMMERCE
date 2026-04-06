@@ -119,7 +119,7 @@ export default function AdminDashboard() {
   const fetchOverview = async (nextRange: 'today' | '7d' | '30d') => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/analytics/overview?range=${nextRange}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/analytics/overview?range=${nextRange}`, {
         cache: 'no-store',
       });
       const data = await res.json();

@@ -18,7 +18,7 @@ export default function AdminAccountMenu() {
   useEffect(() => {
     const loadAdmin = async () => {
       try {
-        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         const admin = data?.admin;
@@ -47,7 +47,7 @@ export default function AdminAccountMenu() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await fetch('/api/admin/logout', { method: 'POST' });
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, { method: 'POST' });
     setShowLogoutModal(false);
     router.replace('/admin/login');
   };

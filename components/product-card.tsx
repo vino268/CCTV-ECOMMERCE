@@ -61,7 +61,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch('/api/orders/buy-now', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

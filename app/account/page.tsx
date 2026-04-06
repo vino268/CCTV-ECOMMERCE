@@ -144,7 +144,7 @@ export default function AccountPage() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/user`, { cache: 'no-store' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/user`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         setAddresses(Array.isArray(data.addresses) ? data.addresses : []);
@@ -160,8 +160,8 @@ export default function AccountPage() {
 
     try {
       const [profileRes, ordersRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
       ]);
 
       const profileData = await profileRes.json();
@@ -257,7 +257,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -353,7 +353,7 @@ export default function AccountPage() {
       const endpoint = editingAddressId ? `/api/address/${editingAddressId}` : '/api/address';
       const method = editingAddressId ? 'PUT' : 'POST';
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(addressForm),
@@ -384,7 +384,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${addressId}`, { method: 'DELETE' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${addressId}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to delete address');
@@ -410,7 +410,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${addressId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${addressId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isDefault: true }),
@@ -441,7 +441,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/cancel/${cancelModalOrderId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${cancelModalOrderId}`, {
         method: 'PUT',
       });
       const data = await res.json().catch(() => ({}));

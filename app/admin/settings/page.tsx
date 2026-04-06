@@ -95,7 +95,7 @@ export default function AdminSettingsPage() {
   const [errors, setErrors] = useState<ValidationErrors>({});
 
   useEffect(() => {
-    fetch('/api/settings', { cache: 'no-store' })
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         setSettings({
@@ -160,7 +160,7 @@ export default function AdminSettingsPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),

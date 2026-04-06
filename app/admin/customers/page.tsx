@@ -69,7 +69,7 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const res = await fetch(`/api/admin/customers?${params.toString()}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers?${params.toString()}`, {
         cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch customers');
@@ -141,7 +141,7 @@ export default function AdminCustomersPage() {
     setLoadingCustomerOrders(true);
 
     try {
-      const res = await fetch(`/api/admin/customers/${customer._id}/orders`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customer._id}/orders`, {
         cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch customer orders');
@@ -162,7 +162,7 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(`/api/admin/customers/${customerId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customerId}`, {
         method: 'DELETE',
       });
       const data = await res.json().catch(() => ({}));
@@ -190,7 +190,7 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(`/api/admin/customers/${customer._id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customer._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isBlocked: !customer.isBlocked }),

@@ -58,7 +58,7 @@ export default function ServicesPage() {
   ];
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/services`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`)
       .then((res) => res.json())
       .then((data) => setServices(Array.isArray(data) ? data : []))
       .catch(() => setServices([]))
@@ -97,7 +97,7 @@ export default function ServicesPage() {
     setFormError('');
 
     try {
-      const response = await fetch('/api/support', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/support`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

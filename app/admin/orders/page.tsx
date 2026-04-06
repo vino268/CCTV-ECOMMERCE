@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -114,7 +114,7 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/orders', { cache: 'no-store' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch orders');
       const data = await res.json();
       setOrders(data);
@@ -194,7 +194,7 @@ export default function AdminOrdersPage() {
   const handleStatusChange = async (id: string, nextStatus: string) => {
     try {
       setUpdatingId(id);
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderStatus: nextStatus }),
@@ -218,7 +218,7 @@ export default function AdminOrdersPage() {
 
     try {
       setCancellingId(id);
-      const res = await fetch(`/api/orders/cancel/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Cancelled', source: 'admin' }),
@@ -246,7 +246,7 @@ export default function AdminOrdersPage() {
 
     try {
       setDeletingId(selectedId);
-      const res = await fetch(`/api/orders/${selectedId}`, { method: 'DELETE' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${selectedId}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error || data.message || 'Failed to delete order');

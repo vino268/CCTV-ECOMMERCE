@@ -50,7 +50,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/user`, { cache: 'no-store' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/user`, { cache: 'no-store' });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -130,7 +130,7 @@ export default function MyAddressPage() {
       const endpoint = editingAddress ? `/api/address/${editingAddress._id}` : '/api/address';
       const method = editingAddress ? 'PUT' : 'POST';
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -158,7 +158,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${id}`, { method: 'DELETE' });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -179,7 +179,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/address/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isDefault: true }),

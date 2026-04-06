@@ -82,7 +82,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
     setAdminProfileImage(String(storedAdmin?.profileImage || storedAdmin?.avatar || ''))
 
     try {
-      const res = await fetch('/api/admin/profile', { cache: 'no-store' })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       const admin = data?.admin
@@ -109,7 +109,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
     const load = () =>
-      fetch('/api/admin/notifications')
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`)
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data)) setNotifications(data)
@@ -151,7 +151,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleDeleteOne = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE' })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications/${id}`, { method: 'DELETE' })
       if (res.ok) {
         setNotifications((prev) => prev.filter((n) => n._id !== id))
       }
@@ -162,7 +162,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleClearAll = async () => {
     try {
-      const res = await fetch('/api/admin/notifications', { method: 'DELETE' })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`, { method: 'DELETE' })
       if (res.ok) {
         setNotifications([])
       }
@@ -173,7 +173,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleMarkAllRead = async () => {
     try {
-      const res = await fetch('/api/admin/notifications', { method: 'PUT' })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`, { method: 'PUT' })
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
       }

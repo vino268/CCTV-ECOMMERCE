@@ -43,7 +43,7 @@ export default function AdminServicesPage() {
   /* ---------------------------------------------------------------- */
   const fetchServices = async () => {
     try {
-      const res = await fetch('/api/services');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`);
       const data = await res.json();
       setServices(Array.isArray(data) ? data : []);
     } catch {
@@ -63,7 +63,7 @@ export default function AdminServicesPage() {
     if (!addForm.name.trim()) return;
     setAdding(true);
     try {
-      await fetch('/api/services', {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +101,7 @@ export default function AdminServicesPage() {
     if (!editState.name.trim()) return;
     setSaving(true);
     try {
-      await fetch(`/api/services/${id}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,7 +127,7 @@ export default function AdminServicesPage() {
 
     try {
       setIsDeleteSubmitting(true);
-      const res = await fetch(`/api/services/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error ?? 'Delete failed');

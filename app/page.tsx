@@ -32,7 +32,7 @@ import {
   Tag,
 } from 'lucide-react';
 
-const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type HomeProductCardProps = {
   product: Product & { isInCart: boolean };
@@ -319,7 +319,7 @@ export default function Home() {
 
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch('/api/orders/buy-now', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

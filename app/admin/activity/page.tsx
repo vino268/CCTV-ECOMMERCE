@@ -73,7 +73,7 @@ export default function ActivityLogPage() {
     setLoading(true);
     setError('');
 
-    fetch(`/api/admin/activity?page=${targetPage}&limit=${pageSize}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity?page=${targetPage}&limit=${pageSize}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && Array.isArray(data.logs)) {
@@ -115,10 +115,10 @@ export default function ActivityLogPage() {
 
       if (actionType === 'single') {
         setDeletingId(selectedId || '');
-        res = await fetch(`/api/admin/activity/${selectedId}`, { method: 'DELETE' });
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity/${selectedId}`, { method: 'DELETE' });
       } else {
         setClearingAll(true);
-        res = await fetch('/api/admin/activity', { method: 'DELETE' });
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity`, { method: 'DELETE' });
       }
 
       const data = await res.json();

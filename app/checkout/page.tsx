@@ -90,7 +90,7 @@ export default function CheckoutPage() {
       try {
         setIsLoadingBuyNow(true);
 
-        const res = await fetch(`/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
           cache: 'no-store',
           credentials: 'include',
         });
@@ -182,7 +182,7 @@ export default function CheckoutPage() {
     try {
       const fullAddress = `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,7 +218,7 @@ export default function CheckoutPage() {
       '#TN' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -274,7 +274,7 @@ export default function CheckoutPage() {
       setOrderNumber(newOrderNumber);
 
       if (isBuyNowFlow && buyNowOrderId) {
-        await fetch(`/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
           method: 'DELETE',
           credentials: 'include',
         }).catch(() => {});

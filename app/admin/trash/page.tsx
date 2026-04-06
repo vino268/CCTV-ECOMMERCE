@@ -51,8 +51,8 @@ export default function AdminTrashPage() {
     try {
       setLoading(true);
       const [ordersRes, customersRes] = await Promise.all([
-        fetch('/api/admin/orders/deleted', { cache: 'no-store' }),
-        fetch('/api/admin/customers/deleted', { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/orders/deleted`, { cache: 'no-store' }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/deleted`, { cache: 'no-store' }),
       ]);
 
       if (!ordersRes.ok || !customersRes.ok) {

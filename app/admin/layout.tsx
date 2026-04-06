@@ -61,7 +61,7 @@ export default function AdminLayout({
 
     const verifyAdminSession = async () => {
       try {
-        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
         if (!res.ok) {
           if (res.status === 403) {
             router.replace('/admin/login?error=unauthorized');
@@ -81,7 +81,7 @@ export default function AdminLayout({
   }, [isPublicPage, router]);
 
   const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, { method: 'POST' });
     router.replace('/admin/login');
   };
 

@@ -116,7 +116,7 @@ export default function OrderDetailsPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${params.id}`, { cache: 'no-store' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${params.id}`, { cache: 'no-store' });
       const data = await res.json();
 
       if (!res.ok) {
@@ -187,7 +187,7 @@ export default function OrderDetailsPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/cancel/${order._id}`, { method: 'PUT' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${order._id}`, { method: 'PUT' });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -213,7 +213,7 @@ export default function OrderDetailsPage() {
     setSavingAddress(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/orders/${order._id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${order._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deliveryInfo: addressForm, phone: addressForm.phone }),

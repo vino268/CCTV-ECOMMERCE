@@ -23,7 +23,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/notifications')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setNotifications(data);
@@ -34,7 +34,7 @@ export default function NotificationsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/notifications/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setNotifications((prev) => prev.filter((n) => n._id !== id));
       }

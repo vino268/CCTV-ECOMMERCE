@@ -35,7 +35,7 @@ export function Footer() {
     }
 
     try {
-      await fetch('/api/admin/logout', {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -47,7 +47,7 @@ export function Footer() {
   };
 
   useEffect(() => {
-    fetch('/api/settings')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`)
       .then((r) => r.json())
       .then((data) => {
         setS({

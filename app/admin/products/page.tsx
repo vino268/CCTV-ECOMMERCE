@@ -30,7 +30,7 @@ interface CategoryItem {
   name: string;
 }
 
-const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);

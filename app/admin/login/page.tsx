@@ -25,7 +25,7 @@ export default function AdminLoginPage() {
 
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/admin/profile', { cache: 'no-store' });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
         if (res.ok) {
           router.replace('/admin/dashboard');
         }
@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/login`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

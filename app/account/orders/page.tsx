@@ -27,7 +27,7 @@ export default function AccountOrdersPage() {
     setError('');
 
     try {
-      const res = await fetch(`/api/orders/user?email=${encodeURIComponent(email)}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/user?email=${encodeURIComponent(email)}`, {
         cache: 'no-store',
       });
       const data = await res.json();
@@ -65,7 +65,7 @@ export default function AccountOrdersPage() {
     setError('');
 
     try {
-      const res = await fetch(`/api/orders/cancel/${cancelModalOrderId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${cancelModalOrderId}`, {
         method: 'PUT',
       });
       const data = await res.json();

@@ -23,7 +23,7 @@ export function AdminAccessTriggers() {
     }
 
     try {
-      await fetch('/api/admin/logout', {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, {
         method: 'POST',
         credentials: 'include',
       });

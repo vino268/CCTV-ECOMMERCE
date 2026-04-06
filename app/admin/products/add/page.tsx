@@ -23,7 +23,7 @@ interface AddProductForm {
   description: string;
 }
 
-const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 function generateSku(category: string) {
   const prefixMap: Record<string, string> = {

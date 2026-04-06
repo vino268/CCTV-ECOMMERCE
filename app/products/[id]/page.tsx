@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
-const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProductDetailPage({
   params,
@@ -148,7 +148,7 @@ export default function ProductDetailPage({
       const productId: string = product._id ?? '';
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-      const res = await fetch('/api/orders/buy-now', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

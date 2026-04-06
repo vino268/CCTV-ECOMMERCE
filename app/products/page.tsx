@@ -15,7 +15,7 @@ import {
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
 const PAGE_SIZE = 12;
-const BASE_URL = 'https://cctv-ecommerce.onrender.com';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProductsPage() {
   const router = useRouter();

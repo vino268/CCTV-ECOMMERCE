@@ -35,7 +35,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart?userId=${encodeURIComponent(userId)}`, {
         cache: 'no-store',
       });
       if (res.ok) {
@@ -97,7 +97,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       if (!userId) return;
 
-      const res = await fetch('/api/cart', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -142,7 +142,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!userId) return;
 
-      const res = await fetch(`/api/cart/${encodeURIComponent(productId)}?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart/${encodeURIComponent(productId)}?userId=${encodeURIComponent(userId)}`, {
         method: 'DELETE',
       });
       const data = await res.json().catch(() => ({}));
@@ -189,7 +189,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!userId) return;
 
-      const res = await fetch('/api/cart', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, productId, quantity: safeQuantity }),
@@ -213,7 +213,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (!userId) return;
-      const res = await fetch(`/api/cart?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart?userId=${encodeURIComponent(userId)}`, {
         method: 'DELETE',
       });
       const data = await res.json().catch(() => ({}));

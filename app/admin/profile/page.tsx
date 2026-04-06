@@ -92,7 +92,7 @@ export default function AdminProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch('/api/admin/profile', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, {
           cache: 'no-store',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
@@ -209,7 +209,7 @@ export default function AdminProfilePage() {
         const formData = new FormData();
         formData.append('file', selectedAvatarFile);
 
-        const uploadRes = await fetch('/api/admin/upload-avatar', {
+        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload-avatar`, {
           method: 'POST',
           body: formData,
           credentials: 'include',
@@ -226,7 +226,7 @@ export default function AdminProfilePage() {
 
         nextProfileImage = String(uploadData?.profileImage || uploadData?.admin?.profileImage || '');
       } else if (removeAvatarOnSave) {
-        const removeRes = await fetch('/api/admin/upload-avatar', {
+        const removeRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload-avatar`, {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
@@ -243,7 +243,7 @@ export default function AdminProfilePage() {
         nextProfileImage = '';
       }
 
-      const res = await fetch('/api/admin/profile', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {
@@ -294,7 +294,7 @@ export default function AdminProfilePage() {
 
     setSavingPassword(true);
     try {
-      const res = await fetch('/api/admin/password', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/password`, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {

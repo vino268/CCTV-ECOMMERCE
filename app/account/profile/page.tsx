@@ -63,7 +63,7 @@ export default function ProfilePage() {
   const fetchProfile = async (email: string) => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile?email=${encodeURIComponent(email)}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/user/profile?email=${encodeURIComponent(email)}`,
         { cache: 'no-store' }
       );
       if (res.ok) {
@@ -101,7 +101,7 @@ export default function ProfilePage() {
         uploadData.append('file', avatarFile);
         uploadData.append('email', profile.email);
 
-        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/upload-avatar`, {
+        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/upload-avatar`, {
           method: 'POST',
           body: uploadData,
         });
@@ -115,7 +115,7 @@ export default function ProfilePage() {
         avatarUrl = uploadJson.avatarUrl;
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/profile`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,7 +169,7 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      const res = await fetch('/api/user/upload-avatar', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/upload-avatar`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -231,7 +231,7 @@ export default function ProfilePage() {
     setDeleteError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/user/delete-account`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/delete-account`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: deletePassword }),
