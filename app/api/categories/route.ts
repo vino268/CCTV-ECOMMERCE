@@ -7,7 +7,7 @@ await connectDB();
 
 const db = mongoose.connection.useDb("tn_automation");
 
-const categories = await db
+const raw = await db
   .collection("products")
   .aggregate([
     {
@@ -19,28 +19,22 @@ const categories = await db
   ])
   .toArray();
 
-return new Response(JSON.stringify({
+// ✅ FIX: convert to frontend format
+const categories = raw.map(item => item._id);
+
+return Response.json({
   success: true,
   categories
-}), {
-  status: 200,
-  headers: {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
-    "Access-Control-Allow-Headers": "Content-Type"
-  }
 });
 
 } catch (error) {
-return new Response(JSON.stringify({
-success: false,
-error: "Failed to fetch categories"
-}), {
-status: 500,
-headers: {
-"Access-Control-Allow-Origin": "*"
-}
+console.error(error);
+
+return Response.json({
+  success: false,
+  categories: []
 });
+
 }
 }
 
