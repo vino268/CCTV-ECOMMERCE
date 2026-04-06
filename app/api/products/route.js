@@ -15,11 +15,12 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Products API error:", error);
+    const message = error instanceof Error ? error.message : String(error);
 
     return Response.json(
       {
         success: false,
-        error: error?.message || "Unknown error",
+        error: message,
       },
       { status: 500 }
     );
