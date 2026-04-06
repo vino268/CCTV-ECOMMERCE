@@ -1,28 +1,45 @@
 import { connectDB } from "@/lib/mongodb";
-import Product from "@/models/Product";
+import mongoose from "mongoose";
 
-export async function GET() {
-  try {
-    await connectDB();
-    console.log("DB connected");
+export async function GET(req) {
+try {
+await connectDB();
 
-    const products = await Product.find().lean();
-    console.log("Products:", products.length);
+const db = mongoose.connection.useDb("tn_automation");
+const products = await db.collection("products").find({}).toArray();
 
-    return Response.json({
-      success: true,
-      products,
-    });
-  } catch (error) {
-    console.error("Products API error:", error);
-    const message = error instanceof Error ? error.message : String(error);
-
-    return Response.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
+return new Response(JSON.stringify({
+  success: true,
+  products
+}), {
+  status: 200,
+  headers: {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
+    "Access-Control-Allow-Headers": "Content-Type"
   }
+});
+
+} catch (error) {
+return new Response(JSON.stringify({
+success: false,
+error: "Failed to fetch products"
+}), {
+status: 500,
+headers: {
+"Access-Control-Allow-Origin": "*"
+}
+});
+}
+}
+
+export async function OPTIONS() {
+return new Response(null, {
+status: 200,
+headers: {
+"Access-Control-Allow-Origin": "*",
+"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
+"Access-Control-Allow-Headers": "Content-Type"
+}
+});
 }
