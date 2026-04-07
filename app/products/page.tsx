@@ -33,11 +33,21 @@ export default function ProductsPage() {
     setIsInitialLoading(true);
 
     try {
-      const res = await fetch('/api/products');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tnautomation.in';
+      const res = await fetch(`${apiUrl}/api/products`, {
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.success) {
-        setProducts(data.products);
+        setProducts(data.products || []);
+      } else {
+        setProducts([]);
       }
     } catch (err) {
       console.error('Product fetch error:', err);
@@ -66,16 +76,26 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch("/api/categories");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tnautomation.in';
+      const res = await fetch(`${apiUrl}/api/categories`, {
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.success) {
-        setCategories(data.categories);
+        setCategories(data.categories || []);
       } else {
-        console.error("Category API failed");
+        console.error("Category API failed:", data);
+        setCategories([]);
       }
     } catch (err) {
       console.error("Category fetch error:", err);
+      setCategories([]);
     }
   };
 
