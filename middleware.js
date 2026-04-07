@@ -1,6 +1,21 @@
 import { jwtVerify } from "jose";
 import { NextResponse } from "next/server";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+function withCors(response, isApiRoute) {
+  if (isApiRoute) {
+    Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+  }
+  return response;
+}
+
 const PUBLIC_PATHS = [
   "/admin/login",
   "/admin/forgot-password",
@@ -9,6 +24,14 @@ const PUBLIC_PATHS = [
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
+  const isApiRoute = pathname.startsWith("/api");
+
+  if (isApiRoute && request.method === "OPTIONS") {
+    return new NextResponse(null, {
+      status: 200,
+      headers: CORS_HEADERS,
+    });
+  }
 
   const isProtectedUserPage =
     pathname.startsWith("/account/orders") ||
@@ -24,17 +47,17 @@ export async function middleware(request) {
 
   // Only guard /admin routes
   if (!pathname.startsWith("/admin") && !isProtectedUserRoute) {
-    return NextResponse.next();
+    return withCors(NextResponse.next(), isApiRoute);
   }
 
   // Allow public admin pages (login, forgot-password, etc.)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return withCors(NextResponse.next(), isApiRoute);
   }
 
   // Allow the /admin root — it's a client-side redirect page
   if (pathname === "/admin") {
-    return NextResponse.next();
+    return withCors(NextResponse.next(), isApiRoute);
   }
 
   if (isProtectedUserRoute) {
@@ -48,13 +71,13 @@ export async function middleware(request) {
 
     if (!token) {
       if (isProtectedUserApi) {
-        return NextResponse.json(
+        return withCors(NextResponse.json(
           { success: false, message: "Unauthorized" },
           { status: 401 }
-        );
+        ), isApiRoute);
       }
 
-      return NextResponse.redirect(loginUrl);
+      return withCors(NextResponse.redirect(loginUrl), isApiRoute);
     }
 
     try {
@@ -88,15 +111,15 @@ export async function middleware(request) {
             { status: 403 }
           );
           response.cookies.delete("userToken");
-          return response;
+          return withCors(response, isApiRoute);
         }
 
         const response = NextResponse.redirect(new URL("/login", request.url));
         response.cookies.delete("userToken");
-        return response;
+        return withCors(response, isApiRoute);
       }
 
-      return NextResponse.next();
+      return withCors(NextResponse.next(), isApiRoute);
     } catch {
       if (isProtectedUserApi) {
         const response = NextResponse.json(
@@ -104,12 +127,12 @@ export async function middleware(request) {
           { status: 401 }
         );
         response.cookies.delete("userToken");
-        return response;
+        return withCors(response, isApiRoute);
       }
 
       const response = NextResponse.redirect(loginUrl);
       response.cookies.delete("userToken");
-      return response;
+      return withCors(response, isApiRoute);
     }
   }
 
@@ -118,9 +141,9 @@ export async function middleware(request) {
 
   if (!token) {
     if (userToken) {
-      return NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
+      return withCors(NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url)), isApiRoute);
     }
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return withCors(NextResponse.redirect(new URL("/admin/login", request.url)), isApiRoute);
   }
 
   try {
@@ -130,15 +153,15 @@ export async function middleware(request) {
     if (String(payload?.role || "") !== "admin") {
       const response = NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
       response.cookies.delete("adminToken");
-      return response;
+      return withCors(response, isApiRoute);
     }
 
-    return NextResponse.next();
+    return withCors(NextResponse.next(), isApiRoute);
   } catch {
     // Token invalid or expired — clear cookie and redirect
     const response = NextResponse.redirect(new URL("/admin/login", request.url));
     response.cookies.delete("adminToken");
-    return response;
+    return withCors(response, isApiRoute);
   }
 }
 
@@ -149,7 +172,6 @@ export const config = {
     "/account/profile/:path*",
     "/wishlist/:path*",
     "/checkout/:path*",
-    "/api/orders/user",
-    "/api/auth/profile",
+    "/api/:path*",
   ],
 };
