@@ -15,7 +15,6 @@ import {
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
 const PAGE_SIZE = 12;
-const BASE_URL = 'https://www.tnautomation.in';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -34,12 +33,14 @@ export default function ProductsPage() {
     setIsInitialLoading(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
-      const data = (await res.json()) as Product[];
-      console.log('Products:', data);
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to load products', error);
+      const res = await fetch('/api/products');
+      const data = await res.json();
+
+      if (data.success) {
+        setProducts(data.products);
+      }
+    } catch (err) {
+      console.error('Product fetch error:', err);
       setProducts([]);
     } finally {
       setIsInitialLoading(false);
@@ -98,11 +99,9 @@ export default function ProductsPage() {
   // Filter + Sort
   const filteredProducts = products;
 
-  const visibleProducts = useMemo(() => {
-    return filteredProducts.slice(0, page * PAGE_SIZE);
-  }, [filteredProducts, page]);
+  const visibleProducts = filteredProducts;
 
-  const hasMore = visibleProducts.length < filteredProducts.length;
+  const hasMore = false;
 
   useEffect(() => {
     setPage(1);
@@ -209,7 +208,7 @@ export default function ProductsPage() {
             {/* Sort */}
             <div className="mb-5 flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
               <p className="text-sm text-gray-600">
-                Showing {visibleProducts.length} products
+                Showing {filteredProducts.length} products
               </p>
 
               {isMounted ? (
@@ -234,7 +233,7 @@ export default function ProductsPage() {
             {/* Grid */}
             {!showEmptyState && (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 md:gap-5">
-                {visibleProducts.map((product: Product) => (
+                {filteredProducts.map((product: Product) => (
                   <div key={product._id} className="animate-[fadeIn_320ms_ease]">
                     <ProductCard product={product} />
                   </div>
