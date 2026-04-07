@@ -23,7 +23,7 @@ export default function ProductsPage() {
   const [isMounted, setIsMounted] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>(['All Categories']);
+  const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState('featured');
   const [page, setPage] = useState(1);
@@ -65,24 +65,18 @@ export default function ProductsPage() {
   };
 
   const fetchCategories = async () => {
-    let categories = [];
-
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch("/api/categories");
       const data = await res.json();
 
       if (data.success) {
-        categories = data.categories;
+        setCategories(data.categories);
+      } else {
+        console.error("Category API failed");
       }
     } catch (err) {
-      console.log('Categories failed, fallback used');
+      console.error("Category fetch error:", err);
     }
-
-    if (categories.length === 0) {
-      categories = ['All Categories'];
-    }
-
-    setCategories(categories);
   };
 
   // Initialize category filter from URL
@@ -156,9 +150,32 @@ export default function ProductsPage() {
                 <div className="mt-2 border-t border-gray-100" />
 
                 <div className="mt-3 max-h-[360px] space-y-1.5 overflow-y-auto pr-1">
-                  {categories.map((cat) => {
+                  <button
+                    onClick={() => setSelectedCategory('All Categories')}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+                      selectedCategory === 'All Categories'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-white text-gray-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5 text-left">
+                      <Tag className="h-4 w-4 flex-shrink-0" />
+                      <span className="font-medium">All Categories</span>
+                    </span>
+                    <span
+                      className={`ml-3 text-xs font-semibold ${
+                        selectedCategory === 'All Categories' ? 'text-blue-100' : 'text-gray-500'
+                      }`}
+                    >
+                      {products.length}
+                    </span>
+                  </button>
+
+                  {categories.map((catObj: any) => {
+                    const cat = typeof catObj === 'string' ? catObj : catObj._id;
+                    if (cat === 'All Categories') return null;
                     const Icon = getCategoryIcon(cat);
-                    const count = cat === 'All Categories' ? products.length : categoryCounts.get(cat) || 0;
+                    const count = typeof catObj === 'string' ? (categoryCounts.get(cat) || 0) : catObj.count;
 
                     return (
                       <button
