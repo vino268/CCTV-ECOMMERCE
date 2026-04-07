@@ -1,26 +1,24 @@
-import { connectDB } from "@/lib/mongodb";
 import mongoose from "mongoose";
+import { connectDB } from "@/lib/mongodb";
 
 export async function GET() {
-	try {
-		console.log("API HIT");
+  try {
+    await connectDB();
 
-		await connectDB();
+    const products = await mongoose.connection
+      .collection("products")
+      .find({})
+      .toArray();
 
-		const db = mongoose.connection.db;
-
-		const products = await db.collection("products").find({}).toArray();
-
-		return Response.json({
-			success: true,
-			products,
-		});
-	} catch (error) {
-		console.error("ERROR:", error);
-
-		return Response.json({
-			success: false,
-			error: error?.message || "Unknown error",
-		});
-	}
+    return Response.json({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    console.log("ERROR:", error);
+    return Response.json(
+      { error: "Failed to fetch products" },
+      { status: 500 }
+    );
+  }
 }
