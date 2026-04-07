@@ -64,16 +64,24 @@ export default function ProductsPage() {
   };
 
   const fetchCategories = async () => {
+    let categories = [];
+
     try {
-      const res = await fetch('https://www.tnautomation.in/api/categories');
+      const res = await fetch('/api/categories');
       const data = await res.json();
 
-      console.log('Categories FIXED:', data);
-
-      setCategories(data.categories || []);
+      if (data.success) {
+        categories = data.categories;
+      }
     } catch (err) {
-      console.error('Category error:', err);
+      console.log('Categories failed, fallback used');
     }
+
+    if (categories.length === 0) {
+      categories = ['All Categories'];
+    }
+
+    setCategories(categories);
   };
 
   // Initialize category filter from URL
@@ -88,31 +96,7 @@ export default function ProductsPage() {
   }, [searchParams]);
 
   // Filter + Sort
-  const filteredProducts = useMemo(() => {
-    const categoryFiltered =
-      selectedCategory === 'All Categories'
-        ? products
-        : products.filter((p) => p.category === selectedCategory);
-
-    let filtered = [...categoryFiltered];
-
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (p.description &&
-            p.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-
-    if (sortBy === 'price-low') {
-      filtered.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'price-high') {
-      filtered.sort((a, b) => b.price - a.price);
-    }
-
-    return filtered;
-  }, [products, selectedCategory, sortBy, searchTerm]);
+  const filteredProducts = products;
 
   const visibleProducts = useMemo(() => {
     return filteredProducts.slice(0, page * PAGE_SIZE);

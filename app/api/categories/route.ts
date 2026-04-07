@@ -5,35 +5,27 @@ export async function GET() {
 try {
 await connectDB();
 
-const db = mongoose.connection.useDb("tn_automation");
+const db = mongoose.connection.db!;
 
-const raw = await db
+const categories = await db
   .collection("products")
-  .aggregate([
-    {
-      $group: {
-        _id: "$category",
-        count: { $sum: 1 }
-      }
-    }
-  ])
-  .toArray();
-
-// ✅ FIX: convert to frontend format
-const categories = raw.map(item => item._id);
+  .distinct("category");
 
 return Response.json({
   success: true,
-  categories
+  categories,
 });
 
 } catch (error) {
-console.error(error);
+console.error("CATEGORY ERROR:", error);
 
-return Response.json({
-  success: false,
-  categories: []
-});
+return Response.json(
+  {
+    success: false,
+    error: "Failed to fetch categories",
+  },
+  { status: 500 }
+);
 
 }
 }
