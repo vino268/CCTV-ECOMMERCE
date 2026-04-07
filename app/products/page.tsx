@@ -65,15 +65,14 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
+      const res = await fetch('https://www.tnautomation.in/api/categories');
       const data = await res.json();
 
-      setCategories([
-        'All Categories',
-        ...data.map((cat: any) => cat.name),
-      ]);
+      console.log('Categories FIXED:', data);
+
+      setCategories(data.categories || []);
     } catch (err) {
-      console.error('Failed to load categories');
+      console.error('Category error:', err);
     }
   };
 
