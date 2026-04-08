@@ -1,29 +1,16 @@
 import { connectDB } from "@/lib/mongodb";
-import mongoose from "mongoose";
 
 export async function GET() {
   try {
-    console.log("🔥 API HIT");
+    const connection = await connectDB();
+    const db = connection.connection.db;
 
-    await connectDB();
-    console.log("✅ DB CONNECTED");
-
-    const products = await mongoose.connection.db
+    const products = await db
       .collection("products")
       .find({})
       .toArray();
 
-    console.log("📦 PRODUCTS:", products.length);
-
-    return Response.json(
-      { success: true, products },
-      {
-        status: 200,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-        },
-      }
-    );
+    return Response.json({ success: true, products });
   } catch (error) {
     console.error("❌ ERROR:", error);
 
@@ -32,15 +19,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
-
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }
