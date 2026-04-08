@@ -221,20 +221,34 @@ export default function Home() {
         const categoriesData = await categoriesRes.json();
         const productsData = await productsRes.json();
 
-        if (!Array.isArray(categoriesData) || !Array.isArray(productsData)) {
+        const categories = Array.isArray(categoriesData)
+          ? categoriesData
+          : Array.isArray(categoriesData?.categories)
+            ? categoriesData.categories
+            : [];
+        const products = Array.isArray(productsData)
+          ? productsData
+          : Array.isArray(productsData?.products)
+            ? productsData.products
+            : [];
+
+        console.log('Home categories API response:', categoriesData);
+        console.log('Home products API response:', productsData);
+
+        if (!categories.length || !products.length) {
           setTopCategories([]);
           return;
         }
 
         const counts = new Map<string, number>();
-        for (const product of productsData) {
+        for (const product of products) {
           if (typeof product?.category === 'string') {
             const key = product.category.trim().toLowerCase();
             counts.set(key, (counts.get(key) || 0) + 1);
           }
         }
 
-        const normalized = categoriesData
+        const normalized: HomeCategory[] = categories
           .map((cat: any) => {
             const name = typeof cat?.name === 'string' ? cat.name.trim() : '';
             return {
@@ -243,10 +257,10 @@ export default function Home() {
               productCount: counts.get(name.toLowerCase()) || 0,
             };
           })
-          .filter((cat) => cat.name);
+          .filter((cat: HomeCategory) => !!cat.name);
 
-        const withProducts = normalized.filter((cat) => cat.productCount > 0);
-        const withoutProducts = normalized.filter((cat) => cat.productCount === 0);
+        const withProducts = normalized.filter((cat: HomeCategory) => cat.productCount > 0);
+        const withoutProducts = normalized.filter((cat: HomeCategory) => cat.productCount === 0);
         const selected = [...withProducts, ...withoutProducts].slice(0, 6);
 
         setTopCategories(selected);

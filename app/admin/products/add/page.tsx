@@ -84,7 +84,15 @@ export default function AddProductPage() {
       const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch categories');
       const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
+
+      const nextCategories = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.categories)
+          ? data.categories
+          : [];
+
+      console.log('Admin add categories API response:', data);
+      setCategories(nextCategories);
     } catch (error) {
       console.error('Error loading categories:', error);
       setCategories([]);

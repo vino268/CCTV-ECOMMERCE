@@ -96,7 +96,15 @@ export default function AdminProductsPage() {
       const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch categories');
       const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
+
+      const nextCategories = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.categories)
+          ? data.categories
+          : [];
+
+      console.log('Admin categories API response:', data);
+      setCategories(nextCategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
       setCategories([]);

@@ -28,9 +28,11 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState('featured');
   const [page, setPage] = useState(1);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   const fetchProducts = async () => {
     setIsInitialLoading(true);
+    setProductsError(null);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tnautomation.in';
@@ -43,15 +45,24 @@ export default function ProductsPage() {
       }
 
       const data = await res.json();
+      console.log('Products API response:', data);
 
-      if (data.success) {
-        setProducts(data.products || []);
+      if (data?.success && Array.isArray(data?.products)) {
+        setProducts(data.products);
+        console.log('Products loaded:', data.products.length);
+      } else if (Array.isArray(data)) {
+        // Fallback for endpoints that return an array directly.
+        setProducts(data);
+        console.log('Products loaded from array response:', data.length);
       } else {
+        console.error('Unexpected products API format:', data);
         setProducts([]);
+        setProductsError('Unexpected API response format');
       }
     } catch (err) {
       console.error('Product fetch error:', err);
       setProducts([]);
+      setProductsError(err instanceof Error ? err.message : 'Failed to fetch products');
     } finally {
       setIsInitialLoading(false);
     }
@@ -60,6 +71,10 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    console.log('Products state updated:', products.length);
+  }, [products]);
 
   useEffect(() => {
     fetchCategories();
@@ -86,15 +101,20 @@ export default function ProductsPage() {
       }
 
       const data = await res.json();
+      console.log('Categories API response:', data);
 
-      if (data.success) {
-        setCategories(data.categories || []);
+      if (data?.success && Array.isArray(data?.categories)) {
+        setCategories(data.categories);
+        console.log('Categories loaded:', data.categories.length);
+      } else if (Array.isArray(data)) {
+        setCategories(data);
+        console.log('Categories loaded from array response:', data.length);
       } else {
-        console.error("Category API failed:", data);
+        console.error('Unexpected categories API format:', data);
         setCategories([]);
       }
     } catch (err) {
-      console.error("Category fetch error:", err);
+      console.error('Category fetch error:', err);
       setCategories([]);
     }
   };
@@ -111,11 +131,37 @@ export default function ProductsPage() {
   }, [searchParams]);
 
   // Filter + Sort
-  const filteredProducts = products;
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
 
-  const visibleProducts = filteredProducts;
+    const next = products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === 'All Categories' || product.category === selectedCategory;
 
-  const hasMore = false;
+      const matchesSearch =
+        !normalizedSearch ||
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        product.category.toLowerCase().includes(normalizedSearch);
+
+      return matchesCategory && matchesSearch;
+    });
+
+    if (sortBy === 'price-low') {
+      return [...next].sort((a, b) => a.price - b.price);
+    }
+
+    if (sortBy === 'price-high') {
+      return [...next].sort((a, b) => b.price - a.price);
+    }
+
+    return next;
+  }, [products, selectedCategory, searchTerm, sortBy]);
+
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, page * PAGE_SIZE);
+  }, [filteredProducts, page]);
+
+  const hasMore = visibleProducts.length < filteredProducts.length;
 
   useEffect(() => {
     setPage(1);
@@ -141,7 +187,7 @@ export default function ProductsPage() {
     return Tag;
   };
 
-  const showEmptyState = !isInitialLoading && filteredProducts.length === 0;
+  const showEmptyState = !isInitialLoading && !productsError && filteredProducts.length === 0;
 
   return (
     <div className="bg-gray-50">
@@ -268,9 +314,9 @@ export default function ProductsPage() {
             </div>
 
             {/* Grid */}
-            {!showEmptyState && (
+            {!showEmptyState && !productsError && (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 md:gap-5">
-                {filteredProducts.map((product: Product) => (
+                {visibleProducts.map((product: Product) => (
                   <div key={product._id} className="animate-[fadeIn_320ms_ease]">
                     <ProductCard product={product} />
                   </div>
@@ -290,6 +336,12 @@ export default function ProductsPage() {
                   ))}
               </div>
             )}
+
+              {productsError && !isInitialLoading && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  Failed to load products: {productsError}
+                </div>
+              )}
 
             {showEmptyState && (
               <div className="text-center py-12">
