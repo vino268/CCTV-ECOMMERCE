@@ -10,7 +10,13 @@ export async function GET(req) {
       return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("Auth me API error", new Error("JWT_SECRET is not configured"));
+      return NextResponse.json({ authenticated: false, message: "Server misconfiguration" }, { status: 500 });
+    }
+
+    const secret = new TextEncoder().encode(jwtSecret);
     const { payload } = await jwtVerify(token, secret);
     const email = String(payload.email || "").toLowerCase();
 
@@ -63,7 +69,8 @@ export async function GET(req) {
       authenticated: true,
       user: userPayload,
     });
-  } catch {
+  } catch (error) {
+    console.error("Auth me API error", error);
     return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
   }
 }
