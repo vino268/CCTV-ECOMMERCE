@@ -4,6 +4,20 @@ import SiteSettings from "@/models/SiteSettings";
 import AdminLog from "@/models/AdminLog";
 import { jwtVerify } from "jose";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+function jsonWithCors(body, init = {}) {
+  const response = NextResponse.json(body, init);
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  return response;
+}
+
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -49,9 +63,9 @@ export async function GET() {
     if (!settings) {
       settings = await SiteSettings.create({});
     }
-    return NextResponse.json(settings);
+    return jsonWithCors(settings);
   } catch (error) {
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Failed to fetch settings" },
       { status: 500 }
     );
@@ -63,7 +77,7 @@ export async function POST(req) {
   try {
     const auth = await verifyAdmin(req);
     if (!auth.ok) {
-      return NextResponse.json({ error: auth.message }, { status: auth.status });
+      return jsonWithCors({ error: auth.message }, { status: auth.status });
     }
 
     await connectDB();
@@ -80,14 +94,14 @@ export async function POST(req) {
     };
 
     if (contactEmail && !isValidEmail(contactEmail)) {
-      return NextResponse.json(
+      return jsonWithCors(
         { error: "Please provide a valid email address" },
         { status: 400 }
       );
     }
 
     if (contactPhone && !/^\d+$/.test(contactPhone)) {
-      return NextResponse.json(
+      return jsonWithCors(
         { error: "Phone number must be numeric" },
         { status: 400 }
       );
@@ -95,7 +109,7 @@ export async function POST(req) {
 
     for (const [key, value] of Object.entries(social)) {
       if (!isValidHttpsUrl(value)) {
-        return NextResponse.json(
+        return jsonWithCors(
           { error: `${key} link must start with https://` },
           { status: 400 }
         );
@@ -126,11 +140,18 @@ export async function POST(req) {
       details: "Site settings updated",
     });
 
-    return NextResponse.json(settings);
+    return jsonWithCors(settings);
   } catch (error) {
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Failed to update settings" },
       { status: 500 }
     );
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: CORS_HEADERS,
+  });
 }
