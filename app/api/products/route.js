@@ -2,46 +2,45 @@ import { connectDB } from "@/lib/mongodb";
 import mongoose from "mongoose";
 
 export async function GET() {
-try {
-await connectDB();
+  try {
+    console.log("🔥 API HIT");
 
-const products = await mongoose.connection.collection("products").find({}).toArray();
+    await connectDB();
+    console.log("✅ DB CONNECTED");
 
-return new Response(JSON.stringify({
-  success: true,
-  products
-}), {
-  status: 200,
-  headers: {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    const products = await mongoose.connection.db
+      .collection("products")
+      .find({})
+      .toArray();
+
+    console.log("📦 PRODUCTS:", products.length);
+
+    return Response.json(
+      { success: true, products },
+      {
+        status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  } catch (error) {
+    console.error("❌ ERROR:", error);
+
+    return Response.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
-});
-
-} catch (error) {
-console.error("Products API error", error);
-return new Response(JSON.stringify({
-success: false,
-error: error instanceof Error ? error.message : "Unknown error"
-}), {
-status: 500,
-headers: {
-"Access-Control-Allow-Origin": "*",
-"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-"Access-Control-Allow-Headers": "Content-Type, Authorization"
-}
-});
-}
 }
 
 export async function OPTIONS() {
-return new Response(null, {
-status: 200,
-headers: {
-"Access-Control-Allow-Origin": "*",
-"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-"Access-Control-Allow-Headers": "Content-Type, Authorization"
-}
-});
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }
