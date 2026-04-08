@@ -18,11 +18,13 @@ export async function GET() {
 
     return Response.json({ success: true, products });
   } catch (error) {
-    console.error("❌ ERROR:", error);
+  console.error("❌ FULL ERROR:", error);
+  console.error("❌ MESSAGE:", error.message);
+  console.error("❌ STACK:", error.stack);
 
-    return Response.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
+  return Response.json(
+    { success: false, error: error.message },
+    { status: 500 }
+  );
+}
 }
