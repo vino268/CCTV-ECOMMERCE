@@ -1,9 +1,15 @@
 import { connectDB } from "@/lib/mongodb";
+import mongoose from "mongoose";
 
 export async function GET() {
   try {
-    const connection = await connectDB();
-    const db = connection.connection.db;
+    await connectDB();
+
+    const db = mongoose.connection.db; // ✅ CHANGE HERE
+
+    if (!db) {
+      throw new Error("DB not connected");
+    }
 
     const products = await db
       .collection("products")
