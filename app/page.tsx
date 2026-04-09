@@ -32,7 +32,7 @@ import {
   Tag,
 } from 'lucide-react';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type HomeProductCardProps = {
   product: Product & { isInCart: boolean };
@@ -104,7 +104,9 @@ export default function Home() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
   const [topCategories, setTopCategories] = useState<HomeCategory[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   const featureStrip = [
     {
@@ -197,10 +199,27 @@ export default function Home() {
   useEffect(() => {
     const loadRecentProducts = () => {
       setProductsLoading(true);
-      fetch(`${BASE_URL}/api/products/recent`, { cache: 'no-store' })
+      setProductsError(null);
+      fetch(`${BASE_URL}/api/products/latest`, { cache: 'no-store' })
         .then((res) => res.json())
-        .then((data) => setProducts(Array.isArray(data) ? data : []))
-        .catch((err) => setProducts([]));
+        .then((data) => {
+          const nextProducts = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.products)
+              ? data.products
+              : Array.isArray(data?.data)
+                ? data.data
+                : [];
+          setProducts(nextProducts);
+          if (nextProducts.length === 0) {
+            setProductsError('No recent products available');
+          }
+        })
+        .catch((err) => {
+          console.error('Home products API error:', err);
+          setProducts([]);
+          setProductsError('Products are temporarily unavailable');
+        });
       setTimeout(() => setProductsLoading(false), 250);
     };
 
@@ -213,6 +232,7 @@ export default function Home() {
   useEffect(() => {
     const loadTopCategories = async () => {
       try {
+        setCategoriesError(null);
         const [categoriesRes, productsRes] = await Promise.all([
           fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' }),
           fetch(`${BASE_URL}/api/products`, { cache: 'no-store' }),
@@ -237,6 +257,7 @@ export default function Home() {
 
         if (!categories.length || !products.length) {
           setTopCategories([]);
+          setCategoriesError('Categories are temporarily unavailable');
           return;
         }
 
@@ -266,6 +287,7 @@ export default function Home() {
         setTopCategories(selected);
       } catch {
         setTopCategories([]);
+        setCategoriesError('Categories are temporarily unavailable');
       }
     };
 
@@ -332,12 +354,10 @@ export default function Home() {
     const productId = product._id ?? '';
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now`, {
+      const res = await fetch(`${BASE_URL}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           productId,
@@ -447,7 +467,11 @@ export default function Home() {
             </div>
 
             <div className="category-grid">
-              {topCategories.map((category) => {
+              {categoriesError ? (
+                <div className="col-span-full rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">
+                  {categoriesError}
+                </div>
+              ) : topCategories.map((category) => {
                 const meta = getCategoryMeta(category.name);
                 const Icon = meta.icon;
 
@@ -508,7 +532,7 @@ export default function Home() {
             </div>
           ) : featuredProducts.length === 0 ? (
             <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-              No recent products available
+              {productsError || 'No recent products available'}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">

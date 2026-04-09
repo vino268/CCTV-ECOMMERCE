@@ -63,6 +63,8 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+}, {
+  collection: "users",
 });
 
 export default mongoose.model("User", UserSchema);

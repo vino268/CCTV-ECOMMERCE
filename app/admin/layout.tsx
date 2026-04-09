@@ -32,6 +32,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
   const [authChecked, setAuthChecked] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -48,20 +49,12 @@ export default function AdminLayout({
       return;
     }
 
-    try {
-      const role = localStorage.getItem('role');
-      if (role !== 'admin') {
-        router.replace('/admin/login?error=unauthorized');
-        return;
-      }
-    } catch {
-      router.replace('/admin/login?error=unauthorized');
-      return;
-    }
-
     const verifyAdminSession = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/api/admin/profile`, {
+          cache: 'no-store',
+          credentials: 'include',
+        });
         if (!res.ok) {
           if (res.status === 403) {
             router.replace('/admin/login?error=unauthorized');
@@ -81,7 +74,10 @@ export default function AdminLayout({
   }, [isPublicPage, router]);
 
   const handleLogout = async () => {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, { method: 'POST' });
+    await fetch(`${API_BASE}/api/admin/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
     router.replace('/admin/login');
   };
 

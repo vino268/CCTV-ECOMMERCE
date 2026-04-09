@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccountMenu } from '@/components/account-menu';
 
 export function Navbar() {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
   const { getCartCount } = useCart();
   const { getWishlistCount } = useWishlist();
   const router = useRouter();
@@ -32,39 +33,29 @@ export function Navbar() {
   ];
 
   useEffect(() => {
-    if (pathname !== '/products') return;
     const q = searchParams.get('search') || '';
     setSearchQuery(q);
-  }, [pathname, searchParams]);
-
-  useEffect(() => {
-    if (pathname !== '/products') return;
-    if (!searchOpen && !mobileMenuOpen) return;
-
-    const timer = setTimeout(() => {
-      const trimmed = searchQuery.trim();
-      if (!trimmed) {
-        router.replace('/products');
-        return;
-      }
-      router.replace(`/products?search=${encodeURIComponent(trimmed)}`);
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, pathname, searchOpen, mobileMenuOpen, router]);
+  }, [searchParams]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = searchQuery.trim();
     if (!trimmed) {
-      if (pathname === '/products') {
-        router.push('/products');
-      }
+      router.push('/products');
       return;
     }
     router.push(`/products?search=${encodeURIComponent(trimmed)}`);
-    setSearchOpen(false);
-    setMobileMenuOpen(false);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      router.push('/products');
+      return;
+    }
+    router.push(`/products?search=${encodeURIComponent(trimmed)}`);
   };
 
   const handleLogoSecretClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -88,14 +79,7 @@ export function Navbar() {
 
       const forceAdminLogin = async () => {
         try {
-          localStorage.removeItem('adminToken');
-          localStorage.removeItem('adminUser');
-        } catch {
-          // Ignore localStorage access issues in restricted environments.
-        }
-
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, {
+          await fetch(`${API_BASE}/api/admin/logout`, {
             method: 'POST',
             credentials: 'include',
           });
@@ -164,6 +148,7 @@ export function Navbar() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
                     placeholder="Search products..."
                     autoFocus
                     className="w-40 lg:w-48 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -178,10 +163,6 @@ export function Navbar() {
                     type="button"
                     onClick={() => {
                       setSearchOpen(false);
-                      setSearchQuery('');
-                      if (pathname === '/products') {
-                        router.replace('/products');
-                      }
                     }}
                     className="p-2 hover:bg-muted rounded-lg transition-colors"
                   >
@@ -260,6 +241,7 @@ export function Navbar() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                   placeholder="Search products..."
                   className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />

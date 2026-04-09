@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductCard } from '@/components/product-card';
 import { Product } from '@/lib/types';
@@ -14,9 +14,10 @@ import {
 } from '@/components/ui/select';
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 10;
 
 export default function ProductsPage() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = (searchParams.get('search') || '').trim();
@@ -27,54 +28,114 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState('featured');
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const fetchedPagesRef = useRef<Set<string>>(new Set());
+
+  const fetchApi = async (path: string) => {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, { cache: 'no-store' });
+      return res.ok ? res : null;
+    } catch {
+      return null;
+    }
+  };
 
   const fetchProducts = async () => {
-    setIsInitialLoading(true);
+    const requestKey = `${searchTerm}|${page}`;
+    if (fetchedPagesRef.current.has(requestKey)) return;
+
+    if (page === 1) {
+      setIsInitialLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+
     setProductsError(null);
+    console.log('Fetching products from API...');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tnautomation.in';
-      const res = await fetch(`${apiUrl}/api/products`, {
-        cache: 'no-store',
-      });
+      const encodedSearch = encodeURIComponent(searchTerm);
+      const res = await fetchApi(`/api/products?page=${page}&limit=${PAGE_SIZE}&search=${encodedSearch}`);
 
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+      if (!res) {
+        if (page === 1) {
+          setProducts([]);
+          setProductsError('Products are temporarily unavailable');
+        }
+        setHasMore(false);
+        console.log('Products API returned no response or non-OK status');
+        return;
       }
 
       const data = await res.json();
       console.log('Products API response:', data);
 
       if (data?.success && Array.isArray(data?.products)) {
-        setProducts(data.products);
-        console.log('Products loaded:', data.products.length);
-      } else if (Array.isArray(data)) {
-        // Fallback for endpoints that return an array directly.
-        setProducts(data);
-        console.log('Products loaded from array response:', data.length);
+        const nextProducts = data.products;
+
+        if (nextProducts.length === 0) {
+          setHasMore(false);
+          fetchedPagesRef.current.add(requestKey);
+          return;
+        }
+
+        setProducts((prev) => {
+          const existingIds = new Set(prev.map((product) => String(product._id)));
+          const uniqueNextProducts = nextProducts.filter(
+            (product: Product) => !existingIds.has(String(product._id))
+          );
+          return [...prev, ...uniqueNextProducts];
+        });
+
+        fetchedPagesRef.current.add(requestKey);
+
+        const apiTotalPages = Number(data?.totalPages);
+        if (Number.isFinite(apiTotalPages) && apiTotalPages > 0) {
+          setHasMore(page < apiTotalPages);
+        } else {
+          setHasMore(nextProducts.length === PAGE_SIZE);
+        }
+
+        console.log(`Loaded ${nextProducts.length} products for page ${page}`);
+        console.log('products page:', page);
       } else {
-        console.error('Unexpected products API format:', data);
-        setProducts([]);
-        setProductsError('Unexpected API response format');
+        if (page === 1) {
+          setProducts([]);
+          setProductsError('Products are temporarily unavailable');
+        }
+        setHasMore(false);
+        console.log('Products API response format invalid');
       }
-    } catch (err) {
-      console.error('Product fetch error:', err);
-      setProducts([]);
-      setProductsError(err instanceof Error ? err.message : 'Failed to fetch products');
+    } catch {
+      if (page === 1) {
+        setProducts([]);
+        setProductsError('Products are temporarily unavailable');
+      }
+      setHasMore(false);
+      console.log('Products API request failed');
     } finally {
-      setIsInitialLoading(false);
+      if (page === 1) {
+        setIsInitialLoading(false);
+      } else {
+        setIsLoadingMore(false);
+      }
     }
   };
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [page, searchTerm]);
 
   useEffect(() => {
-    console.log('Products state updated:', products.length);
-  }, [products]);
+    fetchedPagesRef.current.clear();
+    setProducts([]);
+    setHasMore(true);
+    setProductsError(null);
+    setPage(1);
+  }, [searchTerm]);
 
   useEffect(() => {
     fetchCategories();
@@ -85,19 +146,17 @@ export default function ProductsPage() {
   }, []);
 
   const handleLoadMore = () => {
-    if (isInitialLoading || !hasMore) return;
+    if (isInitialLoading || isLoadingMore || !hasMore) return;
     setPage((prev) => prev + 1);
   };
 
   const fetchCategories = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tnautomation.in';
-      const res = await fetch(`${apiUrl}/api/categories`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(`${baseUrl}/api/categories`, { cache: 'no-store' });
 
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        setCategories([]);
+        return;
       }
 
       const data = await res.json();
@@ -105,16 +164,12 @@ export default function ProductsPage() {
 
       if (data?.success && Array.isArray(data?.categories)) {
         setCategories(data.categories);
-        console.log('Categories loaded:', data.categories.length);
       } else if (Array.isArray(data)) {
         setCategories(data);
-        console.log('Categories loaded from array response:', data.length);
       } else {
-        console.error('Unexpected categories API format:', data);
         setCategories([]);
       }
-    } catch (err) {
-      console.error('Category fetch error:', err);
+    } catch {
       setCategories([]);
     }
   };
@@ -132,18 +187,11 @@ export default function ProductsPage() {
 
   // Filter + Sort
   const filteredProducts = useMemo(() => {
-    const normalizedSearch = searchTerm.toLowerCase();
-
     const next = products.filter((product) => {
       const matchesCategory =
         selectedCategory === 'All Categories' || product.category === selectedCategory;
 
-      const matchesSearch =
-        !normalizedSearch ||
-        product.name.toLowerCase().includes(normalizedSearch) ||
-        product.category.toLowerCase().includes(normalizedSearch);
-
-      return matchesCategory && matchesSearch;
+      return matchesCategory;
     });
 
     if (sortBy === 'price-low') {
@@ -155,17 +203,9 @@ export default function ProductsPage() {
     }
 
     return next;
-  }, [products, selectedCategory, searchTerm, sortBy]);
+  }, [products, selectedCategory, sortBy]);
 
-  const visibleProducts = useMemo(() => {
-    return filteredProducts.slice(0, page * PAGE_SIZE);
-  }, [filteredProducts, page]);
-
-  const hasMore = visibleProducts.length < filteredProducts.length;
-
-  useEffect(() => {
-    setPage(1);
-  }, [selectedCategory, sortBy, searchTerm]);
+  const visibleProducts = filteredProducts;
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -238,7 +278,7 @@ export default function ProductsPage() {
                   </button>
 
                   {categories.map((catObj: any) => {
-                    const cat = typeof catObj === 'string' ? catObj : catObj._id;
+                    const cat = typeof catObj === 'string' ? catObj : (catObj.name || catObj._id);
                     if (cat === 'All Categories') return null;
                     const Icon = getCategoryIcon(cat);
                     const count = typeof catObj === 'string' ? (categoryCounts.get(cat) || 0) : catObj.count;
@@ -367,10 +407,10 @@ export default function ProductsPage() {
                   <button
                     type="button"
                     onClick={handleLoadMore}
-                    disabled={isInitialLoading}
+                    disabled={isInitialLoading || isLoadingMore}
                     className="inline-flex min-w-[160px] items-center justify-center rounded-lg bg-[#2563eb] px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Load More
+                    {isLoadingMore ? 'Loading...' : 'Load More'}
                   </button>
                 ) : (
                   !isInitialLoading && products.length > 0 && (

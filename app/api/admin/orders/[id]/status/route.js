@@ -5,10 +5,11 @@ import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
 
 const ALLOWED_TRANSITIONS = {
-  Ordered: ["Confirmed", "Cancelled"],
-  Confirmed: ["Shipped", "Cancelled"],
-  Shipped: ["OutForDelivery"],
-  OutForDelivery: ["Delivered"],
+  Pending: ["Ordered", "Cancelled"],
+  Ordered: ["Packed", "Cancelled"],
+  Packed: ["Shipped", "Cancelled"],
+  Shipped: ["Out for Delivery"],
+  "Out for Delivery": ["Delivered"],
   Delivered: [],
   Cancelled: [],
 };
@@ -54,7 +55,7 @@ export async function PATCH(req, { params }) {
     // Set timestamp for the new status
     const now = new Date();
     switch (status) {
-      case "Confirmed":
+      case "Packed":
         order.confirmedAt = now;
         break;
       case "Shipped":
@@ -62,7 +63,7 @@ export async function PATCH(req, { params }) {
         if (trackingNumber) order.trackingNumber = trackingNumber;
         if (estimatedDelivery) order.estimatedDelivery = new Date(estimatedDelivery);
         break;
-      case "OutForDelivery":
+      case "Out for Delivery":
         order.outForDeliveryAt = now;
         break;
       case "Delivered":
@@ -84,9 +85,9 @@ export async function PATCH(req, { params }) {
 
     // Create notification
     const notifMessages = {
-      Confirmed: `Order ${order.orderNumber} has been confirmed`,
+      Packed: `Order ${order.orderNumber} has been packed`,
       Shipped: `Order ${order.orderNumber} has been shipped`,
-      OutForDelivery: `Order ${order.orderNumber} is out for delivery`,
+      "Out for Delivery": `Order ${order.orderNumber} is out for delivery`,
       Delivered: `Order ${order.orderNumber} has been delivered`,
       Cancelled: `Order ${order.orderNumber} has been cancelled`,
     };

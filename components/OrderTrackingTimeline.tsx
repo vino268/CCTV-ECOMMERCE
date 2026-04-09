@@ -14,17 +14,18 @@ interface OrderTrackingTimelineProps {
 
 const STEPS = [
   { key: 'Ordered', label: 'Ordered', icon: Package },
-  { key: 'Confirmed', label: 'Confirmed', icon: CheckCircle2 },
+  { key: 'Packed', label: 'Packed', icon: CheckCircle2 },
   { key: 'Shipped', label: 'Shipped', icon: Truck },
-  { key: 'OutForDelivery', label: 'Out for Delivery', icon: MapPin },
+  { key: 'Out for Delivery', label: 'Out for Delivery', icon: MapPin },
   { key: 'Delivered', label: 'Delivered', icon: CircleDot },
 ];
 
 const STATUS_INDEX: Record<string, number> = {
+  Pending: 0,
   Ordered: 0,
-  Confirmed: 1,
+  Packed: 1,
   Shipped: 2,
-  OutForDelivery: 3,
+  'Out for Delivery': 3,
   Delivered: 4,
 };
 
@@ -53,9 +54,9 @@ export function OrderTrackingTimeline({
 
   const timestamps: Record<string, string | undefined> = {
     Ordered: createdAt,
-    Confirmed: confirmedAt,
+    Packed: confirmedAt,
     Shipped: shippedAt,
-    OutForDelivery: outForDeliveryAt,
+    'Out for Delivery': outForDeliveryAt,
     Delivered: deliveredAt,
   };
 

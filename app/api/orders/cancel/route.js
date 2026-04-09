@@ -24,10 +24,10 @@ export async function PATCH(req) {
       );
     }
 
-    const cancellableStatuses = ["Ordered", "Confirmed"];
+    const cancellableStatuses = ["Pending", "Ordered", "Packed", "Confirmed"];
     if (!cancellableStatuses.includes(order.orderStatus)) {
       // If shipped or beyond, user must request cancellation via support
-      if (["Shipped", "OutForDelivery", "Delivered"].includes(order.orderStatus)) {
+      if (["Shipped", "OutForDelivery", "Out for Delivery", "Delivered"].includes(order.orderStatus)) {
         return NextResponse.json(
           { success: false, message: "Order already shipped. Contact support for cancellation." },
           { status: 400 }

@@ -11,19 +11,13 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 export function AdminAccessTriggers() {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
   const router = useRouter();
   const pathname = usePathname();
 
   const forceAdminLogin = async () => {
     try {
-      localStorage.removeItem('adminToken');
-      localStorage.removeItem('adminUser');
-    } catch {
-      // Ignore localStorage access issues in restricted environments.
-    }
-
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, {
+      await fetch(`${API_BASE}/api/admin/logout`, {
         method: 'POST',
         credentials: 'include',
       });

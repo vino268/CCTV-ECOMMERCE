@@ -20,6 +20,7 @@ const fallback: Settings = {
 };
 
 export function Footer() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
   const router = useRouter();
   const [s, setS] = useState<Settings>(fallback);
   const [loaded, setLoaded] = useState(false);
@@ -28,14 +29,7 @@ export function Footer() {
     event.preventDefault();
 
     try {
-      localStorage.removeItem('adminToken');
-      localStorage.removeItem('adminUser');
-    } catch {
-      // Ignore localStorage access issues in restricted environments.
-    }
-
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, {
+      await fetch(`${baseUrl}/api/admin/logout`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -47,23 +41,24 @@ export function Footer() {
   };
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`)
+    fetch(`${baseUrl}/api/settings`)
       .then((r) => r.json())
       .then((data) => {
+        const payload = data?.data || data;
         setS({
-          storeName: data.storeName ?? '',
-          description: data.description ?? '',
+          storeName: payload.storeName ?? '',
+          description: payload.description ?? '',
           contact: {
-            phone: data.contact?.phone ?? '',
-            email: data.contact?.email ?? '',
-            address: data.contact?.address ?? '',
+            phone: payload.contact?.phone ?? '',
+            email: payload.contact?.email ?? '',
+            address: payload.contact?.address ?? '',
           },
           social: {
-            facebook: data.social?.facebook ?? '',
-            instagram: data.social?.instagram ?? '',
-            twitter: data.social?.twitter ?? '',
-            linkedin: data.social?.linkedin ?? '',
-            youtube: data.social?.youtube ?? '',
+            facebook: payload.social?.facebook ?? '',
+            instagram: payload.social?.instagram ?? '',
+            twitter: payload.social?.twitter ?? '',
+            linkedin: payload.social?.linkedin ?? '',
+            youtube: payload.social?.youtube ?? '',
           },
         });
         setLoaded(true);

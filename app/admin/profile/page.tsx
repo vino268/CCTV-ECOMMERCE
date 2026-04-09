@@ -20,6 +20,7 @@ import {
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface AdminProfile {
   _id: string;
@@ -36,30 +37,12 @@ function getInitial(name?: string, email?: string) {
 }
 
 function syncAdminStorage(admin: AdminProfile | null) {
-  try {
-    if (admin) {
-      localStorage.setItem('admin', JSON.stringify(admin));
-      localStorage.setItem('adminUser', JSON.stringify(admin));
-    }
-  } catch {
-    // Ignore localStorage errors in restricted environments.
-  }
+  void admin;
   window.dispatchEvent(new Event('admin-profile-change'));
 }
 
 function getAdminAuthHeaders(): HeadersInit {
-  const headers = new Headers();
-
-  if (typeof window === 'undefined') {
-    return headers;
-  }
-
-  const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  return headers;
+  return new Headers();
 }
 
 export default function AdminProfilePage() {
@@ -92,7 +75,7 @@ export default function AdminProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, {
+        const res = await fetch(`${API_BASE}/api/admin/profile`, {
           cache: 'no-store',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
@@ -209,7 +192,7 @@ export default function AdminProfilePage() {
         const formData = new FormData();
         formData.append('file', selectedAvatarFile);
 
-        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload-avatar`, {
+        const uploadRes = await fetch(`${API_BASE}/api/admin/upload-avatar`, {
           method: 'POST',
           body: formData,
           credentials: 'include',
@@ -226,7 +209,7 @@ export default function AdminProfilePage() {
 
         nextProfileImage = String(uploadData?.profileImage || uploadData?.admin?.profileImage || '');
       } else if (removeAvatarOnSave) {
-        const removeRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/upload-avatar`, {
+        const removeRes = await fetch(`${API_BASE}/api/admin/upload-avatar`, {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
@@ -243,7 +226,7 @@ export default function AdminProfilePage() {
         nextProfileImage = '';
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, {
+      const res = await fetch(`${API_BASE}/api/admin/profile`, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {
@@ -294,7 +277,7 @@ export default function AdminProfilePage() {
 
     setSavingPassword(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/password`, {
+      const res = await fetch(`${API_BASE}/api/admin/password`, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {

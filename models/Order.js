@@ -52,12 +52,12 @@ const OrderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["Ordered", "Confirmed", "Shipped", "OutForDelivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   trackingStatus: {
     type: String,
-    enum: ["Ordered", "Confirmed", "Shipped", "OutForDelivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   status: {

@@ -23,6 +23,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -30,13 +31,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, { cache: 'no-store' });
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        cache: 'no-store',
+        credentials: 'include',
+      });
       if (!res.ok) {
         setUser(null);
         try {
           localStorage.removeItem('token');
         } catch {
-          // Ignore localStorage errors in restricted environments.
+          // Ignore storage errors.
         }
         window.dispatchEvent(new Event('user-auth-change'));
         return null;
@@ -45,24 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       const nextUser = data?.user || null;
       setUser(nextUser);
-      try {
-        if (nextUser) {
-          localStorage.setItem('user', JSON.stringify(nextUser));
-        } else {
-          localStorage.removeItem('user');
-        }
-      } catch {
-        // Ignore localStorage errors in restricted environments.
-      }
       window.dispatchEvent(new Event('user-auth-change'));
       return nextUser;
     } catch {
       setUser(null);
       try {
-        localStorage.removeItem('user');
         localStorage.removeItem('token');
       } catch {
-        // Ignore localStorage errors in restricted environments.
+        // Ignore storage errors.
       }
       window.dispatchEvent(new Event('user-auth-change'));
       return null;
@@ -71,34 +65,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, { method: 'POST' });
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch {
       // Ignore network errors; local auth state must still be cleared.
     }
 
     setUser(null);
     try {
-      localStorage.removeItem('user');
       localStorage.removeItem('token');
     } catch {
-      // Ignore localStorage errors in restricted environments.
+      // Ignore storage errors.
     }
     window.dispatchEvent(new Event('user-auth-change'));
   }, []);
 
   const updateUser = useCallback((updates: Partial<AuthUser> | null) => {
     setUser((prev) => {
-      const nextUser = prev ? { ...prev, ...(updates || {}) } : prev;
-
-      try {
-        if (nextUser) {
-          localStorage.setItem('user', JSON.stringify(nextUser));
-        }
-      } catch {
-        // Ignore localStorage errors in restricted environments.
-      }
-
-      return nextUser;
+      return prev ? { ...prev, ...(updates || {}) } : prev;
     });
 
     window.dispatchEvent(new Event('user-auth-change'));

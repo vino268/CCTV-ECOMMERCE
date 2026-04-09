@@ -7,6 +7,7 @@ import { Shield, Eye, EyeOff } from 'lucide-react';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -25,7 +26,10 @@ export default function AdminLoginPage() {
 
     const checkSession = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/api/admin/profile`, {
+          cache: 'no-store',
+          credentials: 'include',
+        });
         if (res.ok) {
           router.replace('/admin/dashboard');
         }
@@ -43,10 +47,11 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/login`, {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -56,26 +61,10 @@ export default function AdminLoginPage() {
         return;
       }
 
-      try {
-        if (data?.token) {
-          localStorage.setItem('adminToken', data.token);
-          localStorage.setItem('token', data.token);
-        }
-        const role = String(data?.role || data?.admin?.role || '').toLowerCase();
-        if (role) {
-          localStorage.setItem('role', role);
-        }
-        if (data?.admin) {
-          localStorage.setItem('admin', JSON.stringify(data.admin));
-          localStorage.setItem('adminUser', JSON.stringify(data.admin));
-        }
-
-        if (role === 'admin') {
-          router.push('/admin/dashboard');
-          return;
-        }
-      } catch {
-        // Ignore localStorage issues and continue with cookie-based auth.
+      const role = String(data?.role || data?.admin?.role || '').toLowerCase();
+      if (role === 'admin') {
+        router.push('/admin/dashboard');
+        return;
       }
 
       router.push('/');

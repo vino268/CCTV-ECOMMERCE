@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/lib/contexts/auth-context';
 
 type AuthMode = 'signin' | 'signup';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all';
@@ -76,41 +77,41 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: signinForm.email,
           password: signinForm.password,
         }),
+        credentials: 'include',
       });
 
-      const data = await res.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!res.ok) {
+      if (!response.ok) {
         const serverMessage = data.error || data.message || 'Login failed';
         if (String(serverMessage).toLowerCase().includes('admins must login from admin panel')) {
           setError('⚠️ Admin accounts are not allowed here. Please use Admin Login.');
           return;
         }
+        throw new Error(serverMessage || 'Login failed');
+      }
 
-        setError(serverMessage);
-        return;
+      if (!data?.token) {
+        throw new Error('Login failed');
       }
 
       try {
-        localStorage.setItem('user', JSON.stringify(data));
-        if (data?.token) {
-          localStorage.setItem('token', data.token);
-        }
+        localStorage.setItem('token', data.token);
       } catch {
-        // Ignore localStorage errors in restricted environments.
+        // Continue even if storage is unavailable.
       }
 
       await refreshUser();
       handleRedirectAfterAuth();
-    } catch {
-      setError('Unable to login. Please try again.');
+    } catch (error: any) {
+      setError(error?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -134,7 +135,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const signupRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
+      const signupRes = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -144,38 +145,43 @@ export default function LoginPage() {
           dob: signupForm.dob || null,
           phone: signupForm.phone,
         }),
+        credentials: 'include',
       });
 
-      const signupData = await signupRes.json();
+      const signupData = await signupRes.json().catch(() => ({}));
       if (!signupRes.ok) {
         setError(signupData.error || 'Signup failed');
         return;
       }
 
       // Login immediately after signup to ensure auth cookie is set.
-      const loginRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: signupForm.email,
           password: signupForm.password,
         }),
+        credentials: 'include',
       });
 
-      const loginData = await loginRes.json();
+      const loginData = await loginRes.json().catch(() => ({}));
       if (!loginRes.ok) {
         setError(loginData.error || 'Account created but login failed. Please sign in.');
         setMode('signin');
         return;
       }
 
+      if (!loginData?.token) {
+        setError('Account created but login failed. Please sign in.');
+        setMode('signin');
+        return;
+      }
+
       try {
-        localStorage.setItem('user', JSON.stringify(loginData));
-        if (loginData?.token) {
-          localStorage.setItem('token', loginData.token);
-        }
+        localStorage.setItem('token', loginData.token);
       } catch {
-        // Ignore localStorage errors in restricted environments.
+        // Continue even if storage is unavailable.
       }
 
       await refreshUser();

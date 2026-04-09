@@ -38,10 +38,10 @@ interface OrderCardProps {
   onCancel: (orderId: string, mode: 'cancel' | 'request') => void;
 }
 
-const timelineSteps = ['Order Placed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
+const timelineSteps = ['Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
 const statusBadgeStyles: Record<string, string> = {
-  'Order Placed': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  Ordered: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   Packed: 'bg-blue-100 text-blue-800 border-blue-200',
   Shipped: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   'Out for Delivery': 'bg-orange-100 text-orange-800 border-orange-200',
@@ -52,8 +52,8 @@ const statusBadgeStyles: Record<string, string> = {
 function normalizeOrderStatus(raw?: string) {
   const value = String(raw || '').trim().toLowerCase();
   const map: Record<string, string> = {
-    ordered: 'Order Placed',
-    pending: 'Order Placed',
+    ordered: 'Ordered',
+    pending: 'Ordered',
     confirmed: 'Packed',
     packed: 'Packed',
     shipped: 'Shipped',
@@ -63,12 +63,12 @@ function normalizeOrderStatus(raw?: string) {
     delivered: 'Delivered',
     cancelled: 'Cancelled',
   };
-  return map[value] || 'Order Placed';
+  return map[value] || 'Ordered';
 }
 
 function getTimelineActiveStep(status: string) {
   switch (status) {
-    case 'Order Placed':
+    case 'Ordered':
       return 0;
     case 'Packed':
       return 1;
@@ -88,7 +88,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const [navigatingAction, setNavigatingAction] = useState<'view' | 'track' | null>(null);
 
   const normalizedStatus = normalizeOrderStatus(order.status || order.trackingStatus || order.orderStatus);
-  const isOrderPlaced = normalizedStatus === 'Order Placed';
+  const isOrderPlaced = normalizedStatus === 'Ordered';
   const isPacked = normalizedStatus === 'Packed';
   const isAfterPacked =
     normalizedStatus === 'Shipped' ||

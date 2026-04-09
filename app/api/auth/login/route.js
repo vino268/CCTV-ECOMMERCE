@@ -1,168 +1,90 @@
-import { NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
-
-const MAX_FAILED_ATTEMPTS = 6;
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const failedLoginAttempts = new Map();
-
-function getClientIp(req) {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
-  return req.headers.get("x-real-ip") || "unknown";
-}
-
-function isRateLimited(ip) {
-  const entry = failedLoginAttempts.get(ip);
-  if (!entry) return false;
-
-  if (Date.now() - entry.firstAttemptAt > RATE_LIMIT_WINDOW_MS) {
-    failedLoginAttempts.delete(ip);
-    return false;
-  }
-
-  return entry.count >= MAX_FAILED_ATTEMPTS;
-}
-
-function recordFailedAttempt(ip) {
-  const now = Date.now();
-  const existing = failedLoginAttempts.get(ip);
-
-  if (!existing || now - existing.firstAttemptAt > RATE_LIMIT_WINDOW_MS) {
-    failedLoginAttempts.set(ip, { count: 1, firstAttemptAt: now });
-    return;
-  }
-
-  existing.count += 1;
-  failedLoginAttempts.set(ip, existing);
-}
-
-function clearFailedAttempts(ip) {
-  failedLoginAttempts.delete(ip);
-}
 
 export async function POST(req) {
   try {
-    await connectDB();
-    const { email, password } = await req.json();
-    const ip = getClientIp(req);
+    const data = await req.json();
+    console.log("Incoming request:", data);
+
+    const email = String(data?.email || "").trim().toLowerCase();
+    const password = String(data?.password || "");
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
+      return Response.json(
+        { success: false, error: "Email and password are required" },
         { status: 400 }
       );
     }
 
-    if (isRateLimited(ip)) {
-      return NextResponse.json(
-        { error: "Too many login attempts. Please try again later." },
-        { status: 429 }
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET is missing in environment variables");
+      return Response.json(
+        { success: false, error: "Server configuration error" },
+        { status: 500 }
       );
     }
 
-    const normalizedEmail = email.toLowerCase();
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
+    await connectDB();
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email, isDeleted: { $ne: true } });
+    console.log("User found:", user ? user.email : null);
+
     if (!user) {
-      recordFailedAttempt(ip);
-      return NextResponse.json(
-        { message: "User not found", error: "User not found" },
-        { status: 400 }
+      return Response.json(
+        { success: false, message: "User not found" },
+        { status: 401 }
       );
     }
 
-    if (String(user.role || "").toLowerCase() === "admin") {
-      return NextResponse.json(
-        {
-          message: "Admins must login from admin panel",
-          error: "Admins must login from admin panel",
-        },
-        { status: 403 }
-      );
-    }
-
-    if (user.isDeleted) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Your account has been deleted",
-          error: "Your account has been deleted",
-        },
-        { status: 403 }
-      );
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      recordFailedAttempt(ip);
-      return NextResponse.json(
-        { error: "Invalid email or password" },
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return Response.json(
+        { success: false, message: "Invalid password" },
         { status: 401 }
       );
     }
 
     if (user.isBlocked) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "User blocked",
-          error: "Your account has been blocked. Please contact support.",
-        },
+      return Response.json(
+        { success: false, error: "Your account has been blocked. Please contact support." },
         { status: 403 }
       );
     }
 
-    const token = await new SignJWT({
-      email: user.email,
-      role: user.role,
-      userId: String(user._id),
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("7d")
-      .sign(secret);
+    const token = jwt.sign(
+      {
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    const userResponse = {
+    const response = Response.json({
+      success: true,
       token,
-      userId: String(user._id),
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      dob: user.dob,
-      address: user.address,
-      avatar: user.avatar || "",
-      profileImage: user.avatar || "",
-      role: user.role,
-      createdAt: user.createdAt,
-    };
-
-    const response = NextResponse.json(userResponse);
-    response.cookies.set("userToken", token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    response.cookies.set("adminToken", "", {
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "",
+        role: user.role,
+      },
     });
 
-    clearFailedAttempts(ip);
+    response.headers.append(
+      "Set-Cookie",
+      `userToken=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
+    );
+
     return response;
   } catch (error) {
-    return NextResponse.json(
-      { error: "Login failed" },
+    console.error("Login API error:", error);
+    return Response.json(
+      { success: false, error: "Login failed" },
       { status: 500 }
     );
   }

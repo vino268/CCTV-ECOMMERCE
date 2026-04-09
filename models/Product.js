@@ -59,4 +59,6 @@ const ProductSchema = new mongoose.Schema({
   collection: "products",
 });
 
+ProductSchema.index({ createdAt: -1 });
+
 export default mongoose.models.Product || mongoose.model("Product", ProductSchema, "products");

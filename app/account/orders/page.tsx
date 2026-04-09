@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,32 @@ export default function AccountOrdersPage() {
   const [cancelModalOrderId, setCancelModalOrderId] = useState('');
   const [cancelMode, setCancelMode] = useState<'cancel' | 'request'>('cancel');
   const { toast, showError, showSuccess } = useToast();
+  const hasFetchedOnceRef = useRef(false);
+  const statusSnapshotRef = useRef<Record<string, string>>({});
 
-  const fetchOrders = async (email: string) => {
-    setLoading(true);
+  const normalizeStatus = (raw?: string) => {
+    const value = String(raw || '').trim().toLowerCase();
+    if (value === 'pending' || value === 'ordered') return 'Ordered';
+    if (value === 'packed' || value === 'confirmed') return 'Packed';
+    if (value === 'shipped') return 'Shipped';
+    if (value === 'outfordelivery' || value === 'out for delivery' || value === 'out_for_delivery') return 'Out for Delivery';
+    if (value === 'delivered') return 'Delivered';
+    if (value === 'cancelled') return 'Cancelled';
+    return 'Ordered';
+  };
+
+  const fetchOrders = async (userId: string, email: string, options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/user?email=${encodeURIComponent(email)}`, {
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      if (email) params.set('email', email);
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders?${params.toString()}`, {
         cache: 'no-store',
       });
       const data = await res.json();
@@ -35,12 +54,37 @@ export default function AccountOrdersPage() {
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to fetch orders');
       }
+      const nextOrders = Array.isArray(data) ? data : [];
 
-      setOrders(Array.isArray(data) ? data : []);
+      const nextSnapshot: Record<string, string> = {};
+      for (const order of nextOrders) {
+        const orderId = String(order?._id || '');
+        if (!orderId) continue;
+        nextSnapshot[orderId] = normalizeStatus(order?.status || order?.trackingStatus || order?.orderStatus);
+      }
+
+      if (hasFetchedOnceRef.current) {
+        for (const order of nextOrders) {
+          const orderId = String(order?._id || '');
+          if (!orderId) continue;
+          const prevStatus = statusSnapshotRef.current[orderId];
+          const nextStatus = nextSnapshot[orderId];
+          if (prevStatus && nextStatus && prevStatus !== nextStatus) {
+            showSuccess(`Order status updated to ${nextStatus}`);
+            break;
+          }
+        }
+      }
+
+      hasFetchedOnceRef.current = true;
+      statusSnapshotRef.current = nextSnapshot;
+      setOrders(nextOrders);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch orders');
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -50,8 +94,17 @@ export default function AccountOrdersPage() {
       router.replace('/login?redirect=/account/orders');
       return;
     }
-    fetchOrders(user.email);
-  }, [router, authLoading, isAuthenticated, user?.email]);
+    const uid = String(user?._id || '');
+    const email = String(user?.email || '');
+
+    fetchOrders(uid, email);
+
+    const intervalId = window.setInterval(() => {
+      fetchOrders(uid, email, { silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [router, authLoading, isAuthenticated, user?._id, user?.email]);
 
   const handleCancelOrder = (orderId: string, mode: 'cancel' | 'request') => {
     setCancelMode(mode);

@@ -45,6 +45,10 @@ export function AccountMenu() {
     setShowLogoutModal(true);
   };
 
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.profileImage, user?.avatar]);
+
   // Not logged in — show Login / Signup buttons
   if (loading) {
     return (
@@ -68,8 +72,8 @@ export function AccountMenu() {
   }
 
   // Logged in — show avatar button + dropdown
-  const userProfileImage = user.profileImage || user.avatar || '';
-  const avatarSrc = userProfileImage || '/default-avatar.svg';
+  const userProfileImage = String(user.profileImage || user.avatar || '').trim();
+  const avatarSrc = userProfileImage;
   const initial = getInitial(user.name, user.email);
 
   return (
@@ -81,15 +85,15 @@ export function AccountMenu() {
         }}
         className="flex items-center gap-2 p-1.5 hover:bg-muted rounded-lg transition-colors"
       >
-        {!avatarError ? (
+        {!!avatarSrc && !avatarError ? (
           <img
             src={avatarSrc}
             alt={user.name}
-            className="w-9 h-9 rounded-full object-cover border"
+            className="w-10 h-10 rounded-full object-cover border"
             onError={() => setAvatarError(true)}
           />
         ) : (
-          <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+          <div className="w-10 h-10 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold uppercase">
             {initial}
           </div>
         )}

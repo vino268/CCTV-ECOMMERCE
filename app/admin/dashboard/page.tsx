@@ -103,10 +103,11 @@ function growthMeta(growth: number) {
 }
 
 const orderStatusStyles: Record<string, string> = {
+  Pending: 'bg-yellow-100 text-yellow-700',
   Ordered: 'bg-blue-100 text-blue-700',
-  Confirmed: 'bg-blue-100 text-blue-700',
+  Packed: 'bg-cyan-100 text-cyan-700',
   Shipped: 'bg-purple-100 text-purple-700',
-  OutForDelivery: 'bg-purple-100 text-purple-700',
+  'Out for Delivery': 'bg-indigo-100 text-indigo-700',
   Delivered: 'bg-green-100 text-green-700',
   Cancelled: 'bg-red-100 text-red-700',
 };

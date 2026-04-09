@@ -37,9 +37,9 @@ function growthPercent(current, previous) {
 }
 
 function normalizeOrderStatus(status) {
-  if (status === "Confirmed") return "Ordered";
-  if (status === "OutForDelivery") return "Shipped";
-  if (["Ordered", "Shipped", "Delivered", "Cancelled"].includes(status)) return status;
+  if (status === "Confirmed") return "Packed";
+  if (status === "OutForDelivery") return "Out for Delivery";
+  if (["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].includes(status)) return status;
   return "Ordered";
 }
 

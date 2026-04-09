@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function ProductDetailPage({
   params,
@@ -51,9 +51,14 @@ export default function ProductDetailPage({
         setCurrentImage(0);
 
         // Fetch related products from API
-        const allRes = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
+        const allRes = await fetch(`${BASE_URL}/api/products?page=1&limit=200`, { cache: 'no-store' });
         if (allRes.ok) {
-          const allProducts: Product[] = await allRes.json();
+          const allData = await allRes.json();
+          const allProducts: Product[] = Array.isArray(allData)
+            ? allData
+            : Array.isArray(allData?.products)
+              ? allData.products
+              : [];
           const pid = data._id;
           const related = allProducts
             .filter(
@@ -146,13 +151,12 @@ export default function ProductDetailPage({
     try {
       setIsBuyingNow(true);
       const productId: string = product._id ?? '';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now`, {
+      const res = await fetch(`${baseUrl}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: 'include',
         body: JSON.stringify({

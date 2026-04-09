@@ -1,35 +1,47 @@
 import { jwtVerify } from "jose";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+const ALLOWED_ORIGINS = ["http://localhost:3000", "https://tnautomation.in"] as const;
+const ALLOWED_METHODS = "GET, POST, PUT, DELETE";
+const ALLOWED_HEADERS = "Content-Type, Authorization";
 
-function withCors(response, isApiRoute) {
+function resolveAllowedOrigin(request: NextRequest): string {
+  const origin = request.headers.get("origin") || "";
+  if (ALLOWED_ORIGINS.includes(origin as (typeof ALLOWED_ORIGINS)[number])) {
+    return origin;
+  }
+  return ALLOWED_ORIGINS[1];
+}
+
+function buildCorsHeaders(request: NextRequest): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": resolveAllowedOrigin(request),
+    "Access-Control-Allow-Methods": ALLOWED_METHODS,
+    "Access-Control-Allow-Headers": ALLOWED_HEADERS,
+    "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
+  };
+}
+
+function withCors(request: NextRequest, response: NextResponse, isApiRoute: boolean): NextResponse {
   if (isApiRoute) {
-    Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    Object.entries(buildCorsHeaders(request)).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
   }
   return response;
 }
 
-const PUBLIC_PATHS = [
-  "/admin/login",
-  "/admin/forgot-password",
-  "/admin/reset-password",
-];
+const PUBLIC_PATHS = ["/admin/login", "/admin/forgot-password", "/admin/reset-password"];
 
-export async function middleware(request) {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   const isApiRoute = pathname.startsWith("/api");
 
   if (isApiRoute && request.method === "OPTIONS") {
     return new NextResponse(null, {
       status: 200,
-      headers: CORS_HEADERS,
+      headers: buildCorsHeaders(request),
     });
   }
 
@@ -40,25 +52,23 @@ export async function middleware(request) {
     pathname.startsWith("/checkout");
 
   const isProtectedUserApi =
-    pathname.startsWith("/api/orders/user") ||
-    pathname.startsWith("/api/auth/profile");
+    pathname.startsWith("/api/orders/user") || pathname.startsWith("/api/auth/profile");
 
   const isProtectedUserRoute = isProtectedUserPage || isProtectedUserApi;
 
-  // Only guard /admin routes
   if (!pathname.startsWith("/admin") && !isProtectedUserRoute) {
-    return withCors(NextResponse.next(), isApiRoute);
+    return withCors(request, NextResponse.next(), isApiRoute);
   }
 
-  // Allow public admin pages (login, forgot-password, etc.)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return withCors(NextResponse.next(), isApiRoute);
+    return withCors(request, NextResponse.next(), isApiRoute);
   }
 
-  // Allow the /admin root — it's a client-side redirect page
   if (pathname === "/admin") {
-    return withCors(NextResponse.next(), isApiRoute);
+    return withCors(request, NextResponse.next(), isApiRoute);
   }
+
+  const jwtSecret = process.env.JWT_SECRET;
 
   if (isProtectedUserRoute) {
     const token = request.cookies.get("userToken")?.value;
@@ -69,19 +79,20 @@ export async function middleware(request) {
     loginUrl.search = "";
     loginUrl.searchParams.set("redirect", requestedPath);
 
-    if (!token) {
+    if (!token || !jwtSecret) {
       if (isProtectedUserApi) {
-        return withCors(NextResponse.json(
-          { success: false, message: "Unauthorized" },
-          { status: 401 }
-        ), isApiRoute);
+        return withCors(
+          request,
+          NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 }),
+          isApiRoute
+        );
       }
 
-      return withCors(NextResponse.redirect(loginUrl), isApiRoute);
+      return withCors(request, NextResponse.redirect(loginUrl), isApiRoute);
     }
 
     try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+      const secret = new TextEncoder().encode(jwtSecret);
       const { payload } = await jwtVerify(token, secret);
       const email = String(payload.email || "").toLowerCase();
 
@@ -94,7 +105,7 @@ export async function middleware(request) {
 
       const statusRes = await fetch(statusUrl.toString(), {
         headers: {
-          "x-internal-check": "middleware",
+          "x-internal-check": "proxy",
         },
       });
 
@@ -111,15 +122,15 @@ export async function middleware(request) {
             { status: 403 }
           );
           response.cookies.delete("userToken");
-          return withCors(response, isApiRoute);
+          return withCors(request, response, isApiRoute);
         }
 
         const response = NextResponse.redirect(new URL("/login", request.url));
         response.cookies.delete("userToken");
-        return withCors(response, isApiRoute);
+        return withCors(request, response, isApiRoute);
       }
 
-      return withCors(NextResponse.next(), isApiRoute);
+      return withCors(request, NextResponse.next(), isApiRoute);
     } catch {
       if (isProtectedUserApi) {
         const response = NextResponse.json(
@@ -127,41 +138,45 @@ export async function middleware(request) {
           { status: 401 }
         );
         response.cookies.delete("userToken");
-        return withCors(response, isApiRoute);
+        return withCors(request, response, isApiRoute);
       }
 
       const response = NextResponse.redirect(loginUrl);
       response.cookies.delete("userToken");
-      return withCors(response, isApiRoute);
+      return withCors(request, response, isApiRoute);
     }
   }
 
   const token = request.cookies.get("adminToken")?.value;
   const userToken = request.cookies.get("userToken")?.value;
 
-  if (!token) {
+  if (!token || !jwtSecret) {
     if (userToken) {
-      return withCors(NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url)), isApiRoute);
+      return withCors(
+        request,
+        NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url)),
+        isApiRoute
+      );
     }
-    return withCors(NextResponse.redirect(new URL("/admin/login", request.url)), isApiRoute);
+
+    return withCors(request, NextResponse.redirect(new URL("/admin/login", request.url)), isApiRoute);
   }
 
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const secret = new TextEncoder().encode(jwtSecret);
     const { payload } = await jwtVerify(token, secret);
 
     if (String(payload?.role || "") !== "admin") {
       const response = NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
       response.cookies.delete("adminToken");
-      return withCors(response, isApiRoute);
+      return withCors(request, response, isApiRoute);
     }
 
-    return withCors(NextResponse.next(), isApiRoute);
+    return withCors(request, NextResponse.next(), isApiRoute);
   } catch {
-    // Token invalid or expired — clear cookie and redirect
     const response = NextResponse.redirect(new URL("/admin/login", request.url));
     response.cookies.delete("adminToken");
-    return withCors(response, isApiRoute);
+    return withCors(request, response, isApiRoute);
   }
 }
 

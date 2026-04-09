@@ -58,14 +58,14 @@ type ToastState = {
   message: string;
 };
 
-const steps = ['Ordered', 'Confirmed', 'Shipped', 'OutForDelivery', 'Delivered'];
+const steps = ['Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
 
 const statusColorMap: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
   Ordered: 'bg-yellow-100 text-yellow-800',
-  Confirmed: 'bg-blue-100 text-blue-800',
+  Packed: 'bg-blue-100 text-blue-800',
   Shipped: 'bg-purple-100 text-purple-800',
-  OutForDelivery: 'bg-orange-100 text-orange-800',
+  'Out for Delivery': 'bg-orange-100 text-orange-800',
   Delivered: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
 };
@@ -73,16 +73,23 @@ const statusColorMap: Record<string, string> = {
 const statusLabelMap: Record<string, string> = {
   Pending: 'Pending',
   Ordered: 'Ordered',
-  Confirmed: 'Confirmed',
+  Packed: 'Packed',
   Shipped: 'Shipped',
-  OutForDelivery: 'Out for Delivery',
+  'Out for Delivery': 'Out for Delivery',
   Delivered: 'Delivered',
   Cancelled: 'Cancelled',
 };
 
 function normalizeStatus(status?: string) {
-  if (!status) return 'Ordered';
-  return statusLabelMap[status] ? status : 'Ordered';
+  const value = String(status || '').trim().toLowerCase();
+  if (!value) return 'Ordered';
+  if (value === 'pending' || value === 'ordered') return 'Ordered';
+  if (value === 'packed' || value === 'confirmed') return 'Packed';
+  if (value === 'shipped') return 'Shipped';
+  if (value === 'outfordelivery' || value === 'out for delivery' || value === 'out_for_delivery') return 'Out for Delivery';
+  if (value === 'delivered') return 'Delivered';
+  if (value === 'cancelled') return 'Cancelled';
+  return 'Ordered';
 }
 
 export default function OrderDetailsPage() {
@@ -111,8 +118,10 @@ export default function OrderDetailsPage() {
     zip: '',
   });
 
-  const fetchOrder = useCallback(async () => {
-    setLoading(true);
+  const fetchOrder = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError('');
 
     try {
@@ -123,7 +132,16 @@ export default function OrderDetailsPage() {
         throw new Error(data.error || 'Order not found');
       }
 
-      setOrder(data);
+      setOrder((prev) => {
+        if (prev) {
+          const prevStatus = normalizeStatus(prev?.trackingStatus || prev?.orderStatus);
+          const nextStatus = normalizeStatus(data?.trackingStatus || data?.orderStatus);
+          if (prevStatus !== nextStatus) {
+            setToast({ type: 'success', message: `Order status updated to ${nextStatus}` });
+          }
+        }
+        return data;
+      });
       setAddressForm({
         firstName: data.deliveryInfo?.firstName || '',
         lastName: data.deliveryInfo?.lastName || '',
@@ -136,7 +154,9 @@ export default function OrderDetailsPage() {
     } catch (err: any) {
       setError(err.message || 'Failed to fetch order details');
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [params.id]);
 
@@ -148,6 +168,12 @@ export default function OrderDetailsPage() {
     }
 
     fetchOrder();
+
+    const intervalId = window.setInterval(() => {
+      fetchOrder({ silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
   }, [fetchOrder, params.id, router, authLoading, isAuthenticated]);
 
   useEffect(() => {
@@ -173,8 +199,8 @@ export default function OrderDetailsPage() {
   );
 
   const statusIndex = steps.indexOf(currentStatus);
-  const canCancel = currentStatus === 'Ordered' || currentStatus === 'Confirmed';
-  const canEditAddress = currentStatus === 'Ordered' || currentStatus === 'Confirmed';
+  const canCancel = currentStatus === 'Ordered' || currentStatus === 'Packed';
+  const canEditAddress = currentStatus === 'Ordered' || currentStatus === 'Packed';
 
   const handleCancelOrder = () => {
     setShowCancelModal(true);

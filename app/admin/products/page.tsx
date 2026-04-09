@@ -30,11 +30,14 @@ interface CategoryItem {
   name: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [categoryModalType, setCategoryModalType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(null);
@@ -77,15 +80,39 @@ export default function AdminProductsPage() {
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const editFileRef = useRef<HTMLInputElement>(null);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page = currentPage) => {
     try {
       setLoading(true);
-      const res = await fetch(`${BASE_URL}/api/products`, { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/api/products?page=${page}&limit=10`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setProducts(data);
+
+      const nextProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.products)
+          ? data.products
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      console.log('Admin products API response:', data);
+      console.log('Admin products length:', nextProducts.length);
+
+      setProducts(nextProducts);
+      const resolvedTotalPages = Number.isFinite(Number(data?.totalPages))
+        ? Math.max(1, Number(data.totalPages))
+        : 1;
+      setTotalPages(resolvedTotalPages);
+      setTotalProducts(Number.isFinite(Number(data?.total)) ? Number(data.total) : nextProducts.length);
+
+      if (page > resolvedTotalPages) {
+        setCurrentPage(resolvedTotalPages);
+      }
     } catch (err) {
       console.error('Error fetching products:', err);
+      setProducts([]);
+      setTotalPages(1);
+      setTotalProducts(0);
     } finally {
       setLoading(false);
     }
@@ -94,25 +121,26 @@ export default function AdminProductsPage() {
   async function fetchCategories() {
     try {
       const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to fetch categories');
       const data = await res.json();
 
-      const nextCategories = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.categories)
-          ? data.categories
-          : [];
+      console.log('Admin categories:', data);
 
-      console.log('Admin categories API response:', data);
-      setCategories(nextCategories);
+      if (data.success) {
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
+      } else {
+        setCategories([]);
+      }
     } catch (err) {
-      console.error('Error fetching categories:', err);
+      console.error('Admin category fetch error:', err);
       setCategories([]);
     }
   }
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts(currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
     fetchCategories();
   }, []);
 
@@ -334,7 +362,8 @@ export default function AdminProductsPage() {
         throw new Error(data.error || 'Failed to add product');
       }
 
-      await fetchProducts();
+      setCurrentPage(1);
+      await fetchProducts(1);
       setAddFormData({
         sku: '',
         name: '',
@@ -491,11 +520,11 @@ export default function AdminProductsPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Products</h1>
           <p className="text-muted-foreground">
-            Manage your product inventory ({products.length} items)
+            Manage your product inventory ({totalProducts} items)
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={fetchProducts} className="gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => fetchProducts(currentPage)} className="gap-2 w-full sm:w-auto">
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
           <Button
@@ -648,6 +677,43 @@ export default function AdminProductsPage() {
               </tbody>
             </table>
             </div>
+          </div>
+        )}
+
+        {!loading && totalPages > 1 && (
+          <div className="flex flex-wrap items-center justify-center gap-2 border-t p-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                onClick={() => setCurrentPage(pageNumber)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  currentPage === pageNumber
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {pageNumber}
+              </button>
+            ))}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
           </div>
         )}
       </Card>

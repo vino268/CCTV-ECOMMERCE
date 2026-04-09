@@ -7,12 +7,10 @@ import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
 const ADMIN_ALLOWED_STATUSES = [
   "Pending",
-  "Packed",
   "Ordered",
-  "Confirmed",
+  "Packed",
   "Shipped",
   "Out for Delivery",
-  "OutForDelivery",
   "Delivered",
   "Cancelled",
 ];
@@ -22,14 +20,14 @@ function normalizeIncomingStatus(status) {
   const value = String(status).trim();
   const map = {
     pending: "Pending",
-    packed: "Packed",
     ordered: "Ordered",
-    confirmed: "Confirmed",
+    packed: "Packed",
+    confirmed: "Packed",
     shipped: "Shipped",
-    outfordelivery: "OutForDelivery",
-    "out for delivery": "OutForDelivery",
-    out_for_delivery: "OutForDelivery",
-    "out-for-delivery": "OutForDelivery",
+    outfordelivery: "Out for Delivery",
+    "out for delivery": "Out for Delivery",
+    out_for_delivery: "Out for Delivery",
+    "out-for-delivery": "Out for Delivery",
     delivered: "Delivered",
     cancelled: "Cancelled",
   };
@@ -42,11 +40,9 @@ function mapWorkflowStatus(status) {
     case "Ordered":
       return "Pending";
     case "Packed":
-    case "Confirmed":
       return "Packed";
     case "Shipped":
       return "Shipped";
-    case "OutForDelivery":
     case "Out for Delivery":
       return "Out for Delivery";
     case "Delivered":
@@ -96,8 +92,8 @@ export async function PUT(req, { params }) {
     }
 
     // ── Admin: status / payment updates (no time restriction) ──────────────
-    if (body.orderStatus !== undefined) {
-      const nextStatus = normalizeIncomingStatus(body.orderStatus);
+    if (body.orderStatus !== undefined || body.status !== undefined) {
+      const nextStatus = normalizeIncomingStatus(body.orderStatus ?? body.status);
 
       if (!ADMIN_ALLOWED_STATUSES.includes(nextStatus)) {
         return NextResponse.json(
@@ -109,6 +105,7 @@ export async function PUT(req, { params }) {
       order.orderStatus = nextStatus;
       order.trackingStatus = nextStatus;
       order.status = mapWorkflowStatus(nextStatus);
+      order.updatedAt = new Date();
 
       // Set timestamp for the status change
       const now = new Date();
@@ -121,7 +118,6 @@ export async function PUT(req, { params }) {
           order.deliveredAt = null;
           order.cancelledAt = null;
           break;
-        case "Confirmed":
         case "Packed":
           order.confirmedAt = now;
           order.shippedAt = null;
@@ -133,7 +129,6 @@ export async function PUT(req, { params }) {
           if (!order.confirmedAt) order.confirmedAt = now;
           order.shippedAt = now;
           break;
-        case "OutForDelivery":
         case "Out for Delivery":
           if (!order.confirmedAt) order.confirmedAt = now;
           if (!order.shippedAt) order.shippedAt = now;
@@ -185,7 +180,7 @@ export async function PUT(req, { params }) {
     }
 
     // ── User: delivery info edit (only when Ordered or Confirmed) ─────────
-    const editableStatuses = ["Ordered", "Confirmed"];
+    const editableStatuses = ["Pending", "Ordered", "Packed"];
     if (!editableStatuses.includes(order.orderStatus)) {
       return NextResponse.json(
         { error: "Order can only be edited before shipping" },
@@ -244,4 +239,8 @@ export async function DELETE(req, { params }) {
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete order" }, { status: 500 });
   }
+}
+
+export async function PATCH(req, context) {
+  return PUT(req, context);
 }

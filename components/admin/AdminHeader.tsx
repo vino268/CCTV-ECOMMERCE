@@ -54,6 +54,7 @@ const notifIcon: Record<string, typeof Bell> = {
 }
 
 export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [bellOpen, setBellOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
@@ -64,25 +65,9 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const getInitial = (name?: string) => (name || 'A').charAt(0).toUpperCase()
 
-  const readAdminFromStorage = () => {
-    try {
-      const storedAdminRaw = localStorage.getItem('admin') || localStorage.getItem('adminUser')
-      if (!storedAdminRaw) return null
-      return JSON.parse(storedAdminRaw)
-    } catch {
-      return null
-    }
-  }
-
   const loadAdminProfile = async () => {
-    const storedAdmin = readAdminFromStorage()
-    if (storedAdmin?.name?.trim()) {
-      setAdminName(storedAdmin.name.trim())
-    }
-    setAdminProfileImage(String(storedAdmin?.profileImage || storedAdmin?.avatar || ''))
-
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' })
+      const res = await fetch(`${API_BASE}/api/admin/profile`, { cache: 'no-store', credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
       const admin = data?.admin
@@ -93,15 +78,6 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
       }
 
       setAdminProfileImage(String(admin?.profileImage || admin?.avatar || ''))
-
-      try {
-        if (admin) {
-          localStorage.setItem('admin', JSON.stringify(admin))
-          localStorage.setItem('adminUser', JSON.stringify(admin))
-        }
-      } catch {
-        // Ignore localStorage write errors.
-      }
     } catch {
       // Keep fallback data.
     }
@@ -109,7 +85,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
     const load = () =>
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`)
+      fetch(`${API_BASE}/api/admin/notifications`, { credentials: 'include' })
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data)) setNotifications(data)
@@ -151,7 +127,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleDeleteOne = async (id: string) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications/${id}`, { method: 'DELETE' })
+      const res = await fetch(`${API_BASE}/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'include' })
       if (res.ok) {
         setNotifications((prev) => prev.filter((n) => n._id !== id))
       }
@@ -162,7 +138,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleClearAll = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`, { method: 'DELETE' })
+      const res = await fetch(`${API_BASE}/api/admin/notifications`, { method: 'DELETE', credentials: 'include' })
       if (res.ok) {
         setNotifications([])
       }
@@ -173,7 +149,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleMarkAllRead = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/notifications`, { method: 'PUT' })
+      const res = await fetch(`${API_BASE}/api/admin/notifications`, { method: 'PUT', credentials: 'include' })
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
       }

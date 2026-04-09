@@ -4,11 +4,24 @@ import Order from "@/models/Order";
 import Notification from "@/models/Notification";
 import User from "@/models/User";
 
-// GET /api/orders — return all orders
-export async function GET() {
+// GET /api/orders — return all orders or user-specific orders
+export async function GET(req) {
   try {
     await connectDB();
-    const orders = await Order.find({ isDeleted: false }).sort({ createdAt: -1 });
+
+    const { searchParams } = new URL(req.url);
+    const userId = String(searchParams.get("userId") || "").trim();
+    const email = String(searchParams.get("email") || "").trim().toLowerCase();
+
+    const query = { isDeleted: false };
+
+    if (userId) {
+      query.userId = userId;
+    } else if (email) {
+      query.email = { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") };
+    }
+
+    const orders = await Order.find(query).sort({ createdAt: -1 });
     return NextResponse.json(orders);
   } catch (error) {
     return NextResponse.json(

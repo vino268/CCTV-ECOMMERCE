@@ -49,7 +49,7 @@ interface OrdersFilters {
   maxPrice: string;
 }
 
-const ORDER_STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Cancelled'] as const;
+const ORDER_STATUSES = ['Pending', 'Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'] as const;
 const ORDERS_PER_PAGE = 10;
 
 const DEFAULT_FILTERS: OrdersFilters = {
@@ -64,7 +64,9 @@ const DEFAULT_FILTERS: OrdersFilters = {
 const statusStyles: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
   Ordered: 'bg-yellow-100 text-yellow-800',
+  Packed: 'bg-cyan-100 text-cyan-800',
   Shipped: 'bg-blue-100 text-blue-800',
+  'Out for Delivery': 'bg-indigo-100 text-indigo-800',
   Delivered: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
 };
@@ -78,10 +80,11 @@ const paymentStyles: Record<string, string> = {
 function getDisplayStatus(order: Order): string {
   const raw = String(order.status || order.trackingStatus || order.orderStatus || 'Ordered').trim();
   const status = raw.toLowerCase();
-  if (status === 'confirmed') return 'Ordered';
-  if (status === 'outfordelivery' || status === 'out for delivery' || status === 'out_for_delivery') return 'Shipped';
+  if (status === 'confirmed') return 'Packed';
+  if (status === 'outfordelivery' || status === 'out for delivery' || status === 'out_for_delivery') return 'Out for Delivery';
   if (status === 'pending') return 'Pending';
   if (status === 'ordered') return 'Ordered';
+  if (status === 'packed') return 'Packed';
   if (status === 'shipped') return 'Shipped';
   if (status === 'delivered') return 'Delivered';
   if (status === 'cancelled') return 'Cancelled';
@@ -195,9 +198,9 @@ export default function AdminOrdersPage() {
     try {
       setUpdatingId(id);
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderStatus: nextStatus }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -308,7 +311,9 @@ export default function AdminOrdersPage() {
             <option value="All">Status: All</option>
             <option value="Pending">Pending</option>
             <option value="Ordered">Ordered</option>
+            <option value="Packed">Packed</option>
             <option value="Shipped">Shipped</option>
+            <option value="Out for Delivery">Out for Delivery</option>
             <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </select>

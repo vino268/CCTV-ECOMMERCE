@@ -34,8 +34,9 @@ const ITEMS_PER_PAGE = 10;
 type CustomerFilter = 'all' | 'active' | 'deleted';
 
 function normalizeStatus(status: string) {
-  if (status === 'Confirmed') return 'Ordered';
-  if (status === 'OutForDelivery') return 'Shipped';
+  if (status === 'Confirmed') return 'Packed';
+  if (status === 'OutForDelivery') return 'Out for Delivery';
+  if (status === 'Pending') return 'Pending';
   return status || 'Ordered';
 }
 

@@ -6,11 +6,20 @@ import Product from "@/models/Product";
 export async function GET() {
   try {
     await connectDB();
-    const products = await Product.find().sort({ createdAt: -1 }).limit(6);
-    return NextResponse.json(products);
+    const products = await Product.find({})
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(6)
+      .lean();
+
+    return NextResponse.json({
+      success: true,
+      data: products,
+      products,
+    });
   } catch (error) {
+    console.error("Latest products API error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch latest products" },
+      { success: false, data: [], products: [], error: "Failed to fetch latest products" },
       { status: 500 }
     );
   }
