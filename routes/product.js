@@ -1,12 +1,34 @@
 const express = require("express");
-const Product = require("../models/Product");
 
 const router = express.Router();
 
 // GET /api/products
-router.get("/", async (_req, res) => {
+router.get("/", (_req, res) => {
   try {
-    const products = await Product.find({}).sort({ createdAt: -1 }).lean();
+    const products = [
+      {
+        _id: "demo-1",
+        name: "4MP Dome CCTV Camera",
+        price: 2499,
+        image: "https://via.placeholder.com/400x300?text=CCTV+Camera",
+        category: "Camera",
+      },
+      {
+        _id: "demo-2",
+        name: "8 Channel DVR Recorder",
+        price: 5999,
+        image: "https://via.placeholder.com/400x300?text=DVR",
+        category: "Recorder",
+      },
+      {
+        _id: "demo-3",
+        name: "2TB Surveillance Hard Disk",
+        price: 3799,
+        image: "https://via.placeholder.com/400x300?text=HDD",
+        category: "Storage",
+      },
+    ];
+
     return res.status(200).json({ success: true, products });
   } catch (error) {
     console.error("GET /api/products error:", error);
