@@ -3,10 +3,17 @@ import { NextResponse } from "next/server";
 export async function POST() {
   try {
     const response = NextResponse.json({ success: true });
+    response.cookies.set("token", "", {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+      path: "/",
+      maxAge: 0,
+    });
     response.cookies.set("userToken", "", {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+      secure: true,
       path: "/",
       maxAge: 0,
     });

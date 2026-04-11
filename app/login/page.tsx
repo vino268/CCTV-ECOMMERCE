@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/lib/contexts/auth-context';
 
 type AuthMode = 'signin' | 'signup';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim();
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all';
@@ -66,10 +66,6 @@ export default function LoginPage() {
     }
   }, [router, searchParams, isAuthenticated, authLoading]);
 
-  const handleRedirectAfterAuth = () => {
-    router.push(getSafeRedirectPath());
-  };
-
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -98,18 +94,13 @@ export default function LoginPage() {
         throw new Error(serverMessage || 'Login failed');
       }
 
-      if (!data?.token) {
+      if (!data?.success) {
         throw new Error('Login failed');
       }
 
-      try {
-        localStorage.setItem('token', data.token);
-      } catch {
-        // Continue even if storage is unavailable.
-      }
-
       await refreshUser();
-      handleRedirectAfterAuth();
+      router.push(getSafeRedirectPath());
+      router.refresh();
     } catch (error: any) {
       setError(error?.message || 'Login failed');
     } finally {
@@ -172,26 +163,25 @@ export default function LoginPage() {
         return;
       }
 
-      if (!loginData?.token) {
+      if (!loginData?.success) {
         setError('Account created but login failed. Please sign in.');
         setMode('signin');
         return;
       }
 
-      try {
-        localStorage.setItem('token', loginData.token);
-      } catch {
-        // Continue even if storage is unavailable.
-      }
-
       await refreshUser();
-      handleRedirectAfterAuth();
+      router.push(getSafeRedirectPath());
+      router.refresh();
     } catch {
       setError('Unable to create account. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (authLoading || isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen relative flex items-center justify-center py-12 px-4">

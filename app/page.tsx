@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/lib/types';
 import { useCart } from '@/lib/contexts/cart-context';
@@ -32,7 +33,18 @@ import {
   Tag,
 } from 'lucide-react';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+
+async function fetchJson(path: string) {
+  const res = await fetch(`${BASE_URL}${path}`, { cache: 'no-store' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Request failed');
+  }
+
+  return data;
+}
 
 type HomeProductCardProps = {
   product: Product & { isInCart: boolean };
@@ -107,6 +119,16 @@ export default function Home() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [topCategories, setTopCategories] = useState<HomeCategory[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  const {
+    data: latestData,
+    error: latestError,
+    isLoading: latestLoading,
+  } = useSWR('home-latest-products', () => fetchJson('/api/products/latest'), {
+    revalidateOnFocus: false,
+    shouldRetryOnError: true,
+    errorRetryCount: 2,
+  });
 
   const featureStrip = [
     {
@@ -197,49 +219,36 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    const loadRecentProducts = () => {
-      setProductsLoading(true);
-      setProductsError(null);
-      fetch(`${BASE_URL}/api/products/latest`, { cache: 'no-store' })
-        .then((res) => res.json())
-        .then((data) => {
-          const nextProducts = Array.isArray(data)
-            ? data
-            : Array.isArray(data?.products)
-              ? data.products
-              : Array.isArray(data?.data)
-                ? data.data
-                : [];
-          setProducts(nextProducts);
-          if (nextProducts.length === 0) {
-            setProductsError('No recent products available');
-          }
-        })
-        .catch((err) => {
-          console.error('Home products API error:', err);
-          setProducts([]);
-          setProductsError('Products are temporarily unavailable');
-        });
-      setTimeout(() => setProductsLoading(false), 250);
-    };
+    setProductsLoading(latestLoading);
 
-    loadRecentProducts();
-    const intervalId = setInterval(loadRecentProducts, 30000);
+    if (latestLoading) return;
 
-    return () => clearInterval(intervalId);
-  }, []);
+    if (latestError) {
+      setProducts([]);
+      setProductsError('Products are temporarily unavailable');
+      return;
+    }
+
+    const nextProducts = Array.isArray(latestData?.products)
+      ? latestData.products
+      : Array.isArray(latestData?.data)
+        ? latestData.data
+        : Array.isArray(latestData)
+          ? latestData
+          : [];
+
+    setProducts(nextProducts);
+    setProductsError(nextProducts.length ? null : 'No recent products available');
+  }, [latestData, latestError, latestLoading]);
 
   useEffect(() => {
     const loadTopCategories = async () => {
       try {
         setCategoriesError(null);
-        const [categoriesRes, productsRes] = await Promise.all([
-          fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' }),
-          fetch(`${BASE_URL}/api/products`, { cache: 'no-store' }),
+        const [categoriesData, productsData] = await Promise.all([
+          fetchJson('/api/categories'),
+          fetchJson('/api/products?limit=50'),
         ]);
-
-        const categoriesData = await categoriesRes.json();
-        const productsData = await productsRes.json();
 
         const categories = Array.isArray(categoriesData)
           ? categoriesData
@@ -251,9 +260,6 @@ export default function Home() {
           : Array.isArray(productsData?.products)
             ? productsData.products
             : [];
-
-        console.log('Home categories API response:', categoriesData);
-        console.log('Home products API response:', productsData);
 
         if (!categories.length || !products.length) {
           setTopCategories([]);

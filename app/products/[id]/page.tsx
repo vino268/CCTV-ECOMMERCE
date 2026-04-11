@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
 
 export default function ProductDetailPage({
   params,
@@ -33,9 +33,6 @@ export default function ProductDetailPage({
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
-
-  const toAbsoluteImageUrl = (value: string) =>
-    value.startsWith('/') ? `${BASE_URL}${value}` : value;
 
   // Fetch product from MongoDB API
   useEffect(() => {
@@ -151,7 +148,7 @@ export default function ProductDetailPage({
     try {
       setIsBuyingNow(true);
       const productId: string = product._id ?? '';
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const baseUrl = BASE_URL;
 
       const res = await fetch(`${baseUrl}/api/orders/buy-now`, {
         method: 'POST',
@@ -195,9 +192,9 @@ export default function ProductDetailPage({
   const alreadyInCart = isInCart(productId);
   const cartPending = isCartActionPending(productId);
   const productImages = (Array.isArray(product.images) ? product.images : [])
-    .map((img) => toAbsoluteImageUrl(getSafeImageSrc(img, '')))
+    .map((img) => getSafeImageSrc(img, ''))
     .filter(Boolean);
-  const mainImage = toAbsoluteImageUrl(getSafeImageSrc(product.image, ''));
+  const mainImage = getSafeImageSrc(product.image, '');
   if (productImages.length === 0 && mainImage) {
     productImages.push(mainImage);
   }

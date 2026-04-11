@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export interface AuthUser {
   _id: string;
@@ -15,6 +15,7 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  login: (userData: AuthUser | null) => void;
   isAuthenticated: boolean;
   loading: boolean;
   refreshUser: () => Promise<AuthUser | null>;
@@ -23,72 +24,68 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+
+function buildApiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await fetch(buildApiUrl('/api/auth/me'), {
         cache: 'no-store',
         credentials: 'include',
       });
+
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         setUser(null);
-        try {
-          localStorage.removeItem('token');
-        } catch {
-          // Ignore storage errors.
-        }
         window.dispatchEvent(new Event('user-auth-change'));
         return null;
       }
 
-      const data = await res.json();
       const nextUser = data?.user || null;
       setUser(nextUser);
       window.dispatchEvent(new Event('user-auth-change'));
       return nextUser;
     } catch {
       setUser(null);
-      try {
-        localStorage.removeItem('token');
-      } catch {
-        // Ignore storage errors.
-      }
       window.dispatchEvent(new Event('user-auth-change'));
       return null;
     }
-  }, []);
+  };
 
-  const logout = useCallback(async () => {
+  const login = (userData: AuthUser | null) => {
+    setUser(userData);
+    window.dispatchEvent(new Event('user-auth-change'));
+  };
+
+  const logout = async () => {
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, {
+      await fetch(buildApiUrl('/api/auth/logout'), {
         method: 'POST',
         credentials: 'include',
       });
     } catch {
-      // Ignore network errors; local auth state must still be cleared.
+      // Ignore network errors and still clear local auth state.
     }
 
     setUser(null);
-    try {
-      localStorage.removeItem('token');
-    } catch {
-      // Ignore storage errors.
-    }
     window.dispatchEvent(new Event('user-auth-change'));
-  }, []);
+  };
 
-  const updateUser = useCallback((updates: Partial<AuthUser> | null) => {
+  const updateUser = (updates: Partial<AuthUser> | null) => {
     setUser((prev) => {
       return prev ? { ...prev, ...(updates || {}) } : prev;
     });
 
     window.dispatchEvent(new Event('user-auth-change'));
-  }, []);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -106,18 +103,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [refreshUser]);
+  }, []);
 
   const value = useMemo(
     () => ({
       user,
+      login,
       isAuthenticated: Boolean(user),
       loading,
       refreshUser,
       updateUser,
       logout,
     }),
-    [user, loading, refreshUser, updateUser, logout]
+    [user, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

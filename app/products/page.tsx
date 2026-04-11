@@ -14,10 +14,10 @@ import {
 } from '@/components/ui/select';
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 export default function ProductsPage() {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = (searchParams.get('search') || '').trim();
@@ -35,12 +35,16 @@ export default function ProductsPage() {
   const fetchedPagesRef = useRef<Set<string>>(new Set());
 
   const fetchApi = async (path: string) => {
-    try {
-      const res = await fetch(`${baseUrl}${path}`, { cache: 'no-store' });
-      return res.ok ? res : null;
-    } catch {
-      return null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const res = await fetch(`${baseUrl}${path}`, { cache: 'no-store' });
+        if (res.ok) return res;
+      } catch {
+        // retry once
+      }
     }
+
+    return null;
   };
 
   const fetchProducts = async () => {
@@ -54,7 +58,6 @@ export default function ProductsPage() {
     }
 
     setProductsError(null);
-    console.log('Fetching products from API...');
 
     try {
       const encodedSearch = encodeURIComponent(searchTerm);
@@ -66,12 +69,10 @@ export default function ProductsPage() {
           setProductsError('Products are temporarily unavailable');
         }
         setHasMore(false);
-        console.log('Products API returned no response or non-OK status');
         return;
       }
 
       const data = await res.json();
-      console.log('Products API response:', data);
 
       if (data?.success && Array.isArray(data?.products)) {
         const nextProducts = data.products;
@@ -99,15 +100,12 @@ export default function ProductsPage() {
           setHasMore(nextProducts.length === PAGE_SIZE);
         }
 
-        console.log(`Loaded ${nextProducts.length} products for page ${page}`);
-        console.log('products page:', page);
       } else {
         if (page === 1) {
           setProducts([]);
           setProductsError('Products are temporarily unavailable');
         }
         setHasMore(false);
-        console.log('Products API response format invalid');
       }
     } catch {
       if (page === 1) {
@@ -115,7 +113,6 @@ export default function ProductsPage() {
         setProductsError('Products are temporarily unavailable');
       }
       setHasMore(false);
-      console.log('Products API request failed');
     } finally {
       if (page === 1) {
         setIsInitialLoading(false);
@@ -152,15 +149,14 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${baseUrl}/api/categories`, { cache: 'no-store' });
+      const res = await fetchApi('/api/categories');
 
-      if (!res.ok) {
+      if (!res) {
         setCategories([]);
         return;
       }
 
       const data = await res.json();
-      console.log('Categories API response:', data);
 
       if (data?.success && Array.isArray(data?.categories)) {
         setCategories(data.categories);

@@ -5,36 +5,36 @@ import User from "@/models/User";
 
 export async function GET(req) {
   try {
-    const token = req.cookies.get("userToken")?.value;
+    const token = req.cookies.get("token")?.value || req.cookies.get("userToken")?.value;
     if (!token) {
-      return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       console.error("Auth me API error", new Error("JWT_SECRET is not configured"));
-      return NextResponse.json({ authenticated: false, message: "Server misconfiguration" }, { status: 500 });
+      return NextResponse.json({ success: false, message: "Server misconfiguration" }, { status: 500 });
     }
 
     const secret = new TextEncoder().encode(jwtSecret);
     const { payload } = await jwtVerify(token, secret);
-    const email = String(payload.email || "").toLowerCase();
+    const userId = String(payload.id || payload.userId || "");
 
-    if (!email) {
-      return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
     await connectDB();
-    const user = await User.findOne({ email }).select("-password");
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
-      return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
     if (user.isDeleted) {
       return NextResponse.json(
         {
-          authenticated: false,
+          success: false,
           message: "Your account has been deleted",
           error: "Your account has been deleted",
         },
@@ -45,7 +45,7 @@ export async function GET(req) {
     if (user.isBlocked) {
       return NextResponse.json(
         {
-          authenticated: false,
+          success: false,
           message: "User blocked",
           error: "Your account has been blocked. Please contact support.",
         },
@@ -66,11 +66,11 @@ export async function GET(req) {
     };
 
     return NextResponse.json({
-      authenticated: true,
+      success: true,
       user: userPayload,
     });
   } catch (error) {
     console.error("Auth me API error", error);
-    return NextResponse.json({ authenticated: false, message: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 }

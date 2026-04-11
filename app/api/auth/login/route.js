@@ -6,7 +6,6 @@ import User from "@/models/User";
 export async function POST(req) {
   try {
     const data = await req.json();
-    console.log("Incoming request:", data);
 
     const email = String(data?.email || "").trim().toLowerCase();
     const password = String(data?.password || "");
@@ -29,7 +28,6 @@ export async function POST(req) {
     await connectDB();
 
     const user = await User.findOne({ email, isDeleted: { $ne: true } });
-    console.log("User found:", user ? user.email : null);
 
     if (!user) {
       return Response.json(
@@ -55,7 +53,7 @@ export async function POST(req) {
 
     const token = jwt.sign(
       {
-        userId: String(user._id),
+        id: String(user._id),
         email: user.email,
         role: user.role,
       },
@@ -65,7 +63,6 @@ export async function POST(req) {
 
     const response = Response.json({
       success: true,
-      token,
       user: {
         _id: user._id,
         name: user.name,
@@ -77,7 +74,12 @@ export async function POST(req) {
 
     response.headers.append(
       "Set-Cookie",
-      `userToken=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`
+      `token=${token}; Path=/; HttpOnly; SameSite=None; Max-Age=${60 * 60 * 24 * 7}; Secure`
+    );
+
+    response.headers.append(
+      "Set-Cookie",
+      `userToken=${token}; Path=/; HttpOnly; SameSite=None; Max-Age=${60 * 60 * 24 * 7}; Secure`
     );
 
     return response;

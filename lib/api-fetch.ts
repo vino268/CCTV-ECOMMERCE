@@ -1,6 +1,6 @@
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim();
 
 export async function apiFetch<T>(
   path: string,

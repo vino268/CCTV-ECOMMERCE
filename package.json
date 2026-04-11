@@ -6,7 +6,8 @@
     "dev": "next dev",
     "api": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
+    "start:web": "next start",
     "lint": "eslint ."
   },
   "dependencies": {

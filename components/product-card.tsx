@@ -16,6 +16,8 @@ interface ProductCardProps {
   product: Product;
 }
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+
 export function ProductCard({ product }: ProductCardProps) {
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -60,8 +62,7 @@ export function ProductCard({ product }: ProductCardProps) {
     }
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/orders/buy-now`, {
+      const res = await fetch(`${API_BASE}/api/orders/buy-now`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

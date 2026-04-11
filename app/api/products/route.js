@@ -104,8 +104,8 @@ export async function GET(req) {
     const search = (searchParams.get("search") || "").trim();
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
     const limit = Number.isFinite(limitParam) && limitParam > 0
-      ? Math.min(limitParam, 10)
-      : 10;
+      ? Math.min(limitParam, 50)
+      : 12;
     const skip = (page - 1) * limit;
 
     const query = search
@@ -130,12 +130,19 @@ export async function GET(req) {
 
     console.log("✅ PRODUCTS COUNT:", products.length);
 
-    return Response.json({
-      success: true,
-      products,
-      page,
-      totalPages,
-    });
+    return Response.json(
+      {
+        success: true,
+        products,
+        page,
+        totalPages,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
 
   } catch (error) {
     console.error("❌ FULL ERROR:", error);

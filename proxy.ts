@@ -71,7 +71,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const jwtSecret = process.env.JWT_SECRET;
 
   if (isProtectedUserRoute) {
-    const token = request.cookies.get("userToken")?.value;
+    const token = request.cookies.get("token")?.value || request.cookies.get("userToken")?.value;
 
     const requestedPath = `${pathname}${request.nextUrl.search || ""}`;
     const loginUrl = new URL(request.url);
@@ -121,11 +121,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
             },
             { status: 403 }
           );
+          response.cookies.delete("token");
           response.cookies.delete("userToken");
           return withCors(request, response, isApiRoute);
         }
 
         const response = NextResponse.redirect(new URL("/login", request.url));
+        response.cookies.delete("token");
         response.cookies.delete("userToken");
         return withCors(request, response, isApiRoute);
       }
@@ -137,18 +139,20 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
           { success: false, message: "Unauthorized" },
           { status: 401 }
         );
+        response.cookies.delete("token");
         response.cookies.delete("userToken");
         return withCors(request, response, isApiRoute);
       }
 
       const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete("token");
       response.cookies.delete("userToken");
       return withCors(request, response, isApiRoute);
     }
   }
 
   const token = request.cookies.get("adminToken")?.value;
-  const userToken = request.cookies.get("userToken")?.value;
+  const userToken = request.cookies.get("token")?.value || request.cookies.get("userToken")?.value;
 
   if (!token || !jwtSecret) {
     if (userToken) {
