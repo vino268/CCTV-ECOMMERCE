@@ -10,6 +10,7 @@ import CancelOrderModal from '@/components/cancel-order-modal';
 import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 export default function AccountOrdersPage() {
   const router = useRouter();
@@ -19,7 +20,6 @@ export default function AccountOrdersPage() {
   const [error, setError] = useState('');
   const [cancellingId, setCancellingId] = useState('');
   const [cancelModalOrderId, setCancelModalOrderId] = useState('');
-  const [cancelMode, setCancelMode] = useState<'cancel' | 'request'>('cancel');
   const { toast, showError, showSuccess } = useToast();
   const hasFetchedOnceRef = useRef(false);
   const statusSnapshotRef = useRef<Record<string, string>>({});
@@ -35,6 +35,28 @@ export default function AccountOrdersPage() {
     return 'Ordered';
   };
 
+  const safePush = (href: string) => {
+    try {
+      router.push(href);
+    } catch (err) {
+      console.error('Navigation failed', err);
+      if (typeof window !== 'undefined') {
+        window.location.assign(href);
+      }
+    }
+  };
+
+  const safeReplace = (href: string) => {
+    try {
+      router.replace(href);
+    } catch (err) {
+      console.error('Navigation failed', err);
+      if (typeof window !== 'undefined') {
+        window.location.replace(href);
+      }
+    }
+  };
+
   const fetchOrders = async (userId: string, email: string, options?: { silent?: boolean }) => {
     if (!options?.silent) {
       setLoading(true);
@@ -42,19 +64,44 @@ export default function AccountOrdersPage() {
     setError('');
 
     try {
-      const params = new URLSearchParams();
-      if (userId) params.set('userId', userId);
-      if (email) params.set('email', email);
+      const getOrdersFrom = async (path: string) => {
+        const res = await fetch(buildApiUrl(path), {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        const data = await parseResponseBody<AccountOrder[] | { error?: string; message?: string }>(res);
+        const errorPayload = !Array.isArray(data) ? data : {};
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders?${params.toString()}`, {
-        cache: 'no-store',
-      });
-      const data = await res.json();
+        if (res.status === 401) {
+          return { unauthorized: true as const, orders: [] as AccountOrder[] };
+        }
 
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch orders');
+        if (!res.ok) {
+          return {
+            unauthorized: false as const,
+            orders: [] as AccountOrder[],
+            error: errorPayload.error || errorPayload.message || 'Failed to fetch orders',
+          };
+        }
+
+        return { unauthorized: false as const, orders: Array.isArray(data) ? data : [] };
+      };
+
+      const primary = await getOrdersFrom(`/api/orders/user/${encodeURIComponent(email)}`);
+
+      if (primary.unauthorized) {
+        safeReplace('/login?redirect=/account/orders');
+        return;
       }
-      const nextOrders = Array.isArray(data) ? data : [];
+
+      const nextOrders = primary.orders;
+      const resolvedError = primary.error;
+
+      if (resolvedError) {
+        setOrders([]);
+        setError(resolvedError);
+        return;
+      }
 
       const nextSnapshot: Record<string, string> = {};
       for (const order of nextOrders) {
@@ -80,7 +127,7 @@ export default function AccountOrdersPage() {
       statusSnapshotRef.current = nextSnapshot;
       setOrders(nextOrders);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch orders');
+      setError(err?.message || 'Failed to fetch orders');
     } finally {
       if (!options?.silent) {
         setLoading(false);
@@ -91,7 +138,7 @@ export default function AccountOrdersPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated || !user?.email) {
-      router.replace('/login?redirect=/account/orders');
+      safeReplace('/login?redirect=/account/orders');
       return;
     }
     const uid = String(user?._id || '');
@@ -106,8 +153,7 @@ export default function AccountOrdersPage() {
     return () => window.clearInterval(intervalId);
   }, [router, authLoading, isAuthenticated, user?._id, user?.email]);
 
-  const handleCancelOrder = (orderId: string, mode: 'cancel' | 'request') => {
-    setCancelMode(mode);
+  const handleCancelOrder = (orderId: string) => {
     setCancelModalOrderId(orderId);
   };
 
@@ -118,10 +164,11 @@ export default function AccountOrdersPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${cancelModalOrderId}`, {
-        method: 'PUT',
+      const res = await fetch(buildApiUrl(`/api/orders/${cancelModalOrderId}/cancel`), {
+        method: 'PATCH',
+        credentials: 'include',
       });
-      const data = await res.json();
+      const data = await parseResponseBody<{ success?: boolean; message?: string; order?: Partial<AccountOrder> }>(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to cancel order');
@@ -207,7 +254,7 @@ export default function AccountOrdersPage() {
           <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
             <h2 className="text-lg font-semibold text-gray-900">You have no orders yet</h2>
             <p className="mt-1 text-sm text-gray-500">Once you place an order, it will appear here.</p>
-            <Button className="mt-5" onClick={() => router.push('/products')}>
+            <Button className="mt-5" onClick={() => safePush('/products')}>
               Start Shopping
             </Button>
           </div>
@@ -230,14 +277,10 @@ export default function AccountOrdersPage() {
       <CancelOrderModal
         open={Boolean(cancelModalOrderId)}
         isProcessing={Boolean(cancelModalOrderId) && cancellingId === cancelModalOrderId}
-        title={cancelMode === 'request' ? 'Request Order Cancellation' : 'Cancel Order'}
-        description={
-          cancelMode === 'request'
-            ? 'Your order is already packed. Do you want to submit a cancel request to support?'
-            : 'Are you sure you want to cancel this order? This action cannot be undone.'
-        }
-        confirmText={cancelMode === 'request' ? 'Submit Request' : 'Confirm'}
-        processingText={cancelMode === 'request' ? 'Submitting...' : 'Cancelling...'}
+        title="Cancel Order"
+        description="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmText="Confirm"
+        processingText="Cancelling..."
         onOpenChange={(open) => {
           if (!open && !cancellingId) setCancelModalOrderId('');
         }}

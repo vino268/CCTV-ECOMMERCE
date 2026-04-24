@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 type SiteSettings = {
   storeName: string;
@@ -95,23 +96,28 @@ export default function AdminSettingsPage() {
   const [errors, setErrors] = useState<ValidationErrors>({});
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
+    fetch(buildApiUrl('/api/settings'), {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'include',
+    })
+      .then((r) => parseResponseBody(r))
+      .then((data: any) => {
+        const payload = data?.data || data;
         setSettings({
-          storeName: data.storeName ?? '',
-          description: data.description ?? '',
+          storeName: payload.siteName ?? payload.storeName ?? '',
+          description: payload.description ?? '',
           contact: {
-            phone: data.contact?.phone ?? '',
-            email: data.contact?.email ?? '',
-            address: data.contact?.address ?? '',
+            phone: payload.phone ?? payload.contact?.phone ?? '',
+            email: payload.email ?? payload.contact?.email ?? '',
+            address: payload.address ?? payload.contact?.address ?? '',
           },
           social: {
-            facebook: data.social?.facebook ?? '',
-            instagram: data.social?.instagram ?? '',
-            twitter: data.social?.twitter ?? '',
-            linkedin: data.social?.linkedin ?? '',
-            youtube: data.social?.youtube ?? '',
+            facebook: payload.social?.facebook ?? '',
+            instagram: payload.social?.instagram ?? '',
+            twitter: payload.social?.twitter ?? '',
+            linkedin: payload.social?.linkedin ?? '',
+            youtube: payload.social?.youtube ?? '',
           },
         });
       })
@@ -160,15 +166,16 @@ export default function AdminSettingsPage() {
 
     setSaving(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`, {
+      const res = await fetch(buildApiUrl('/api/settings'), {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody(res);
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save settings');
+        throw new Error((data as any).error || (data as any).message || 'Failed to save settings');
       }
 
       setStatus({ type: 'success', message: 'Settings saved successfully' });

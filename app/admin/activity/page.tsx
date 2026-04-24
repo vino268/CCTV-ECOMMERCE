@@ -12,6 +12,7 @@ import {
   Wrench,
   Trash2,
 } from 'lucide-react';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
 
 type LogEntry = {
   _id: string;
@@ -73,8 +74,11 @@ export default function ActivityLogPage() {
     setLoading(true);
     setError('');
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity?page=${targetPage}&limit=${pageSize}`)
-      .then((r) => r.json())
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity?page=${targetPage}&limit=${pageSize}`, {
+      credentials: 'include',
+      headers: getAdminAuthHeaders(),
+    })
+      .then((r) => r.json().catch(() => ({})))
       .then((data) => {
         if (data.success && Array.isArray(data.logs)) {
           setLogs(data.logs);
@@ -115,13 +119,21 @@ export default function ActivityLogPage() {
 
       if (actionType === 'single') {
         setDeletingId(selectedId || '');
-        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity/${selectedId}`, { method: 'DELETE' });
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity/${selectedId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getAdminAuthHeaders(),
+        });
       } else {
         setClearingAll(true);
-        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity`, { method: 'DELETE' });
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getAdminAuthHeaders(),
+        });
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
         throw new Error(

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import mongoose from "mongoose";
 import Wishlist from "@/models/Wishlist";
+import { verifyWishlistUser } from "../_auth";
 
 function normalizeProduct(product) {
   if (!product) return null;
@@ -16,20 +16,18 @@ function normalizeProduct(product) {
 // GET /api/wishlist/:userId
 export async function GET(_req, { params }) {
   try {
-    const { userId: rawUserId } = await params;
-    const userId = String(rawUserId || "").trim();
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[wishlist][GET] userId:", userId);
-    }
+    await params;
+    await connectDB();
 
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    const auth = await verifyWishlistUser(_req);
+    if (!auth.ok) {
       return NextResponse.json(
-        { success: false, error: "Valid userId is required" },
-        { status: 400 }
+        { success: false, message: auth.message },
+        { status: auth.status }
       );
     }
 
-    await connectDB();
+    const userId = auth.userId;
 
     const entries = await Wishlist.find({ userId })
       .sort({ createdAt: -1 })

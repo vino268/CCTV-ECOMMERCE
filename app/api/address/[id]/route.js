@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Address from "@/models/Address";
+import Notification from "@/models/Notification";
 import { verifyUser, authError, validateAddressPayload } from "../_helpers";
 
 // PUT /api/address/:id
@@ -31,6 +32,14 @@ export async function PUT(request, { params }) {
       existing.isDefault = shouldBeDefault;
       await existing.save();
 
+      await Notification.create({
+        title: "Address Updated",
+        type: "address",
+        message: shouldBeDefault ? "Default address was changed" : "Address was updated",
+        userId: auth.userId,
+        isRead: false,
+      });
+
       return NextResponse.json({
         success: true,
         message: shouldBeDefault ? "Default address updated" : "Address updated",
@@ -57,6 +66,14 @@ export async function PUT(request, { params }) {
     existing.isDefault = setDefault || existing.isDefault;
 
     await existing.save();
+
+    await Notification.create({
+      title: "Address Updated",
+      type: "address",
+      message: "Address details were updated",
+      userId: auth.userId,
+      isRead: false,
+    });
 
     return NextResponse.json({ success: true, message: "Address updated", address: existing });
   } catch (error) {

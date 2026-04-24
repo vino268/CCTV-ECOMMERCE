@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CartItem, Product } from '../types';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { parseResponseBody } from '@/lib/http-response';
 
 interface CartContextType {
   cart: CartItem[];
@@ -18,6 +19,10 @@ interface CartContextType {
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+function buildCartApiUrl(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -35,11 +40,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(buildCartApiUrl(`/api/cart?userId=${encodeURIComponent(userId)}`), {
         cache: 'no-store',
       });
       if (res.ok) {
-        const items = await res.json();
+        const items = await parseResponseBody<any[]>(res);
         const mapped: CartItem[] = (Array.isArray(items) ? items : []).map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -97,7 +102,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       if (!userId) return;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, {
+      const res = await fetch(buildCartApiUrl('/api/cart'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +119,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ error?: string; message?: string }>(res);
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to add to cart');
       }
@@ -142,10 +147,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!userId) return;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart/${encodeURIComponent(productId)}?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(buildCartApiUrl(`/api/cart/${encodeURIComponent(productId)}?userId=${encodeURIComponent(userId)}`), {
         method: 'DELETE',
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ error?: string; message?: string }>(res);
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to remove from cart');
       }
@@ -189,12 +194,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!userId) return;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart`, {
+      const res = await fetch(buildCartApiUrl('/api/cart'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, productId, quantity: safeQuantity }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ error?: string; message?: string }>(res);
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to update cart quantity');
       }
@@ -213,10 +218,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (!userId) return;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cart?userId=${encodeURIComponent(userId)}`, {
+      const res = await fetch(buildCartApiUrl(`/api/cart?userId=${encodeURIComponent(userId)}`), {
         method: 'DELETE',
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ error?: string; message?: string }>(res);
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to clear cart');
       }

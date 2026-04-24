@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Instagram, Youtube, Phone, Mail, MapPin } from 'lucide-react';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 type Settings = {
   storeName: string;
@@ -20,7 +21,6 @@ const fallback: Settings = {
 };
 
 export function Footer() {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
   const router = useRouter();
   const [s, setS] = useState<Settings>(fallback);
   const [loaded, setLoaded] = useState(false);
@@ -29,7 +29,7 @@ export function Footer() {
     event.preventDefault();
 
     try {
-      await fetch(`${baseUrl}/api/admin/logout`, {
+      await fetch(buildApiUrl('/api/admin/logout'), {
         method: 'POST',
         credentials: 'include',
       });
@@ -41,17 +41,17 @@ export function Footer() {
   };
 
   useEffect(() => {
-    fetch(`${baseUrl}/api/settings`)
-      .then((r) => r.json())
+    fetch(buildApiUrl('/api/settings'))
+      .then((r) => parseResponseBody(r))
       .then((data) => {
         const payload = data?.data || data;
         setS({
           storeName: payload.storeName ?? '',
           description: payload.description ?? '',
           contact: {
-            phone: payload.contact?.phone ?? '',
-            email: payload.contact?.email ?? '',
-            address: payload.contact?.address ?? '',
+            phone: payload.phone ?? payload.contact?.phone ?? '',
+            email: payload.email ?? payload.contact?.email ?? '',
+            address: payload.address ?? payload.contact?.address ?? '',
           },
           social: {
             facebook: payload.social?.facebook ?? '',

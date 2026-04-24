@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Optional fallback: hide Next.js dev indicator UI (button + popover) if config/env does not suppress it. */
+nextjs-portal [data-nextjs-dev-tools-button],
+nextjs-portal [data-nextjs-dev-tools-popover],
+nextjs-portal [data-nextjs-dev-tools-overlay],
+nextjs-portal [data-nextjs-build-indicator],
+nextjs-portal [data-nextjs-toast] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
 :root {
   /* Brand and semantic color system (light mode) */
   --brand-blue-light: oklch(0.67 0.14 254.4); /* ~blue-500 */

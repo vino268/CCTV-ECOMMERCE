@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { Category } from '@/lib/types';
+import { getSafeImageSrc } from '@/lib/product-image';
 
 interface CategoryCardProps {
   category: Category;
@@ -12,6 +13,7 @@ interface CategoryCardProps {
 
 export function CategoryCard({ category }: CategoryCardProps) {
   const [hasImageError, setHasImageError] = useState(false);
+  const categoryImage = getSafeImageSrc(category.image, '/images/camera.jpg');
 
   return (
     <Link
@@ -21,7 +23,7 @@ export function CategoryCard({ category }: CategoryCardProps) {
       <div className="relative w-full aspect-[4/3]">
         {!hasImageError ? (
           <Image
-            src={category.image}
+            src={categoryImage}
             alt={category.name}
             fill
             unoptimized

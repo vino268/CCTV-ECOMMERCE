@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 export default function ProductDetailPage({
   params,
@@ -28,7 +28,6 @@ export default function ProductDetailPage({
   const [currentImage, setCurrentImage] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentModalIndex, setCurrentModalIndex] = useState(0);
-  const [isBuyingNow, setIsBuyingNow] = useState(false);
   const [isCartBtnAnimating, setIsCartBtnAnimating] = useState(false);
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -40,27 +39,36 @@ export default function ProductDetailPage({
       try {
         const res = await fetch(`${BASE_URL}/api/products/${id}`, { cache: 'no-store' });
         if (!res.ok) {
+          setLoading(false);
           setNotFound(true);
           return;
         }
-        const data = await res.json();
-        setProduct(data);
+        const data = await res.json().catch(() => ({}));
+        const productData: Product | null = (data?.product || null) as Product | null;
+
+        if (!productData) {
+          setLoading(false);
+          setNotFound(true);
+          return;
+        }
+
+        setProduct(productData);
         setCurrentImage(0);
 
         // Fetch related products from API
         const allRes = await fetch(`${BASE_URL}/api/products?page=1&limit=200`, { cache: 'no-store' });
         if (allRes.ok) {
-          const allData = await allRes.json();
+          const allData = await allRes.json().catch(() => ({}));
           const allProducts: Product[] = Array.isArray(allData)
             ? allData
             : Array.isArray(allData?.products)
               ? allData.products
               : [];
-          const pid = data._id;
+          const pid = productData._id;
           const related = allProducts
             .filter(
               (p) =>
-                p.category === data.category &&
+                p.category === productData.category &&
                 p._id !== pid
             )
             .slice(0, 3);
@@ -138,50 +146,17 @@ export default function ProductDetailPage({
     await toggleCartItem(product, quantity);
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = () => {
+    const productId: string = product._id ?? '';
+    if (!productId) return;
+
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push('/login?redirect=/checkout');
+      router.push(`/login?redirect=${encodeURIComponent(`/checkout?productId=${productId}`)}`);
       return;
     }
 
-    try {
-      setIsBuyingNow(true);
-      const productId: string = product._id ?? '';
-      const baseUrl = BASE_URL;
-
-      const res = await fetch(`${baseUrl}/api/orders/buy-now`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          productId,
-          quantity,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          router.push('/login?redirect=/checkout');
-          return;
-        }
-        alert(data?.message || 'Failed to proceed');
-        return;
-      }
-
-      if (data?.orderId) {
-        router.push(`/checkout?orderId=${data.orderId}`);
-      } else {
-        alert('Failed to proceed');
-      }
-    } catch (error) {
-      console.error('Buy now failed:', error);
-    } finally {
-      setIsBuyingNow(false);
-    }
+    router.push(`/checkout?productId=${encodeURIComponent(productId)}`);
   };
 
   const hasSpecs = product.specs && Object.keys(product.specs).length > 0;
@@ -386,9 +361,9 @@ export default function ProductDetailPage({
                   size="lg"
                   className="w-full h-12 rounded-xl bg-blue-900 hover:bg-blue-800 text-white border-blue-900 transition-colors"
                   onClick={handleBuyNow}
-                  disabled={!product.inStock || isBuyingNow}
+                  disabled={!product.inStock}
                 >
-                  {isBuyingNow ? 'Please wait...' : 'Buy Now'}
+                  Buy Now
                 </Button>
               </div>
             </div>

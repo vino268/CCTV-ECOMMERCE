@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCart } from '@/lib/contexts/cart-context';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -22,15 +22,28 @@ import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { getSafeImageSrc } from '@/lib/product-image';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 interface BuyNowOrderState {
+  createdOrderId?: string;
   productId: string;
+  customOrderId?: string;
+  orderNumber?: string;
   quantity: number;
   product: {
     name?: string;
     image?: string;
     price?: number;
     inStock?: boolean;
+  };
+  deliveryDetails?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
   };
 }
 
@@ -43,14 +56,18 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<CheckoutStep>('checkout');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const placingOrderRef = useRef(false);
+  const prefilledUserKeyRef = useRef('');
   const [orderNumber, setOrderNumber] = useState('');
   const [buyNowOrder, setBuyNowOrder] = useState<BuyNowOrderState | null>(null);
   const [isLoadingBuyNow, setIsLoadingBuyNow] = useState(false);
   const { toast, showError, showSuccess } = useToast();
   const buyNowOrderId = searchParams.get('orderId');
-  const isBuyNowFlow = Boolean(buyNowOrderId);
+  const buyNowProductId = String(searchParams.get('productId') || '').trim();
+  const isBuyNowFlow = Boolean(buyNowProductId || buyNowOrderId);
+  const isBuyNowProductFlow = Boolean(buyNowProductId);
 
-  // Auth guard + auto-fill from user profile
+  // Auth guard + one-time auto-fill from user profile
   useEffect(() => {
     if (authLoading) return;
 
@@ -59,10 +76,17 @@ export default function CheckoutPage() {
         cartItemsCount: cart.length,
         hasUser: Boolean(user),
       });
-      const redirectPath = isBuyNowFlow && buyNowOrderId
-        ? `/checkout?orderId=${encodeURIComponent(buyNowOrderId)}`
-        : '/checkout';
+      const redirectPath = isBuyNowProductFlow && buyNowProductId
+        ? `/checkout?productId=${encodeURIComponent(buyNowProductId)}`
+        : isBuyNowFlow && buyNowOrderId
+          ? `/checkout?orderId=${encodeURIComponent(buyNowOrderId)}`
+          : '/checkout';
       router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
+      return;
+    }
+
+    const userKey = String(user?._id || user?.email || '').trim().toLowerCase();
+    if (userKey && prefilledUserKeyRef.current === userKey) {
       return;
     }
 
@@ -73,10 +97,14 @@ export default function CheckoutPage() {
       phone: prev.phone || user.phone || '',
       address: prev.address || user.address || '',
     }));
-  }, [router, cart.length, authLoading, isAuthenticated, user, isBuyNowFlow, buyNowOrderId]);
+
+    if (userKey) {
+      prefilledUserKeyRef.current = userKey;
+    }
+  }, [router, authLoading, isAuthenticated, user?._id, user?.email, user?.name, user?.phone, user?.address, isBuyNowFlow, isBuyNowProductFlow, buyNowOrderId, buyNowProductId]);
 
   useEffect(() => {
-    if (!isBuyNowFlow || !buyNowOrderId) {
+    if (!isBuyNowFlow) {
       setBuyNowOrder(null);
       setIsLoadingBuyNow(false);
       return;
@@ -90,12 +118,46 @@ export default function CheckoutPage() {
       try {
         setIsLoadingBuyNow(true);
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
+        if (isBuyNowProductFlow && buyNowProductId) {
+          const productRes = await fetch(buildApiUrl(`/api/products/${encodeURIComponent(buyNowProductId)}`), {
+            cache: 'no-store',
+            credentials: 'include',
+          });
+
+          const productData = await parseResponseBody<any>(productRes);
+          if (cancelled) return;
+
+          if (!productRes.ok || !productData?.product) {
+            showError(productData?.message || 'Unable to load buy now item');
+            setBuyNowOrder(null);
+            return;
+          }
+
+          setBuyNowOrder({
+            productId: String(productData.product?._id || buyNowProductId).trim(),
+            quantity: 1,
+            product: {
+              name: String(productData.product?.name || 'Product').trim(),
+              image: String(productData.product?.image || '').trim(),
+              price: Number(productData.product?.price || 0),
+              inStock: Boolean(productData.product?.inStock),
+            },
+          });
+          return;
+        }
+
+        if (!buyNowOrderId) {
+          setBuyNowOrder(null);
+          return;
+        }
+
+        const uid = user?._id ? `&userId=${encodeURIComponent(user._id)}` : '';
+        const res = await fetch(buildApiUrl(`/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}${uid}`), {
           cache: 'no-store',
           credentials: 'include',
         });
 
-        const data = await res.json().catch(() => ({}));
+        const data = await parseResponseBody<any>(res);
         if (cancelled) return;
 
         if (!res.ok) {
@@ -120,7 +182,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [isBuyNowFlow, buyNowOrderId, authLoading, isAuthenticated, showError]);
+  }, [isBuyNowFlow, isBuyNowProductFlow, buyNowProductId, buyNowOrderId, authLoading, isAuthenticated, showError, user?._id]);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -177,28 +239,35 @@ export default function CheckoutPage() {
 
   const handleSaveAddress = async () => {
     if (!validateCheckoutForm()) return;
+    if (!user?._id) {
+      showError('Please login to save address');
+      return;
+    }
 
     setIsSavingAddress(true);
     try {
-      const fullAddress = `${formData.address}, ${formData.city}, ${formData.state} - ${formData.pincode}`;
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(buildApiUrl('/api/address/add'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          email: formData.email,
+          userId: user._id,
           name: formData.fullName,
           phone: formData.phone,
-          address: fullAddress,
+          email: formData.email,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode,
         }),
       });
 
+      const payload = await parseResponseBody<any>(res);
       if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || 'Failed to save address');
+        throw new Error(payload.message || payload.error || 'Failed to save address');
       }
-
-      await refreshUser();
 
       showSuccess('Address saved successfully');
     } catch (error: any) {
@@ -209,84 +278,99 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
+    if (placingOrderRef.current || isProcessing) return;
     if (!validateCheckoutForm()) return;
+    if (!formData.fullName || !formData.phone || !formData.address || !formData.city || !formData.state || !formData.pincode) {
+      showError('Complete address is required');
+      return;
+    }
     if (cartItems.length === 0) return;
 
+    placingOrderRef.current = true;
     setIsProcessing(true);
 
-    const newOrderNumber =
-      '#TN' + Math.random().toString(36).substring(2, 8).toUpperCase();
-
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderNumber: newOrderNumber,
-          userId: user?._id ?? '',
-          items: cartItems.map((item) => ({
-            productId: item.productId,
-            name: item.product?.name || '',
-            image: item.product?.image || '',
-            price: item.product?.price || 0,
-            quantity: item.quantity,
-          })),
-          address: {
-            fullName: formData.fullName,
-            email: formData.email,
-            phone: formData.phone,
-            street: formData.address,
-            city: formData.city,
-            state: formData.state,
-            pincode: formData.pincode,
-          },
-          paymentMethod: 'COD',
-          customerName: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          products: cartItems.map((item) => ({
-            productId: item.productId,
-            productName: item.product?.name || '',
-            productImage: item.product?.image || '',
-            productPrice: item.product?.price || 0,
-            quantity: item.quantity,
-          })),
-          totalAmount: parseFloat(total.toFixed(2)),
-          paymentStatus: 'Unpaid',
-          status: 'Pending',
-          orderStatus: 'Ordered',
-          trackingStatus: 'Ordered',
-          deliveryInfo: {
-            firstName: formData.fullName,
-            lastName: '',
-            email: formData.email,
-            phone: formData.phone,
-            street: formData.address,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.pincode,
-          },
-        }),
-      });
+      const productId = String(buyNowOrder?.productId || buyNowProductId).trim();
+      const quantity = Number(buyNowOrder?.quantity || 1);
+      const unitPrice = Number(buyNowOrder?.product?.price || 0);
 
-      if (!res.ok) throw new Error('Failed to save order');
-
-      setOrderNumber(newOrderNumber);
-
-      if (isBuyNowFlow && buyNowOrderId) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/buy-now?orderId=${encodeURIComponent(buyNowOrderId)}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        }).catch(() => {});
-      } else {
-        clearCart();
+      if (!productId || !user?.email) {
+        throw new Error('Unable to finalize order. Please try again.');
       }
 
-      router.push(`/order-success?order=${encodeURIComponent(newOrderNumber)}`);
-    } catch (err) {
-      console.error('Error placing order:', err);
-      showError('Something went wrong while placing your order. Please try again.');
+      const orderData = {
+        productId,
+        quantity,
+        totalAmount: Number(total.toFixed(2)),
+        user: {
+          name: String(user?.name || formData.fullName || 'Customer').trim(),
+          email: String(user?.email || formData.email || '').trim(),
+        },
+        product: {
+          productId,
+          name: buyNowOrder?.product?.name || 'Product',
+          price: Number(unitPrice.toFixed(2)),
+          image: buyNowOrder?.product?.image || '',
+        },
+        address: {
+          fullName: formData.fullName,
+          phone: formData.phone,
+          email: formData.email,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode,
+        },
+        deliveryDetails: {
+          name: formData.fullName,
+          phone: formData.phone,
+          email: formData.email,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.pincode,
+        },
+      };
+
+      console.log('Sending address:', formData);
+      console.log('Sending order:', orderData);
+
+      const createRes = await fetch(buildApiUrl('/api/orders/buy-now'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!createRes.ok) {
+        const createError = await parseResponseBody<any>(createRes);
+        console.error('API ERROR:', createError);
+        showError(createError?.message || 'Order failed. Please try again.');
+        return;
+      }
+
+      const createPayload = await parseResponseBody<any>(createRes);
+      console.log('RESPONSE:', createPayload);
+
+      if (!createPayload?.success || !createPayload?.order?._id) {
+        console.error('Invalid response:', createPayload);
+        showError('Order not created properly');
+        return;
+      }
+
+      const createdOrderId = String(createPayload?.order?._id || '').trim();
+      if (!createdOrderId) {
+        showError('Order not created properly');
+        return;
+      }
+
+      console.log('ORDER ID:', createdOrderId);
+      router.push(`/order-success?orderId=${encodeURIComponent(createdOrderId)}`);
+    } catch (error) {
+      console.error('PLACE ORDER ERROR:', error);
+      showError('Something went wrong');
     } finally {
+      placingOrderRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -598,7 +682,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                 {isProcessing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Placing Order...
+                    Processing...
                   </>
                 ) : (
                   'Place Order'

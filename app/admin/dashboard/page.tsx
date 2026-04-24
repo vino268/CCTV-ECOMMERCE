@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Package,
@@ -14,77 +14,45 @@ import {
 import RevenueChart from '@/components/admin/RevenueChart';
 import OrdersStatusChart from '@/components/admin/OrdersStatusChart';
 import { formatINRCurrency } from '@/lib/currency';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 interface RevenuePoint {
   date: string;
   revenue: number;
 }
 
-interface StatusPoint {
-  status: string;
-  count: number;
+interface OrderStatusDistribution {
+  ordered: number;
+  packed: number;
+  shipped: number;
+  delivered: number;
+  cancelled: number;
 }
 
 interface DashboardOverview {
-  range: 'today' | '7d' | '30d';
-  kpis: {
-    totalProducts: number;
-    totalOrders: number;
-    totalCustomers: number;
-    totalRevenue: number;
-  };
-  growth: {
-    products: number;
-    orders: number;
-    customers: number;
-    revenue: number;
-  };
-  charts: {
-    revenue: RevenuePoint[];
-    ordersStatus: StatusPoint[];
-  };
-  recent: {
-    orders: Array<{
-      _id: string;
-      orderNumber?: string;
-      customerName?: string;
-      email?: string;
-      totalAmount: number;
-      orderStatus: string;
-      createdAt: string;
-    }>;
-    customers: Array<{
-      _id: string;
-      name?: string;
-      email?: string;
-      createdAt: string;
-    }>;
-  };
+  totalProducts: number;
+  totalOrders: number;
+  totalCustomers: number;
+  totalRevenue: number;
 }
 
-const emptyOverview: DashboardOverview = {
-  range: '7d',
-  kpis: {
-    totalProducts: 0,
-    totalOrders: 0,
-    totalCustomers: 0,
-    totalRevenue: 0,
-  },
-  growth: {
-    products: 0,
-    orders: 0,
-    customers: 0,
-    revenue: 0,
-  },
-  charts: {
-    revenue: [],
-    ordersStatus: [],
-  },
-  recent: {
-    orders: [],
-    customers: [],
-  },
-};
+interface LatestOrder {
+  _id: string;
+  orderId: string;
+  orderNumber?: string;
+  customerName?: string;
+  email?: string;
+  totalAmount: number;
+  orderStatus: string;
+  createdAt: string;
+}
+
+interface LatestCustomer {
+  _id: string;
+  name?: string;
+  email?: string;
+  createdAt: string;
+}
 
 function formatCompactINR(value: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -94,12 +62,30 @@ function formatCompactINR(value: number) {
   }).format(value || 0);
 }
 
-function growthMeta(growth: number) {
-  const positive = growth >= 0;
-  return {
-    text: `${positive ? '+' : ''}${growth.toFixed(1)}% this week`,
-    className: positive ? 'text-green-600' : 'text-red-600',
-  };
+function formatJoinedDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function getLatestDataErrorMessage(status: number | null, resourceLabel: string) {
+  if (status === 401) {
+    return `Unauthorized to load ${resourceLabel}. Please sign in again.`;
+  }
+
+  if (status && status >= 500) {
+    return `Server error while loading ${resourceLabel}.`;
+  }
+
+  return `Unexpected response from ${resourceLabel} API.`;
 }
 
 const orderStatusStyles: Record<string, string> = {
@@ -113,112 +99,262 @@ const orderStatusStyles: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
-  const [range, setRange] = useState<'today' | '7d' | '30d'>('7d');
+  const [range, setRange] = useState<1 | 7 | 30>(7);
   const [loading, setLoading] = useState(true);
-  const [overview, setOverview] = useState<DashboardOverview>(emptyOverview);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [overview, setOverview] = useState<DashboardOverview>({
+    totalProducts: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    totalRevenue: 0,
+  });
+  const [revenueData, setRevenueData] = useState<RevenuePoint[]>([]);
+  const [statusData, setStatusData] = useState<OrderStatusDistribution>({
+    ordered: 0,
+    packed: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+  });
+  const [latestOrders, setLatestOrders] = useState<LatestOrder[]>([]);
+  const [latestCustomers, setLatestCustomers] = useState<LatestCustomer[]>([]);
+  const [latestOrdersError, setLatestOrdersError] = useState('');
+  const [latestCustomersError, setLatestCustomersError] = useState('');
 
-  const fetchOverview = async (nextRange: 'today' | '7d' | '30d') => {
+  const fetchJsonSafe = useCallback(async <T,>(path: string): Promise<{ ok: boolean; data: T | null; networkError: boolean; status: number | null }> => {
     try {
-      setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/analytics/overview?range=${nextRange}`, {
+      const res = await fetch(buildApiUrl(path), {
         cache: 'no-store',
+        credentials: 'include',
       });
-      const data = await res.json();
-      setOverview(data);
+
+      const payload = await parseResponseBody<T>(res);
+      return {
+        ok: res.ok,
+        data: (payload as T) || null,
+        networkError: false,
+        status: res.status,
+      };
+    } catch {
+      return {
+        ok: false,
+        data: null,
+        networkError: true,
+        status: null,
+      };
+    }
+  }, []);
+
+  const fetchAnalytics = useCallback(async (selectedRange: 1 | 7 | 30, isInitialLoad = false) => {
+    try {
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      const rangeQuery = `?range=${selectedRange === 1 ? 'today' : selectedRange === 30 ? '30days' : '7days'}`;
+
+      console.log('Fetching revenue...');
+
+      const [dashboardResult, revenueResult, orderStatusResult, latestOrdersResult, latestCustomersResult] = await Promise.all([
+        fetchJsonSafe<{ data?: { totalProducts?: number; totalOrders?: number; totalCustomers?: number; totalRevenue?: number } }>(`/api/admin/dashboard${rangeQuery}`),
+        fetchJsonSafe<{ total?: number; data?: Array<{ date?: unknown; revenue?: unknown }> }>(`/api/admin/revenue${rangeQuery}`),
+        fetchJsonSafe<OrderStatusDistribution>(`/api/admin/order-status${rangeQuery}`),
+        fetchJsonSafe<{ success?: boolean; orders?: Array<Record<string, unknown>> }>('/api/admin/latest-orders'),
+        fetchJsonSafe<{ success?: boolean; users?: Array<Record<string, unknown>> }>('/api/admin/latest-customers'),
+      ]);
+
+      const dashboardPayload = dashboardResult.data;
+      const revenuePayload = revenueResult.data;
+      const orderStatusPayload = orderStatusResult.data;
+      const latestOrdersPayload = latestOrdersResult.data;
+      const latestCustomersPayload = latestCustomersResult.data;
+
+      const dashboardData =
+        dashboardPayload && typeof dashboardPayload === 'object' && 'data' in dashboardPayload
+          ? (dashboardPayload.data || {})
+          : {};
+
+      const normalizedRevenue = Array.isArray(revenuePayload?.data)
+        ? revenuePayload.data
+            .map((entry) => ({
+              date: String(entry?.date || ''),
+              revenue: Number(entry?.revenue || 0),
+            }))
+            .filter((entry) => Boolean(entry.date))
+        : [];
+
+      const statusSource = (orderStatusPayload || {}) as Partial<OrderStatusDistribution>;
+      const latestOrdersSource =
+        latestOrdersPayload && typeof latestOrdersPayload === 'object'
+          ? latestOrdersPayload
+          : null;
+      const latestCustomersSource =
+        latestCustomersPayload && typeof latestCustomersPayload === 'object'
+          ? latestCustomersPayload
+          : null;
+
+      const normalizedLatestOrders = Array.isArray(latestOrdersSource?.orders)
+        ? latestOrdersSource.orders.map((order: any) => ({
+            _id: String(order?._id || ''),
+            orderId: String(order?.orderId || order?.orderNumber || order?._id || ''),
+            orderNumber: String(order?.orderNumber || order?.orderId || order?._id || ''),
+            customerName: String(order?.customerName || order?.user?.name || order?.name || order?.email || 'Customer'),
+            email: String(order?.email || order?.user?.email || ''),
+            totalAmount: Number(order?.totalAmount ?? order?.total ?? 0),
+            orderStatus: String(order?.orderStatus || order?.status || order?.trackingStatus || 'Ordered'),
+            createdAt: String(order?.createdAt || ''),
+          }))
+        : [];
+
+      const normalizedLatestCustomers = Array.isArray(latestCustomersSource?.users)
+        ? latestCustomersSource.users.map((customer: any) => ({
+            _id: String(customer?._id || ''),
+            name: String(customer?.name || ''),
+            email: String(customer?.email || ''),
+            createdAt: String(customer?.createdAt || ''),
+          }))
+        : [];
+
+      setOverview((prev) => ({
+        ...prev,
+        totalProducts: Number(dashboardData.totalProducts || 0),
+        totalOrders: Number(dashboardData.totalOrders || 0),
+        totalCustomers: Number(dashboardData.totalCustomers || 0),
+        totalRevenue: Number(revenuePayload?.total || dashboardData.totalRevenue || 0),
+      }));
+
+      setRevenueData(normalizedRevenue);
+      setStatusData({
+        ordered: Number(statusSource.ordered || 0),
+        packed: Number(statusSource.packed || 0),
+        shipped: Number(statusSource.shipped || 0),
+        delivered: Number(statusSource.delivered || 0),
+        cancelled: Number(statusSource.cancelled || 0),
+      });
+      setLatestOrders(normalizedLatestOrders);
+      setLatestCustomers(normalizedLatestCustomers);
+      setLatestOrdersError(
+        latestOrdersResult.networkError || !latestOrdersResult.ok || !latestOrdersSource || !Array.isArray(latestOrdersSource.orders)
+          ? getLatestDataErrorMessage(latestOrdersResult.status, 'latest orders')
+          : ''
+      );
+      setLatestCustomersError(
+        latestCustomersResult.networkError || !latestCustomersResult.ok || !latestCustomersSource || !Array.isArray(latestCustomersSource.users)
+          ? getLatestDataErrorMessage(latestCustomersResult.status, 'latest customers')
+          : ''
+      );
+
+      if (
+        dashboardResult.networkError &&
+        revenueResult.networkError &&
+        orderStatusResult.networkError &&
+        latestOrdersResult.networkError &&
+        latestCustomersResult.networkError
+      ) {
+        setErrorMessage('Backend API is unreachable. Please ensure the Express server is running and MongoDB Atlas is accessible.');
+      } else if ([dashboardResult, revenueResult, orderStatusResult, latestOrdersResult, latestCustomersResult].some((result) => result.status === 401)) {
+        setErrorMessage('Admin session expired or is missing. Please sign in again.');
+      } else if (!dashboardResult.ok || !revenueResult.ok || !orderStatusResult.ok || !latestOrdersResult.ok || !latestCustomersResult.ok) {
+        setErrorMessage('Some analytics endpoints returned errors. Showing latest available data.');
+      } else {
+        setErrorMessage('');
+      }
     } catch (error) {
-      console.error('Failed to fetch dashboard overview:', error);
-      setOverview(emptyOverview);
+      setErrorMessage('Unable to refresh analytics right now. Retrying automatically...');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [fetchJsonSafe]);
 
   useEffect(() => {
-    fetchOverview(range);
-  }, [range]);
+    fetchAnalytics(range, true);
+  }, [fetchAnalytics, range]);
 
   const kpiCards = useMemo(() => {
     return [
       {
         label: 'Total Products',
-        value: overview.kpis.totalProducts.toLocaleString('en-IN'),
+        value: overview.totalProducts.toLocaleString('en-IN'),
         icon: Package,
         href: '/admin/products',
         iconBg: 'bg-blue-100',
         iconColor: 'text-blue-600',
-        growth: overview.growth.products,
       },
       {
         label: 'Total Orders',
-        value: overview.kpis.totalOrders.toLocaleString('en-IN'),
+        value: overview.totalOrders.toLocaleString('en-IN'),
         icon: ShoppingCart,
         href: '/admin/orders',
         iconBg: 'bg-indigo-100',
         iconColor: 'text-indigo-600',
-        growth: overview.growth.orders,
       },
       {
         label: 'Total Customers',
-        value: overview.kpis.totalCustomers.toLocaleString('en-IN'),
+        value: overview.totalCustomers.toLocaleString('en-IN'),
         icon: Users,
         href: '/admin/customers',
         iconBg: 'bg-sky-100',
         iconColor: 'text-sky-600',
-        growth: overview.growth.customers,
       },
       {
         label: 'Total Revenue',
-        value: formatCompactINR(overview.kpis.totalRevenue),
+        value: formatCompactINR(overview.totalRevenue),
         icon: IndianRupee,
         href: '/admin/orders',
         iconBg: 'bg-emerald-100',
         iconColor: 'text-emerald-600',
-        growth: overview.growth.revenue,
       },
     ];
   }, [overview]);
-
-  const chartSubtitle =
-    range === 'today'
-      ? 'Today'
-      : range === '30d'
-      ? 'Last 30 days'
-      : 'Last 7 days';
 
   return (
     <div className="max-w-[1450px] mx-auto w-full p-4 space-y-8">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <p className="text-gray-500 mt-1">Track sales, orders, and customer growth in real time.</p>
+          <p className="text-gray-500 mt-1">Track sales, orders, customers, and revenue with real-time analytics.</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-600">Time Filter</label>
+        <div className="flex items-center gap-2">
+          <label htmlFor="range" className="text-sm font-medium text-gray-600">Time Filter</label>
           <select
-            value={range}
-            onChange={(e) => setRange(e.target.value as 'today' | '7d' | '30d')}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            id="range"
+            value={String(range)}
+            onChange={(e) => setRange(Number(e.target.value) as 1 | 7 | 30)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
-            <option value="today">Today</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
+            <option value="1">Today</option>
+            <option value="7">Last 7 Days</option>
+            <option value="30">Last 30 Days</option>
           </select>
         </div>
       </div>
 
+      {errorMessage ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      ) : null}
+
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
         {kpiCards.map((card) => {
           const Icon = card.icon;
-          const growth = growthMeta(card.growth);
           return (
             <Link key={card.label} href={card.href} className="group">
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-gray-500">{card.label}</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{card.value}</p>
-                    <p className={`text-xs mt-2 ${growth.className}`}>{growth.text}</p>
+                    {loading ? (
+                      <div className="mt-2 h-8 w-24 animate-pulse rounded bg-gray-100" />
+                    ) : (
+                      <p className="text-3xl font-bold text-gray-900 mt-1">{card.value}</p>
+                    )}
+                    <p className="text-xs mt-2 text-gray-500">{refreshing ? 'Refreshing...' : 'Live analytics'}</p>
                   </div>
                   <div className={`p-3 rounded-xl ${card.iconBg}`}>
                     <Icon className={`w-6 h-6 ${card.iconColor}`} />
@@ -232,14 +368,14 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <RevenueChart
-          data={overview.charts.revenue}
+          data={revenueData}
           loading={loading}
-          subtitle={chartSubtitle}
+          subtitle={range === 1 ? 'Today' : range === 30 ? 'Last 30 days' : 'Last 7 days'}
         />
         <OrdersStatusChart
-          data={overview.charts.ordersStatus}
+          data={statusData}
           loading={loading}
-          subtitle={chartSubtitle}
+          subtitle={range === 1 ? 'Today' : range === 30 ? 'Last 30 days' : 'Last 7 days'}
         />
       </div>
 
@@ -281,11 +417,13 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-lg transition-shadow h-full flex flex-col">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Latest Orders</h2>
-          {overview.recent.orders.length === 0 ? (
+          {latestOrdersError ? (
+            <p className="text-sm text-red-600">{latestOrdersError}</p>
+          ) : latestOrders.length === 0 ? (
             <p className="text-sm text-gray-500">No recent orders</p>
           ) : (
             <div className="space-y-3">
-              {overview.recent.orders.map((order) => {
+              {latestOrders.map((order) => {
                 const statusClass =
                   orderStatusStyles[order.orderStatus] || 'bg-gray-100 text-gray-700';
 
@@ -296,7 +434,7 @@ export default function AdminDashboard() {
                     className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 rounded-lg px-2 -mx-2 hover:bg-gray-50 transition"
                   >
                     <div>
-                      <p className="font-medium text-gray-900 text-sm">{order.orderNumber || order._id}</p>
+                      <p className="font-medium text-gray-900 text-sm">{order.orderId || order.orderNumber || order._id}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-500">{order.customerName || order.email || 'Customer'}</p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${statusClass}`}>
@@ -316,11 +454,13 @@ export default function AdminDashboard() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-lg transition-shadow h-full flex flex-col">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Latest Customers</h2>
-          {overview.recent.customers.length === 0 ? (
+          {latestCustomersError ? (
+            <p className="text-sm text-red-600">{latestCustomersError}</p>
+          ) : latestCustomers.length === 0 ? (
             <p className="text-sm text-gray-500">No recent customers</p>
           ) : (
             <div className="space-y-3">
-              {overview.recent.customers.map((customer) => (
+              {latestCustomers.map((customer) => (
                 <Link
                   key={customer._id}
                   href={`/admin/customers?customerId=${customer._id}`}
@@ -336,7 +476,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-500">
-                    {new Date(customer.createdAt).toLocaleDateString('en-IN')}
+                    {formatJoinedDate(customer.createdAt)}
                   </p>
                 </Link>
               ))}

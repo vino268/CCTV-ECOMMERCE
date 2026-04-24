@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 export interface AuthUser {
   _id: string;
@@ -24,11 +25,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-
-function buildApiUrl(path: string) {
-  return `${API_BASE}${path}`;
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -41,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ user?: AuthUser | null }>(res);
 
       if (!res.ok) {
         setUser(null);

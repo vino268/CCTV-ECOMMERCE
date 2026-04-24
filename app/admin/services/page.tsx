@@ -6,6 +6,7 @@ import { Edit2, Trash2, Plus, X, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { formatPrice } from '@/lib/currency';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 interface Service {
   _id: string;
@@ -43,9 +44,17 @@ export default function AdminServicesPage() {
   /* ---------------------------------------------------------------- */
   const fetchServices = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`);
-      const data = await res.json();
-      setServices(Array.isArray(data) ? data : []);
+      const res = await fetch(buildApiUrl('/api/services'), {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const data = await parseResponseBody<any>(res);
+      const rows = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+          ? data
+          : [];
+      setServices(rows);
     } catch {
       setServices([]);
     } finally {
@@ -63,8 +72,9 @@ export default function AdminServicesPage() {
     if (!addForm.name.trim()) return;
     setAdding(true);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`, {
+      await fetch(buildApiUrl('/api/services'), {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: addForm.name,
@@ -101,8 +111,9 @@ export default function AdminServicesPage() {
     if (!editState.name.trim()) return;
     setSaving(true);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services/${id}`, {
+      await fetch(buildApiUrl(`/api/services/${id}`), {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editState.name,
@@ -127,8 +138,11 @@ export default function AdminServicesPage() {
 
     try {
       setIsDeleteSubmitting(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services/${id}`, { method: 'DELETE' });
-      const data = await res.json();
+      const res = await fetch(buildApiUrl(`/api/services/${id}`), {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await parseResponseBody<any>(res);
       if (!res.ok) {
         alert(data.error ?? 'Delete failed');
         return;

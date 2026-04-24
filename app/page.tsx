@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Product } from '@/lib/types';
 import { useCart } from '@/lib/contexts/cart-context';
@@ -33,7 +32,7 @@ import {
   Tag,
 } from 'lucide-react';
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 async function fetchJson(path: string) {
   const res = await fetch(`${BASE_URL}${path}`, { cache: 'no-store' });
@@ -50,7 +49,7 @@ type HomeProductCardProps = {
   product: Product & { isInCart: boolean };
   isPending: boolean;
   onAddToCart: (product: Product) => Promise<void>;
-  onBuyNow: (product: Product) => Promise<void>;
+  onBuyNow: (product: Product) => void;
 };
 
 type HomeCategory = {
@@ -119,16 +118,6 @@ export default function Home() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [topCategories, setTopCategories] = useState<HomeCategory[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
-
-  const {
-    data: latestData,
-    error: latestError,
-    isLoading: latestLoading,
-  } = useSWR('home-latest-products', () => fetchJson('/api/products/latest'), {
-    revalidateOnFocus: false,
-    shouldRetryOnError: true,
-    errorRetryCount: 2,
-  });
 
   const featureStrip = [
     {
@@ -219,60 +208,56 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    setProductsLoading(latestLoading);
+    const fetchProducts = async () => {
+      try {
+        setProductsLoading(true);
+        setProductsError(null);
 
-    if (latestLoading) return;
+        const apiBase = BASE_URL || 'http://localhost:5000';
+        const res = await fetch(`${apiBase}/api/products?limit=8`, { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
 
-    if (latestError) {
-      setProducts([]);
-      setProductsError('Products are temporarily unavailable');
-      return;
-    }
+        if (!res.ok) {
+          throw new Error(data?.message || data?.error || 'Failed to load products');
+        }
 
-    const nextProducts = Array.isArray(latestData?.products)
-      ? latestData.products
-      : Array.isArray(latestData?.data)
-        ? latestData.data
-        : Array.isArray(latestData)
-          ? latestData
-          : [];
+        const nextProducts = Array.isArray(data?.products)
+          ? data.products
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
 
-    setProducts(nextProducts);
-    setProductsError(nextProducts.length ? null : 'No recent products available');
-  }, [latestData, latestError, latestLoading]);
+        setProducts(nextProducts);
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+        setProducts([]);
+        setProductsError('Products are temporarily unavailable');
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   useEffect(() => {
     const loadTopCategories = async () => {
       try {
         setCategoriesError(null);
-        const [categoriesData, productsData] = await Promise.all([
-          fetchJson('/api/categories'),
-          fetchJson('/api/products?limit=50'),
-        ]);
+        const categoriesData = await fetchJson('/api/categories/with-count');
 
         const categories = Array.isArray(categoriesData)
           ? categoriesData
           : Array.isArray(categoriesData?.categories)
             ? categoriesData.categories
             : [];
-        const products = Array.isArray(productsData)
-          ? productsData
-          : Array.isArray(productsData?.products)
-            ? productsData.products
-            : [];
 
-        if (!categories.length || !products.length) {
+        if (!categories.length) {
           setTopCategories([]);
           setCategoriesError('Categories are temporarily unavailable');
           return;
-        }
-
-        const counts = new Map<string, number>();
-        for (const product of products) {
-          if (typeof product?.category === 'string') {
-            const key = product.category.trim().toLowerCase();
-            counts.set(key, (counts.get(key) || 0) + 1);
-          }
         }
 
         const normalized: HomeCategory[] = categories
@@ -281,7 +266,7 @@ export default function Home() {
             return {
               _id: cat?._id || name,
               name,
-              productCount: counts.get(name.toLowerCase()) || 0,
+              productCount: Number(cat?.productCount || 0),
             };
           })
           .filter((cat: HomeCategory) => !!cat.name);
@@ -348,42 +333,19 @@ export default function Home() {
     await toggleCartItem(product, 1);
   };
 
-  const handleBuyNow = async (product: Product) => {
+  const handleBuyNow = (product: Product) => {
     if (!product.inStock) return;
+    const productId = product._id ?? '';
+    if (!productId) return;
+
     if (authLoading) return;
 
     if (!isAuthenticated) {
-      router.push('/login?redirect=/checkout');
+      router.push(`/login?redirect=${encodeURIComponent(`/checkout?productId=${productId}`)}`);
       return;
     }
 
-    const productId = product._id ?? '';
-
-    try {
-      const res = await fetch(`${BASE_URL}/api/orders/buy-now`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productId,
-          quantity: 1,
-        }),
-        credentials: 'include',
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401 || res.status === 403) {
-        router.push('/login?redirect=/checkout');
-        return;
-      }
-
-      if (res.ok && data?.orderId) {
-        router.push(`/checkout?orderId=${data.orderId}`);
-      }
-    } catch {
-      // Keep silent here to avoid interrupting browsing flow.
-    }
+    router.push(`/checkout?productId=${encodeURIComponent(productId)}`);
   };
 
   return (
@@ -538,7 +500,7 @@ export default function Home() {
             </div>
           ) : featuredProducts.length === 0 ? (
             <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-              {productsError || 'No recent products available'}
+              {productsError || 'No products found'}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">

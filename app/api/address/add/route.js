@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Address from "@/models/Address";
+import Notification from "@/models/Notification";
 import { verifyUser, authError, validateAddressPayload } from "../_helpers";
 
 // POST /api/address/add
@@ -28,6 +29,14 @@ export async function POST(request) {
       userId: auth.userId,
       ...valid.data,
       isDefault: shouldBeDefault,
+    });
+
+    await Notification.create({
+      title: "Address Updated",
+      type: "address",
+      message: "A delivery address was added",
+      userId: auth.userId,
+      isRead: false,
     });
 
     return NextResponse.json({ success: true, message: "Address added", address });

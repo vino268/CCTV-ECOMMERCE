@@ -1,7 +1,77 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Clock, Mail, MapPin, Phone } from 'lucide-react';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+
+type BusinessHours = {
+  monday?: string;
+  tuesday?: string;
+  wednesday?: string;
+  thursday?: string;
+  friday?: string;
+  saturday?: string;
+  sunday?: string;
+};
+
+type ContactInfo = {
+  phone?: string;
+  email?: string;
+  address?: string;
+  businessHours?: BusinessHours;
+};
+
+function normalizeHoursValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function formatBusinessHours(hours?: BusinessHours): string[] {
+  if (!hours) {
+    return [];
+  }
+
+  const monday = normalizeHoursValue(hours.monday);
+  const tuesday = normalizeHoursValue(hours.tuesday);
+  const wednesday = normalizeHoursValue(hours.wednesday);
+  const thursday = normalizeHoursValue(hours.thursday);
+  const friday = normalizeHoursValue(hours.friday);
+  const saturday = normalizeHoursValue(hours.saturday);
+  const sunday = normalizeHoursValue(hours.sunday);
+
+  const hasAnyHours = [
+    monday,
+    tuesday,
+    wednesday,
+    thursday,
+    friday,
+    saturday,
+    sunday,
+  ].some(Boolean);
+
+  if (!hasAnyHours) {
+    return [];
+  }
+
+  const weekdayValues = [monday, tuesday, wednesday, thursday, friday];
+  const weekdaysUniform = weekdayValues.every((value) => value && value === monday);
+
+  const lines: string[] = [];
+
+  if (weekdaysUniform) {
+    lines.push(`Mon - Fri: ${monday}`);
+  } else {
+    lines.push(`Monday: ${monday || 'Not available'}`);
+    lines.push(`Tuesday: ${tuesday || 'Not available'}`);
+    lines.push(`Wednesday: ${wednesday || 'Not available'}`);
+    lines.push(`Thursday: ${thursday || 'Not available'}`);
+    lines.push(`Friday: ${friday || 'Not available'}`);
+  }
+
+  lines.push(`Saturday: ${saturday || 'Not available'}`);
+  lines.push(`Sunday: ${sunday || 'Not available'}`);
+
+  return lines;
+}
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -13,6 +83,46 @@ export default function ContactPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [settings, setSettings] = useState<ContactInfo | null>(null);
+  const [loadingContact, setLoadingContact] = useState(true);
+
+  useEffect(() => {
+    const fetchContact = async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/settings'), { cache: 'no-store' });
+        const data = await parseResponseBody<any>(res);
+
+        if (!res.ok) {
+          setSettings(null);
+          return;
+        }
+
+        const payload = data?.data || data;
+
+        setSettings({
+          phone: payload?.phone ?? payload?.contact?.phone ?? '',
+          email: payload?.email ?? payload?.contact?.email ?? '',
+          address: payload?.address ?? payload?.contact?.address ?? '',
+          businessHours:
+            payload?.businessHours && typeof payload.businessHours === 'object'
+              ? payload.businessHours
+              : undefined,
+        });
+      } catch {
+        setSettings(null);
+      } finally {
+        setLoadingContact(false);
+      }
+    };
+
+    fetchContact();
+  }, []);
+
+  const businessHoursLines = formatBusinessHours(settings?.businessHours);
+
+  useEffect(() => {
+    console.log(settings);
+  }, [settings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -25,7 +135,7 @@ export default function ContactPage() {
     setStatus(null);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contact`, {
+      const res = await fetch(buildApiUrl('/api/contact'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -33,7 +143,7 @@ export default function ContactPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<any>(res);
 
       if (res.ok && data.success) {
         setStatus({ type: 'success', message: data.message || 'Message sent successfully!' });
@@ -143,9 +253,13 @@ export default function ContactPage() {
                 <Phone className="w-5 h-5 mt-0.5 text-blue-600 group-hover:text-blue-800 transition-colors duration-300" />
                 <div>
                   <p className="font-semibold text-gray-900">PHONE</p>
-                  <a href="tel:+917845283678" className="text-gray-700 hover:text-blue-600 transition">
-                    +91 78452 83678
-                  </a>
+                  {settings?.phone ? (
+                    <a href={`tel:${settings.phone}`} className="text-gray-700 hover:text-blue-600 transition">
+                      {settings.phone}
+                    </a>
+                  ) : (
+                    <p className="text-gray-500">Not available</p>
+                  )}
                 </div>
               </div>
 
@@ -155,9 +269,13 @@ export default function ContactPage() {
                 <Mail className="w-5 h-5 mt-0.5 text-blue-600 group-hover:text-blue-800 transition-colors duration-300" />
                 <div>
                   <p className="font-semibold text-gray-900">EMAIL</p>
-                  <a href="mailto:tnautomation@yahoo.com" className="text-gray-700 hover:text-blue-600 transition">
-                    tnautomation@yahoo.com
-                  </a>
+                  {settings?.email ? (
+                    <a href={`mailto:${settings.email}`} className="text-gray-700 hover:text-blue-600 transition">
+                      {settings.email}
+                    </a>
+                  ) : (
+                    <p className="text-gray-500">Not available</p>
+                  )}
                 </div>
               </div>
 
@@ -167,12 +285,11 @@ export default function ContactPage() {
                 <MapPin className="w-5 h-5 mt-0.5 text-blue-600 group-hover:text-blue-800 transition-colors duration-300" />
                 <div>
                   <p className="font-semibold text-gray-900">ADDRESS</p>
-                  <p className="text-gray-700 leading-relaxed">
-                    33F, Sai Complex,<br />
-                    Evk Sampath Salai,<br />
-                    Moolapatrai Road,<br />
-                    Erode - 638003
-                  </p>
+                  {settings?.address ? (
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-line">{settings.address}</p>
+                  ) : (
+                    <p className="text-gray-500">Not available</p>
+                  )}
                 </div>
               </div>
 
@@ -181,9 +298,16 @@ export default function ContactPage() {
               <div className="group flex items-start gap-3 text-gray-700 p-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all duration-300">
                 <Clock className="w-5 h-5 mt-0.5 text-blue-600 group-hover:text-blue-800 transition-colors duration-300" />
                 <div>
-                  <p className="font-semibold text-gray-900">BUSINESS HOURS</p>
-                  <p className="text-gray-700">Mon - Sat: 9:00 AM - 8:00 PM</p>
-                  <p className="text-gray-700">Sunday: 10:00 AM - 6:00 PM</p>
+                  <p className="font-semibold text-gray-900">Business Hours</p>
+                  {loadingContact ? (
+                    <p className="text-gray-500">Loading...</p>
+                  ) : businessHoursLines.length > 0 ? (
+                    businessHoursLines.map((line, idx) => (
+                      <p key={idx} className="text-gray-700">{line}</p>
+                    ))
+                  ) : (
+                    <p className="text-gray-500">Not available</p>
+                  )}
                 </div>
               </div>
             </div>

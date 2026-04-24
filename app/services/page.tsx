@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, MapPin, MessageCircle, Phone, PhoneCall, Smartphone, Wrench, X } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                             */
@@ -10,6 +11,7 @@ import { formatPrice } from '@/lib/currency';
 
 interface Service {
   _id: string;
+  title?: string;
   name: string;
   description: string;
   price?: number;
@@ -58,9 +60,16 @@ export default function ServicesPage() {
   ];
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/services`)
-      .then((res) => res.json())
-      .then((data) => setServices(Array.isArray(data) ? data : []))
+    fetch(buildApiUrl('/api/services'))
+      .then((res) => parseResponseBody<any>(res))
+      .then((data) => {
+        const rows = Array.isArray(data) ? data : [];
+        const mapped = rows.map((service: any) => ({
+          ...service,
+          name: String(service?.name || service?.title || '').trim(),
+        }));
+        setServices(mapped.filter((service: Service) => Boolean(service.name)));
+      })
       .catch(() => setServices([]))
       .finally(() => setLoading(false));
   }, []);
@@ -97,7 +106,7 @@ export default function ServicesPage() {
     setFormError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/support`, {
+      const response = await fetch(buildApiUrl('/api/support'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +119,7 @@ export default function ServicesPage() {
         }),
       });
 
-      const result = await response.json().catch(() => ({}));
+      const result = await parseResponseBody<any>(response);
 
       if (!response.ok || !result.success) {
         setFormError(result.message || 'Failed to send request. Please try again.');

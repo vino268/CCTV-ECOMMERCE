@@ -100,16 +100,22 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         throw new Error("Invalid user token payload");
       }
 
-      const statusUrl = new URL("/api/auth/block-status", request.url);
-      statusUrl.searchParams.set("email", email);
+      let statusData: { blocked?: boolean } = { blocked: false };
+      try {
+        const statusUrl = new URL("/api/auth/block-status", request.url);
+        statusUrl.searchParams.set("email", email);
 
-      const statusRes = await fetch(statusUrl.toString(), {
-        headers: {
-          "x-internal-check": "proxy",
-        },
-      });
+        const statusRes = await fetch(statusUrl.toString(), {
+          headers: {
+            "x-internal-check": "proxy",
+          },
+        });
 
-      const statusData = await statusRes.json().catch(() => ({ blocked: false }));
+        statusData = await statusRes.json().catch(() => ({ blocked: false }));
+      } catch {
+        // Fail open for transient internal fetch issues to avoid navigation-time crashes.
+        statusData = { blocked: false };
+      }
 
       if (statusData?.blocked) {
         if (isProtectedUserApi) {

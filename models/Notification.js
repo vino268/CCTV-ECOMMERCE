@@ -2,19 +2,31 @@ import mongoose from "mongoose";
 
 const NotificationSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "Notification",
+    },
     type: {
       type: String,
-      enum: ["order", "user", "cancel", "delivery", "system"],
-      default: "order",
+      default: "system",
+      trim: true,
     },
     message: {
       type: String,
       required: true,
       trim: true,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     orderId: {
-      type: String,
-      default: "",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
     },
     isRead: {
       type: Boolean,

@@ -93,8 +93,11 @@ export async function PATCH(req, { params }) {
     };
 
     await Notification.create({
-      type: status === "Cancelled" ? "cancel" : "order",
-      message: notifMessages[status] || `Order ${order.orderNumber} status updated to ${status}`,
+      type: status === "Cancelled" ? "CANCELLED" : "STATUS_UPDATED",
+      message:
+        status === "Cancelled"
+          ? `Order cancelled: ${order.orderId || order.orderNumber || order._id}`
+          : `Order ${order.orderId || order.orderNumber || order._id} moved to ${status}`,
       orderId: order.orderNumber || "",
     });
 

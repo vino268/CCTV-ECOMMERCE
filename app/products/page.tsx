@@ -17,22 +17,26 @@ import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-reac
 const PAGE_SIZE = 12;
 
 export default function ProductsPage() {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = (searchParams.get('search') || '').trim();
+  const initialCategory = searchParams.get('category') ? decodeURIComponent(searchParams.get('category') || '') : 'All Categories';
   const [isMounted, setIsMounted] = useState(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('All Categories');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [sortBy, setSortBy] = useState('featured');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [filteredProductsCount, setFilteredProductsCount] = useState(0);
   const fetchedPagesRef = useRef<Set<string>>(new Set());
+  const lastQuerySignatureRef = useRef(`${searchTerm}|${initialCategory}`);
+  const activeRequestKeyRef = useRef('');
 
   const fetchApi = async (path: string) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -48,8 +52,10 @@ export default function ProductsPage() {
   };
 
   const fetchProducts = async () => {
-    const requestKey = `${searchTerm}|${page}`;
+    const requestKey = `${searchTerm}|${selectedCategory}|${page}`;
     if (fetchedPagesRef.current.has(requestKey)) return;
+
+    activeRequestKeyRef.current = requestKey;
 
     if (page === 1) {
       setIsInitialLoading(true);
@@ -61,7 +67,9 @@ export default function ProductsPage() {
 
     try {
       const encodedSearch = encodeURIComponent(searchTerm);
-      const res = await fetchApi(`/api/products?page=${page}&limit=${PAGE_SIZE}&search=${encodedSearch}`);
+      const encodedCategory = encodeURIComponent(selectedCategory);
+      const categoryQuery = selectedCategory && selectedCategory !== 'All Categories' ? `&category=${encodedCategory}` : '';
+      const res = await fetchApi(`/api/products?page=${page}&limit=${PAGE_SIZE}&search=${encodedSearch}${categoryQuery}`);
 
       if (!res) {
         if (page === 1) {
@@ -72,10 +80,16 @@ export default function ProductsPage() {
         return;
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (activeRequestKeyRef.current !== requestKey) {
+        return;
+      }
 
       if (data?.success && Array.isArray(data?.products)) {
         const nextProducts = data.products;
+
+        setFilteredProductsCount(Number(data?.filteredProductsCount ?? data?.total ?? nextProducts.length ?? 0));
 
         if (nextProducts.length === 0) {
           setHasMore(false);
@@ -101,17 +115,27 @@ export default function ProductsPage() {
         }
 
       } else {
+        if (activeRequestKeyRef.current !== requestKey) {
+          return;
+        }
+
         if (page === 1) {
           setProducts([]);
           setProductsError('Products are temporarily unavailable');
         }
+        setFilteredProductsCount(0);
         setHasMore(false);
       }
     } catch {
+      if (activeRequestKeyRef.current !== requestKey) {
+        return;
+      }
+
       if (page === 1) {
         setProducts([]);
         setProductsError('Products are temporarily unavailable');
       }
+      setFilteredProductsCount(0);
       setHasMore(false);
     } finally {
       if (page === 1) {
@@ -123,16 +147,23 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
-  }, [page, searchTerm]);
+    const querySignature = `${searchTerm}|${selectedCategory}`;
 
-  useEffect(() => {
-    fetchedPagesRef.current.clear();
-    setProducts([]);
-    setHasMore(true);
-    setProductsError(null);
-    setPage(1);
-  }, [searchTerm]);
+    if (lastQuerySignatureRef.current !== querySignature) {
+      lastQuerySignatureRef.current = querySignature;
+      fetchedPagesRef.current.clear();
+      setProducts([]);
+      setFilteredProductsCount(0);
+      setHasMore(true);
+      setProductsError(null);
+      if (page !== 1) {
+        setPage(1);
+      }
+      return;
+    }
+
+    fetchProducts();
+  }, [page, searchTerm, selectedCategory]);
 
   useEffect(() => {
     fetchCategories();
@@ -149,14 +180,14 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetchApi('/api/categories');
+      const res = await fetchApi('/api/categories/with-count');
 
       if (!res) {
         setCategories([]);
         return;
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (data?.success && Array.isArray(data?.categories)) {
         setCategories(data.categories);
@@ -223,7 +254,17 @@ export default function ProductsPage() {
     return Tag;
   };
 
-  const showEmptyState = !isInitialLoading && !productsError && filteredProducts.length === 0;
+  const showEmptyState = !isInitialLoading && !productsError && visibleProducts.length === 0;
+
+  const totalMatchingProducts = filteredProductsCount || visibleProducts.length;
+  const isFiltered = selectedCategory !== 'All Categories' || Boolean(searchTerm);
+  const productsCountLabel = isFiltered
+    ? visibleProducts.length >= totalMatchingProducts
+      ? `${totalMatchingProducts} products found`
+      : `Showing ${visibleProducts.length} of ${totalMatchingProducts} products`
+    : visibleProducts.length >= totalMatchingProducts
+      ? `${totalMatchingProducts} products`
+      : `Showing ${visibleProducts.length} of ${totalMatchingProducts} products`;
 
   return (
     <div className="bg-gray-50">
@@ -277,7 +318,9 @@ export default function ProductsPage() {
                     const cat = typeof catObj === 'string' ? catObj : (catObj.name || catObj._id);
                     if (cat === 'All Categories') return null;
                     const Icon = getCategoryIcon(cat);
-                    const count = typeof catObj === 'string' ? (categoryCounts.get(cat) || 0) : catObj.count;
+                    const count = typeof catObj === 'string'
+                      ? (categoryCounts.get(cat) || 0)
+                      : Number(catObj.productCount ?? catObj.count ?? 0);
 
                     return (
                       <button
@@ -327,7 +370,7 @@ export default function ProductsPage() {
             {/* Sort */}
             <div className="mb-5 flex items-center justify-between rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
               <p className="text-sm text-gray-600">
-                Showing {filteredProducts.length} products
+                {productsCountLabel}
               </p>
 
               {isMounted ? (

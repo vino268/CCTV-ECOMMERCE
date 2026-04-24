@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { formatINRCurrency } from '@/lib/currency';
 import { Eye, RefreshCw, Search, Trash2, UserX, UserCheck, X } from 'lucide-react';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
 
 interface Customer {
   _id: string;
@@ -70,11 +71,13 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers?${params.toString()}`, {
+      const res = await fetch(`/api/admin/customers?${params.toString()}`, {
         cache: 'no-store',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch customers');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setCustomers(data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -142,11 +145,13 @@ export default function AdminCustomersPage() {
     setLoadingCustomerOrders(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customer._id}/orders`, {
+      const res = await fetch(`/api/admin/customers/${customer._id}/orders`, {
         cache: 'no-store',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch customer orders');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setSelectedCustomerOrders(data);
     } catch (error) {
       console.error('Error fetching customer orders:', error);
@@ -163,8 +168,10 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customerId}`, {
+      const res = await fetch(`/api/admin/customers/${customerId}`, {
         method: 'DELETE',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -191,9 +198,14 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/${customer._id}`, {
+      const res = await fetch(`/api/admin/customers/${customer._id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: (() => {
+          const headers = getAdminAuthHeaders();
+          headers.set('Content-Type', 'application/json');
+          return headers;
+        })(),
         body: JSON.stringify({ isBlocked: !customer.isBlocked }),
       });
 

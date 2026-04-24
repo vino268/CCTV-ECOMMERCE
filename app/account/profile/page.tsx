@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { ArrowLeft, Save, Camera, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import DeleteAccountModal from '@/components/delete-account-modal';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { toProfileImageUrl } from '@/lib/profile-image-url';
 
 interface UserProfile {
   _id: string;
@@ -14,6 +16,7 @@ interface UserProfile {
   email: string;
   phone: string;
   avatar: string | null;
+  profileImage?: string | null;
   dob: string | null;
   address: string;
   role: string;
@@ -36,6 +39,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [avatarPreview, setAvatarPreview] = useState('');
+  const [avatarCacheKey, setAvatarCacheKey] = useState<number | undefined>(undefined);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [removingAvatar, setRemovingAvatar] = useState(false);
@@ -63,22 +67,35 @@ export default function ProfilePage() {
   const fetchProfile = async (email: string) => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/user/profile?email=${encodeURIComponent(email)}`,
-        { cache: 'no-store' }
+        buildApiUrl(`/api/user/profile?email=${encodeURIComponent(email)}`),
+        {
+          cache: 'no-store',
+          credentials: 'include',
+        }
       );
-      if (res.ok) {
-        const data: UserProfile = await res.json();
-        setProfile(data);
-        setAvatarPreview(data.avatar || '');
-        setFormData({
-          name: data.name || '',
-          phone: data.phone || '',
-          dob: data.dob ? data.dob.split('T')[0] : '',
-          address: data.address || '',
-        });
+      const data: any = await parseResponseBody(res);
+
+      if (!res.ok) {
+        setMessage(data?.message || 'Failed to load profile');
+        setMessageType('error');
+        setLoading(false);
+        return;
       }
+
+      const userData: UserProfile = data as UserProfile;
+      setProfile(userData);
+      setAvatarPreview(userData.profileImage || userData.avatar || '');
+      setAvatarCacheKey(undefined);
+      setFormData({
+        name: userData.name || '',
+        phone: userData.phone || '',
+        dob: userData.dob ? userData.dob.split('T')[0] : '',
+        address: userData.address || '',
+      });
     } catch (err) {
       console.error('Error fetching profile:', err);
+      setMessage('Failed to load profile');
+      setMessageType('error');
     } finally {
       setLoading(false);
     }
@@ -92,32 +109,43 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      let avatarUrl = profile.avatar || '';
+      let avatarUrl = profile.profileImage || profile.avatar || '';
 
       if (avatarFile) {
         setUploadingAvatar(true);
 
         const uploadData = new FormData();
-        uploadData.append('file', avatarFile);
-        uploadData.append('email', profile.email);
+        uploadData.append('profileImage', avatarFile);
 
-        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/upload-avatar`, {
-          method: 'POST',
+        const uploadRes = await fetch(buildApiUrl('/api/profile/image'), {
+          method: 'PUT',
           body: uploadData,
+          credentials: 'include',
         });
 
-        const uploadJson = await uploadRes.json();
+        const uploadJson = await parseResponseBody<{
+          success?: boolean;
+          message?: string;
+          profileImage?: string;
+          avatar?: string;
+        }>(uploadRes);
 
         if (!uploadRes.ok || !uploadJson.success) {
           throw new Error(uploadJson.message || 'Failed to upload profile image');
         }
 
-        avatarUrl = uploadJson.avatarUrl;
+        avatarUrl = uploadJson.profileImage || uploadJson.avatar || '';
+        setAvatarPreview(avatarUrl);
+        setAvatarCacheKey(Date.now());
+        setProfile((prev) => (prev ? { ...prev, avatar: avatarUrl, profileImage: avatarUrl } : prev));
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
+      const res = await fetch(buildApiUrl('/api/user/profile'), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           email: profile.email,
           name: formData.name,
@@ -125,18 +153,19 @@ export default function ProfilePage() {
           dob: formData.dob || null,
           address: formData.address,
           avatar: avatarUrl,
+          profileImage: avatarUrl,
         }),
       });
 
       if (res.ok) {
-        const updated = await res.json();
+        const updated = await parseResponseBody<any>(res);
         setProfile(updated);
-        setAvatarPreview(updated.avatar || avatarUrl || '');
+        setAvatarPreview(updated.profileImage || updated.avatar || avatarUrl || '');
         setAvatarFile(null);
         updateUser({
           name: updated.name || formData.name,
-          avatar: updated.avatar || avatarUrl || '',
-          profileImage: updated.avatar || avatarUrl || '',
+          avatar: updated.profileImage || updated.avatar || avatarUrl || '',
+          profileImage: updated.profileImage || updated.avatar || avatarUrl || '',
         });
         await refreshUser();
 
@@ -169,19 +198,20 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/upload-avatar`, {
+      const res = await fetch(buildApiUrl('/api/profile/image'), {
         method: 'DELETE',
         credentials: 'include',
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<any>(res);
       if (!res.ok || data?.success === false) {
         throw new Error(data?.message || 'Failed to remove profile image');
       }
 
-      const nextProfile = { ...profile, avatar: null };
+      const nextProfile = { ...profile, avatar: null, profileImage: null };
       setProfile(nextProfile);
       setAvatarPreview('');
+      setAvatarCacheKey(undefined);
       setAvatarFile(null);
       updateUser({ avatar: '', profileImage: '' });
       await refreshUser();
@@ -217,6 +247,7 @@ export default function ProfilePage() {
     setMessage('');
     setMessageType('');
     setAvatarFile(file);
+    setAvatarCacheKey(undefined);
     const objectUrl = URL.createObjectURL(file);
     setAvatarPreview(objectUrl);
   };
@@ -231,13 +262,14 @@ export default function ProfilePage() {
     setDeleteError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/delete-account`, {
+      const res = await fetch(buildApiUrl('/api/user/delete-account'), {
         method: 'DELETE',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: deletePassword }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<any>(res);
 
       if (!res.ok) {
         setDeleteError(data?.error || 'Unable to delete account');
@@ -269,6 +301,8 @@ export default function ProfilePage() {
     );
   }
 
+  const avatarSrc = toProfileImageUrl(avatarPreview, avatarCacheKey);
+
   return (
     <div className="bg-background min-h-screen">
       <div className="max-w-2xl mx-auto px-4 py-12">
@@ -283,27 +317,17 @@ export default function ProfilePage() {
           <div className="relative">
             <label className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center overflow-hidden cursor-pointer">
               {avatarPreview ? (
-                <img src={avatarPreview} alt="Profile avatar" className="w-full h-full object-cover" />
+                <img src={avatarSrc} alt="Profile avatar" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-2xl font-bold">
                   {getInitial(formData.name || profile.name, profile.email)}
                 </span>
               )}
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                className="hidden"
-                onChange={handleAvatarChange}
-              />
+              <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleAvatarChange} />
             </label>
             <label className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:bg-black transition-colors">
               <Camera className="w-3.5 h-3.5" />
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                className="hidden"
-                onChange={handleAvatarChange}
-              />
+              <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleAvatarChange} />
             </label>
           </div>
           <div className="flex-1">
@@ -313,7 +337,7 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground">
               Update your personal details
             </p>
-            {(avatarPreview || profile.avatar) && (
+            {(avatarPreview || profile.profileImage || profile.avatar) && (
               <Button
                 type="button"
                 variant="outline"

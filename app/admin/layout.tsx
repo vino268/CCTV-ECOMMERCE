@@ -16,6 +16,8 @@ import {
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import AdminHeader from '@/components/admin/AdminHeader';
+import { fetchWithAuth } from '@/utils/api';
+import { AdminAuthProvider, useAdminAuth } from '@/lib/contexts/admin-auth-context';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,12 +34,21 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <AdminAuthProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AdminAuthProvider>
+  );
+}
+
+function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
   const [authChecked, setAuthChecked] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { admin, loading: adminLoading, clearAdmin } = useAdminAuth();
 
   const isLoginPage = pathname === '/admin/login';
   const isPublicPage =
@@ -49,35 +60,23 @@ export default function AdminLayout({
       return;
     }
 
-    const verifyAdminSession = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/profile`, {
-          cache: 'no-store',
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          if (res.status === 403) {
-            router.replace('/admin/login?error=unauthorized');
-            return;
-          }
+    if (adminLoading) {
+      return;
+    }
 
-          router.replace('/admin/login?error=unauthorized');
-          return;
-        }
-        setAuthChecked(true);
-      } catch {
-        router.replace('/admin/login');
-      }
-    };
+    if (!admin?._id) {
+      router.replace('/admin/login?error=unauthorized');
+      return;
+    }
 
-    verifyAdminSession();
-  }, [isPublicPage, router]);
+    setAuthChecked(true);
+  }, [admin?._id, adminLoading, isPublicPage, router]);
 
   const handleLogout = async () => {
-    await fetch(`${API_BASE}/api/admin/logout`, {
+    await fetchWithAuth(`${API_BASE}/api/admin/logout`, {
       method: 'POST',
-      credentials: 'include',
     });
+    clearAdmin();
     router.replace('/admin/login');
   };
 

@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { fetchWithAuth } from '@/utils/api';
+import { toProfileImageUrl } from '@/lib/profile-image-url';
+import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
@@ -36,17 +39,8 @@ function getInitial(name?: string, email?: string) {
   return (name || email || 'A').charAt(0).toUpperCase();
 }
 
-function syncAdminStorage(admin: AdminProfile | null) {
-  void admin;
-  window.dispatchEvent(new Event('admin-profile-change'));
-}
-
-function getAdminAuthHeaders(): HeadersInit {
-  return new Headers();
-}
-
 export default function AdminProfilePage() {
-  const [admin, setAdmin] = useState<AdminProfile | null>(null);
+  const { admin, loading: adminLoading, refreshAdmin, updateAdmin } = useAdminAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -58,7 +52,6 @@ export default function AdminProfilePage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -73,33 +66,18 @@ export default function AdminProfilePage() {
   }>({});
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/profile`, {
-          cache: 'no-store',
-          credentials: 'include',
-          headers: getAdminAuthHeaders(),
-        });
-        const data = await res.json();
+    if (!adminLoading && !admin?._id) {
+      void refreshAdmin();
+    }
+  }, [admin?._id, adminLoading, refreshAdmin]);
 
-        if (data.success) {
-          setAdmin(data.admin);
-          setName(data.admin.name || '');
-          setEmail(data.admin.email || '');
-          setPhone(data.admin.phone || '');
-          setAvatarPreview(data.admin.profileImage || '');
-        } else {
-          setProfileMessage({ type: 'error', text: data.message || 'Failed to load profile' });
-        }
-      } catch {
-        setProfileMessage({ type: 'error', text: 'Failed to load profile' });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, []);
+  useEffect(() => {
+    if (!admin) return;
+    setName(admin.name || '');
+    setEmail(admin.email || '');
+    setPhone(admin.phone || '');
+    setAvatarPreview(admin.profileImage || '');
+  }, [admin?._id]);
 
   const joinedDate = useMemo(() => {
     if (!admin?.createdAt) return 'N/A';
@@ -108,7 +86,7 @@ export default function AdminProfilePage() {
       month: 'short',
       day: 'numeric',
     });
-  }, [admin]);
+  }, [admin?.createdAt]);
 
   const validateProfile = () => {
     const nextErrors: { email?: string; phone?: string } = {};
@@ -190,13 +168,12 @@ export default function AdminProfilePage() {
 
       if (selectedAvatarFile) {
         const formData = new FormData();
-        formData.append('file', selectedAvatarFile);
+        formData.append('profileImage', selectedAvatarFile);
 
-        const uploadRes = await fetch(`${API_BASE}/api/admin/upload-avatar`, {
-          method: 'POST',
-          body: formData,
+        const uploadRes = await fetch(`${API_BASE}/api/profile/image`, {
+          method: 'PUT',
           credentials: 'include',
-          headers: getAdminAuthHeaders(),
+          body: formData,
         });
 
         const uploadData = await uploadRes.json().catch(() => ({}));
@@ -207,12 +184,16 @@ export default function AdminProfilePage() {
           throw new Error(uploadData?.message || 'Failed to upload profile image');
         }
 
-        nextProfileImage = String(uploadData?.profileImage || uploadData?.admin?.profileImage || '');
+        nextProfileImage = String(uploadData?.profileImage || uploadData?.avatar || uploadData?.admin?.profileImage || '');
+
+        updateAdmin({
+          profileImage: nextProfileImage,
+          avatarVersion: Date.now(),
+        });
       } else if (removeAvatarOnSave) {
-        const removeRes = await fetch(`${API_BASE}/api/admin/upload-avatar`, {
+        const removeRes = await fetch(`${API_BASE}/api/profile/image`, {
           method: 'DELETE',
           credentials: 'include',
-          headers: getAdminAuthHeaders(),
         });
 
         const removeData = await removeRes.json().catch(() => ({}));
@@ -224,20 +205,19 @@ export default function AdminProfilePage() {
         }
 
         nextProfileImage = '';
+
+        updateAdmin({
+          profileImage: '',
+          avatarVersion: Date.now(),
+        });
       }
 
-      const res = await fetch(`${API_BASE}/api/admin/profile`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/admin/profile`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: (() => {
-          const headers = new Headers(getAdminAuthHeaders());
-          headers.set('Content-Type', 'application/json');
-          return headers;
-        })(),
         body: JSON.stringify({ name, email, phone }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
         throw new Error('Session expired. Please login again.');
       }
@@ -246,11 +226,12 @@ export default function AdminProfilePage() {
       }
 
       const mergedAdmin = {
+        ...admin,
         ...data.admin,
-        profileImage: nextProfileImage,
+        profileImage: String(nextProfileImage || ''),
+        avatarVersion: selectedAvatarFile || removeAvatarOnSave ? Date.now() : admin?.avatarVersion,
       };
-      setAdmin(mergedAdmin);
-      syncAdminStorage(mergedAdmin);
+      updateAdmin(mergedAdmin);
       setSelectedAvatarFile(null);
       setRemoveAvatarOnSave(false);
       setAvatarPreview('');
@@ -277,18 +258,12 @@ export default function AdminProfilePage() {
 
     setSavingPassword(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/password`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/admin/password`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: (() => {
-          const headers = new Headers(getAdminAuthHeaders());
-          headers.set('Content-Type', 'application/json');
-          return headers;
-        })(),
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
         throw new Error('Session expired. Please login again.');
       }
@@ -307,7 +282,7 @@ export default function AdminProfilePage() {
     }
   };
 
-  if (loading) {
+  if (adminLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
@@ -315,7 +290,16 @@ export default function AdminProfilePage() {
     );
   }
 
+  if (!admin) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-500">
+        Unable to load admin profile.
+      </div>
+    );
+  }
+
   const displayAvatar = removeAvatarOnSave ? '' : avatarPreview || admin?.profileImage || '';
+  const displayAvatarSrc = toProfileImageUrl(displayAvatar, admin?.avatarVersion);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -327,7 +311,7 @@ export default function AdminProfilePage() {
           <div className="relative">
             <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
               {displayAvatar ? (
-                <img src={displayAvatar} alt="Avatar preview" className="w-full h-full object-cover" />
+                <img src={displayAvatarSrc} alt="Avatar preview" className="w-full h-full object-cover" />
               ) : (
                 getInitial(admin?.name, admin?.email)
               )}

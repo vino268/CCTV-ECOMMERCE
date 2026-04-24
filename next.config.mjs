@@ -1,7 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
-  trailingSlash: false,
+  reactStrictMode: false,
+  images: {
+    domains: [
+      "encrypted-tbn0.gstatic.com",
+      "via.placeholder.com",
+      "m.media-amazon.com"
+    ],
+  },
 };
 
 export default nextConfig;

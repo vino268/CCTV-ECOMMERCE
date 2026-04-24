@@ -33,6 +33,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  profileImage: {
+    type: String,
+    default: "",
+  },
   address: {
     type: String,
     default: "",
@@ -41,18 +45,6 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ["user", "admin"],
     default: "user",
-  },
-  isBlocked: {
-    type: Boolean,
-    default: false,
-  },
-  blockedAt: {
-    type: Date,
-    default: null,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
   },
   isDeleted: {
     type: Boolean,
@@ -65,6 +57,7 @@ const UserSchema = new mongoose.Schema({
   },
 }, {
   collection: "users",
+  timestamps: true,
 });
 
 export default mongoose.model("User", UserSchema);

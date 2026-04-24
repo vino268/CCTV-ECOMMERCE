@@ -16,8 +16,6 @@ interface ProductCardProps {
   product: Product;
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-
 export function ProductCard({ product }: ProductCardProps) {
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
@@ -53,44 +51,18 @@ export function ProductCard({ product }: ProductCardProps) {
     setToast(alreadyInCart ? 'Removed from cart' : 'Item added to cart');
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = () => {
     if (!product.inStock) return;
+    const productId = product._id ?? '';
+    if (!productId) return;
+
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push('/login?redirect=/checkout');
+      router.push(`/login?redirect=${encodeURIComponent(`/checkout?productId=${productId}`)}`);
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/api/orders/buy-now`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productId,
-          quantity: 1,
-        }),
-        credentials: 'include',
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 401 || res.status === 403) {
-        setToast('Session expired, please login again');
-        router.push('/login?redirect=/checkout');
-        return;
-      }
-
-      if (res.ok && data?.orderId) {
-        router.push(`/checkout?orderId=${data.orderId}`);
-      } else {
-        setToast(data?.message || 'Failed to proceed to checkout');
-      }
-    } catch (error) {
-      console.error('Buy now failed:', error);
-      setToast('Failed to proceed to checkout');
-    }
+    router.push(`/checkout?productId=${encodeURIComponent(productId)}`);
   };
 
   const handleWishlistToggle = async () => {

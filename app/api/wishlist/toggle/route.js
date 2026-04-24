@@ -2,15 +2,27 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Wishlist from "@/models/Wishlist";
+import { verifyWishlistUser } from "../_auth";
 
 // POST /api/wishlist/toggle
 export async function POST(req) {
   try {
-    const { userId, productId } = await req.json();
+    await connectDB();
 
-    if (!userId || !productId) {
+    const auth = await verifyWishlistUser(req);
+    if (!auth.ok) {
       return NextResponse.json(
-        { success: false, error: "userId and productId are required" },
+        { success: false, message: auth.message },
+        { status: auth.status }
+      );
+    }
+
+    const { productId } = await req.json();
+    const userId = auth.userId;
+
+    if (!productId) {
+      return NextResponse.json(
+        { success: false, error: "productId is required" },
         { status: 400 }
       );
     }
@@ -21,8 +33,6 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     const existing = await Wishlist.findOne({ userId, productId });
 

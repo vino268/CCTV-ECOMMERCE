@@ -4,10 +4,28 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
+import { fetchWithAuth } from '@/utils/api';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+
+async function parseApiResponse(res: Response) {
+  const contentType = res.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return res.json().catch(() => ({}));
+  }
+
+  const text = await res.text().catch(() => '');
+  const htmlLike = /^\s*<!doctype|^\s*<html/i.test(text);
+
+  return {
+    message: htmlLike
+      ? 'Received HTML instead of JSON from admin API. Check backend URL and server status.'
+      : text || 'Unexpected server response',
+  };
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -26,9 +44,9 @@ export default function AdminLoginPage() {
 
     const checkSession = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/profile`, {
+        const res = await fetchWithAuth(`${API_BASE}/api/admin/profile`, {
+          method: 'GET',
           cache: 'no-store',
-          credentials: 'include',
         });
         if (res.ok) {
           router.replace('/admin/dashboard');
@@ -49,20 +67,22 @@ export default function AdminLoginPage() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-        credentials: 'include',
       });
 
-      const data = await res.json();
+      const data = await parseApiResponse(res);
 
       if (!res.ok) {
         setError(data.error || data.message || 'Login failed');
         return;
       }
 
-      const role = String(data?.role || data?.admin?.role || '').toLowerCase();
-      if (role === 'admin') {
+      if (res.ok && data?.success) {
+        if (data?.token && typeof window !== 'undefined') {
+          localStorage.setItem('adminToken', String(data.token));
+        }
         router.push('/admin/dashboard');
         return;
       }

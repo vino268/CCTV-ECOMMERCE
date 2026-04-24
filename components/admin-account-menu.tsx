@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, KeyRound, HelpCircle, Settings, LogOut, ChevronDown } from 'lucide-react';
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { fetchWithAuth } from '@/utils/api';
 
 export default function AdminAccountMenu() {
   const [open, setOpen] = useState(false);
@@ -18,9 +20,12 @@ export default function AdminAccountMenu() {
   useEffect(() => {
     const loadAdmin = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/profile`, { cache: 'no-store' });
+        const res = await fetchWithAuth(buildApiUrl('/api/admin/profile'), {
+          method: 'GET',
+          cache: 'no-store',
+        });
         if (!res.ok) return;
-        const data = await res.json();
+        const data = await parseResponseBody<{ admin?: { name?: string; email?: string } }>(res);
         const admin = data?.admin;
         if (admin) {
           setAdminName(admin.name || admin.email?.charAt(0)?.toUpperCase() || 'A');
@@ -47,7 +52,9 @@ export default function AdminAccountMenu() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/logout`, { method: 'POST' });
+    await fetchWithAuth(buildApiUrl('/api/admin/logout'), {
+      method: 'POST',
+    });
     setShowLogoutModal(false);
     router.replace('/admin/login');
   };

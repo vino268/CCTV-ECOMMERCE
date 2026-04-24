@@ -78,8 +78,8 @@ export async function PUT(req, { params }) {
       );
 
       await Notification.create({
-        type: "cancel",
-        message: `Order ${order.orderNumber || order._id} was cancelled by ${isAdminRequest ? "admin" : "customer"}`,
+        type: "CANCELLED",
+        message: `Order cancelled: ${order.orderId || order.orderNumber || order._id}`,
         orderId: order.orderNumber || "",
       });
 
@@ -110,7 +110,7 @@ export async function PUT(req, { params }) {
       );
 
       await Notification.create({
-        type: "order",
+        type: "STATUS_UPDATED",
         message: `Cancel request raised for order ${order.orderNumber || order._id}`,
         orderId: order.orderNumber || "",
       });

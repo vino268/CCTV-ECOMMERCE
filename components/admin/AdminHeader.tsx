@@ -19,12 +19,18 @@ import {
   HelpCircle,
   Trash2,
 } from 'lucide-react'
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response'
+import { getAdminAuthHeaders } from '@/lib/admin-auth'
+import { fetchWithAuth } from '@/utils/api'
+import { toProfileImageUrl } from '@/lib/profile-image-url'
+import { useAdminAuth } from '@/lib/contexts/admin-auth-context'
 
 type Notification = {
   _id: string
+  title?: string
   type: string
   message: string
-  orderId: string
+  orderId?: string | { _id?: string; orderId?: string; orderNumber?: string }
   isRead: boolean
   createdAt: string
 }
@@ -47,65 +53,64 @@ function timeAgo(dateStr: string) {
 
 const notifIcon: Record<string, typeof Bell> = {
   order: ShoppingCart,
+  ORDER_CANCELLED: XCircle,
+  order_cancelled: XCircle,
   user: UserPlus,
-  cancel: XCircle,
-  delivery: ShoppingCart,
+  address: User,
   system: Bell,
 }
 
+function getOrderLabel(orderId: Notification['orderId']) {
+  if (!orderId) return ''
+  if (typeof orderId === 'string') return orderId
+  return String(orderId.orderId || orderId.orderNumber || orderId._id || '')
+}
+
+function toDisplayText(value: unknown) {
+  if (typeof value === 'string') return value
+  if (value == null) return ''
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
 export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [bellOpen, setBellOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [adminName, setAdminName] = useState('Admin')
-  const [adminProfileImage, setAdminProfileImage] = useState('')
+  const { admin } = useAdminAuth()
 
-  const getInitial = (name?: string) => (name || 'A').charAt(0).toUpperCase()
+  const getInitial = (name?: string, email?: string) => (name || email || 'A').charAt(0).toUpperCase()
 
-  const loadAdminProfile = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/profile`, { cache: 'no-store', credentials: 'include' })
-      if (!res.ok) return
-      const data = await res.json()
-      const admin = data?.admin
-      if (admin?.name?.trim()) {
-        setAdminName(admin.name.trim())
-      } else if (admin?.email) {
-        setAdminName(String(admin.email).split('@')[0])
-      }
-
-      setAdminProfileImage(String(admin?.profileImage || admin?.avatar || ''))
-    } catch {
-      // Keep fallback data.
-    }
-  }
   // Fetch notifications on mount and every 30 seconds
   useEffect(() => {
     const load = () =>
-      fetch(`${API_BASE}/api/admin/notifications`, { credentials: 'include' })
-        .then((r) => r.json())
+      fetchWithAuth(buildApiUrl('/api/notifications'), {
+        headers: getAdminAuthHeaders(),
+      })
+        .then((r) => {
+          if (!r.ok) {
+            return [] as Notification[];
+          }
+          return parseResponseBody<Notification[] | { notifications?: Notification[] }>(r);
+        })
         .then((data) => {
-          if (Array.isArray(data)) setNotifications(data)
+          const list = Array.isArray(data) ? data : Array.isArray(data?.notifications) ? data.notifications : []
+          setNotifications(
+            [...list].sort(
+              (a, b) => +new Date(b.createdAt || 0) - +new Date(a.createdAt || 0)
+            )
+          )
         })
         .catch(() => {})
 
     load()
     const id = setInterval(load, 30_000)
     return () => clearInterval(id)
-  }, [])
-
-  useEffect(() => {
-    void loadAdminProfile()
-
-    const handleAdminProfileChange = () => {
-      void loadAdminProfile()
-    }
-
-    window.addEventListener('admin-profile-change', handleAdminProfileChange)
-    return () => window.removeEventListener('admin-profile-change', handleAdminProfileChange)
   }, [])
 
   // Close dropdowns when clicking outside
@@ -127,7 +132,11 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleDeleteOne = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/notifications/${id}`, { method: 'DELETE', credentials: 'include' })
+      const res = await fetch(buildApiUrl(`/api/notifications/${id}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      })
       if (res.ok) {
         setNotifications((prev) => prev.filter((n) => n._id !== id))
       }
@@ -138,7 +147,11 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleClearAll = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/notifications`, { method: 'DELETE', credentials: 'include' })
+      const res = await fetch(buildApiUrl('/api/notifications'), {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      })
       if (res.ok) {
         setNotifications([])
       }
@@ -149,7 +162,11 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const handleMarkAllRead = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/notifications`, { method: 'PUT', credentials: 'include' })
+      const res = await fetch(buildApiUrl('/api/notifications/read-all'), {
+        method: 'PUT',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      })
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })))
       }
@@ -173,8 +190,9 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
   const notifLink: Record<string, string> = {
     order: '/admin/orders',
-    cancel: '/admin/orders',
-    delivery: '/admin/orders',
+    ORDER_CANCELLED: '/admin/orders',
+    order_cancelled: '/admin/orders',
+    address: '/admin/orders',
     user: '/admin/customers',
     system: '/admin/dashboard',
   }
@@ -194,7 +212,10 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
     year: 'numeric',
   })
 
-  const adminInitial = getInitial(adminName)
+  const adminName = String(admin?.name || admin?.email || 'Admin')
+  const adminProfileImage = String(admin?.profileImage || '')
+  const adminInitial = getInitial(admin?.name, admin?.email)
+  const adminAvatarSrc = toProfileImageUrl(adminProfileImage, admin?.avatarVersion)
 
   return (
     <header className="mt-0 px-4 pt-2 pb-2 md:px-4 md:py-3 bg-transparent">
@@ -235,7 +256,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
               </button>
 
               {bellOpen && (
-                <div className="absolute right-0 top-10 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 z-50 w-[calc(100vw-2rem)] max-w-sm rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
                   <div className="flex items-center justify-between border-b px-4 py-3">
                     <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
                     {notifications.length > 0 && (
@@ -250,7 +271,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                     )}
                   </div>
 
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-[65vh] overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="px-4 py-8 text-center text-sm text-gray-400">
                         No notifications
@@ -259,6 +280,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                       notifications.map((n) => {
                         const Icon = notifIcon[n.type] || Bell
                         const href = notifLink[n.type] || '/admin/dashboard'
+                        const orderLabel = getOrderLabel(n.orderId)
                         return (
                           <div
                             key={n._id}
@@ -270,10 +292,11 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                               <Icon className="h-4 w-4" />
                             </div>
                             <Link href={href} onClick={() => setBellOpen(false)} className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-800">{n.message}</p>
+                              <p className="text-sm font-semibold text-gray-800">{n.title || 'Notification'}</p>
+                              <p className="text-sm text-gray-700">{toDisplayText(n.message)}</p>
                               <p className="mt-0.5 text-xs text-gray-400">
-                                {n.orderId && (
-                                  <span className="mr-2 font-medium text-gray-500">{n.orderId}</span>
+                                {orderLabel && (
+                                  <span className="mr-2 font-medium text-gray-500">{orderLabel}</span>
                                 )}
                                 {timeAgo(n.createdAt)}
                               </p>
@@ -322,7 +345,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
               >
                 {adminProfileImage ? (
                   <img
-                    src={adminProfileImage}
+                    src={adminAvatarSrc}
                     alt="admin"
                     className="h-full w-full rounded-full object-cover"
                   />
@@ -417,7 +440,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
             </button>
 
             {bellOpen && (
-              <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 z-50 w-80 sm:w-96 max-w-[90vw] rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
                   {notifications.length > 0 && (
@@ -438,9 +461,10 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                       No notifications
                     </div>
                   ) : (
-                    notifications.map((n) => {
+                    notifications.map((n, index) => {
                       const Icon = notifIcon[n.type] || Bell
                       const href = notifLink[n.type] || '/admin/dashboard'
+                      const orderLabel = getOrderLabel(n.orderId)
                       return (
                         <div
                           key={n._id}
@@ -452,10 +476,11 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                             <Icon className="h-4 w-4" />
                           </div>
                           <Link href={href} onClick={() => setBellOpen(false)} className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-800">{n.message}</p>
+                            <p className="text-sm font-semibold text-gray-800">{n.title || 'Notification'}</p>
+                            <p className="text-sm text-gray-700">{toDisplayText(n.message)}</p>
                             <p className="mt-0.5 text-xs text-gray-400">
-                              {n.orderId && (
-                                <span className="mr-2 font-medium text-gray-500">{n.orderId}</span>
+                              {orderLabel && (
+                                <span className="mr-2 font-medium text-gray-500">{orderLabel}</span>
                               )}
                               {timeAgo(n.createdAt)}
                             </p>
@@ -505,7 +530,7 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
             >
               {adminProfileImage ? (
                 <img
-                  src={adminProfileImage}
+                  src={adminAvatarSrc}
                   alt="admin"
                   className="h-full w-full rounded-full object-cover"
                 />

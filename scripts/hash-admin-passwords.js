@@ -1,43 +1,42 @@
 /**
- * One-time script to hash all plain-text admin passwords in MongoDB.
+ * One-time script to hash admin password in MongoDB.
  *
- * Run with:  node scripts/hash-admin-passwords.js
+ * Run with: node scripts/hash-admin-passwords.js
  */
 
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
+const dotenv = require("dotenv");
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
-const MONGODB_URI = "mongodb://127.0.0.1:27017/tn_automation";
+dotenv.config();
+
+const MONGODB_URI = String(process.env.MONGODB_URI || "").trim();
+const ADMIN_EMAIL = "admin@tnautomation.com";
+const ADMIN_PLAIN_PASSWORD = "877850";
 
 async function main() {
-  await mongoose.connect(MONGODB_URI);
-  console.log("Connected to MongoDB");
-
-  const Admin = mongoose.connection.collection("admins");
-  const admins = await Admin.find({}).toArray();
-
-  let updated = 0;
-
-  for (const admin of admins) {
-    const pw = admin.password;
-    if (!pw) continue;
-
-    // Skip already-hashed passwords
-    if (pw.startsWith("$2a$") || pw.startsWith("$2b$")) {
-      console.log(`${admin.email} — already hashed, skipping`);
-      continue;
-    }
-
-    const hashed = await bcrypt.hash(pw, 10);
-    await Admin.updateOne(
-      { _id: admin._id },
-      { $set: { password: hashed } }
-    );
-    console.log(`${admin.email} — password hashed successfully`);
-    updated++;
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI is missing in environment variables");
   }
 
-  console.log(`\nDone. ${updated} password(s) hashed.`);
+  await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
+  console.log("Connected to MongoDB");
+
+  const adminCollection = mongoose.connection.collection("admins");
+  const hash = await bcrypt.hash(ADMIN_PLAIN_PASSWORD, 10);
+
+  const result = await adminCollection.updateOne(
+    { email: ADMIN_EMAIL },
+    { $set: { password: hash, role: "admin" } },
+    { upsert: false }
+  );
+
+  if (result.matchedCount === 0) {
+    console.log(`No admin found with email ${ADMIN_EMAIL}`);
+  } else {
+    console.log("Admin password hashed and updated successfully");
+  }
+
   await mongoose.disconnect();
 }
 

@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Notification from "@/models/Notification";
 
-// GET /api/admin/notifications — return latest 50 notifications
+// GET /api/admin/notifications — return latest 10 notifications
 export async function GET() {
   try {
     await connectDB();
     const notifications = await Notification.find()
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(10);
     return NextResponse.json(notifications);
   } catch (error) {
     return NextResponse.json(

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, Loader2, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 interface AddressItem {
   _id: string;
@@ -50,8 +51,11 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/user`, { cache: 'no-store' });
-      const data = await res.json();
+      const res = await fetch(buildApiUrl('/api/address/my'), {
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const data = await parseResponseBody<{ success?: boolean; message?: string; addresses?: AddressItem[] }>(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to load addresses');
@@ -127,15 +131,16 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const endpoint = editingAddress ? `/api/address/${editingAddress._id}` : '/api/address';
+      const endpoint = editingAddress ? `/api/address/${editingAddress._id}` : '/api/address/add';
       const method = editingAddress ? 'PUT' : 'POST';
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+      const res = await fetch(buildApiUrl(endpoint), {
         method,
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
+      const data = await parseResponseBody<{ success?: boolean; message?: string }>(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to save address');
@@ -158,8 +163,11 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${id}`, { method: 'DELETE' });
-      const data = await res.json();
+      const res = await fetch(buildApiUrl(`/api/address/${id}`), {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await parseResponseBody<{ success?: boolean; message?: string }>(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to delete address');
@@ -179,12 +187,13 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/address/${id}`), {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isDefault: true }),
       });
-      const data = await res.json();
+      const data = await parseResponseBody<{ success?: boolean; message?: string }>(res);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to set default');

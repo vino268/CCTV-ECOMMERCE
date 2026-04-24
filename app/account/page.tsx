@@ -31,6 +31,8 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { toProfileImageUrl } from '@/lib/profile-image-url';
 
 type AccountTab = 'dashboard' | 'orders' | 'address' | 'wishlist';
 
@@ -90,6 +92,31 @@ function displayAddressLine(address: AddressItem) {
   return `${address.address}, ${address.city}, ${address.state} - ${address.pincode}`;
 }
 
+function getCookieToken(name: string) {
+  if (typeof document === 'undefined') return '';
+  const prefix = `${name}=`;
+  const pair = document.cookie
+    .split(';')
+    .map((segment) => segment.trim())
+    .find((segment) => segment.startsWith(prefix));
+
+  if (!pair) return '';
+  return decodeURIComponent(pair.slice(prefix.length));
+}
+
+function getUserAuthHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const token = getCookieToken('userToken') || getCookieToken('token');
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const {
@@ -144,8 +171,11 @@ export default function AccountPage() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/user`, { cache: 'no-store' });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(buildApiUrl('/api/address/my'), {
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const data = await parseResponseBody<{ success?: boolean; addresses?: AddressItem[] }>(res);
       if (res.ok && data.success) {
         setAddresses(Array.isArray(data.addresses) ? data.addresses : []);
       }
@@ -154,17 +184,23 @@ export default function AccountPage() {
     }
   }, []);
 
-  const loadDashboard = useCallback(async (email: string) => {
+  const loadDashboard = useCallback(async () => {
     setLoadingDashboard(true);
     setError('');
 
     try {
       const [profileRes, ordersRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/user?email=${encodeURIComponent(email)}`, { cache: 'no-store' }),
+        fetch(buildApiUrl('/api/auth/me'), {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+        fetch(buildApiUrl('/api/orders/my-orders'), {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
       ]);
 
-      const profileData = await profileRes.json();
+      const profileData = await parseResponseBody<{ success?: boolean; message?: string; error?: string; user?: UserData }>(profileRes);
 
       if (!profileRes.ok) {
         throw new Error(profileData.error || profileData.message || 'Unable to load profile');
@@ -174,15 +210,20 @@ export default function AccountPage() {
         throw new Error(profileData.error || 'Your account has been blocked.');
       }
 
-      setUser(profileData);
+      const me = profileData?.user;
+      if (!me) {
+        throw new Error('Unable to load profile');
+      }
+
+      setUser(me);
       setProfileForm({
-        name: profileData.name || '',
-        email: profileData.email || '',
-        phone: profileData.phone || '',
+        name: me.name || '',
+        email: me.email || '',
+        phone: me.phone || '',
       });
 
       if (ordersRes.ok) {
-        const orderData = await ordersRes.json();
+        const orderData = await parseResponseBody<AccountOrder[] | { data?: AccountOrder[] }>(ordersRes);
         setOrders(Array.isArray(orderData) ? orderData : []);
       } else {
         setOrders([]);
@@ -205,7 +246,7 @@ export default function AccountPage() {
     }
 
     setAuthChecking(false);
-    loadDashboard(authUser.email);
+    loadDashboard();
   }, [loadDashboard, router, authLoading, isAuthenticated, authUser?.email]);
 
   const orderStats = useMemo(() => {
@@ -257,9 +298,12 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user/profile`, {
+      const res = await fetch(buildApiUrl('/api/user/profile'), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           email: user.email,
           name: profileForm.name.trim(),
@@ -267,7 +311,7 @@ export default function AccountPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to update profile');
       }
@@ -353,8 +397,9 @@ export default function AccountPage() {
       const endpoint = editingAddressId ? `/api/address/${editingAddressId}` : '/api/address';
       const method = editingAddressId ? 'PUT' : 'POST';
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+      const res = await fetch(buildApiUrl(endpoint), {
         method,
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(addressForm),
       });
@@ -384,7 +429,10 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${addressId}`, { method: 'DELETE' });
+      const res = await fetch(buildApiUrl(`/api/address/${addressId}`), {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to delete address');
@@ -410,8 +458,9 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/address/${addressId}`, {
+      const res = await fetch(buildApiUrl(`/api/address/${addressId}`), {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isDefault: true }),
       });
@@ -441,13 +490,28 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${cancelModalOrderId}`, {
-        method: 'PUT',
+      const res = await fetch(buildApiUrl(`/api/orders/${cancelModalOrderId}/cancel`), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getUserAuthHeaders(),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<{ success?: boolean; message?: string }>(res);
 
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to cancel order');
+        const statusMessage =
+          res.status === 401
+            ? 'Unauthorized. Please login again.'
+            : res.status === 403
+              ? 'You can only cancel your own orders.'
+              : res.status === 404
+                ? 'Order not found.'
+                : res.status === 400
+                  ? data.message || 'Cannot cancel shipped or delivered order.'
+                  : res.status >= 500
+                    ? 'Server error while cancelling order. Please try again.'
+                    : data.message || 'Failed to cancel order';
+
+        throw new Error(statusMessage);
       }
 
       setOrders((prev) =>
@@ -457,6 +521,7 @@ export default function AccountPage() {
             : order
         )
       );
+      await loadDashboard();
       setSuccess('Order cancelled successfully');
       setToast({ type: 'success', message: 'Order cancelled successfully' });
     } catch (err: any) {
@@ -488,6 +553,8 @@ export default function AccountPage() {
     );
   }
 
+  const accountAvatarSrc = toProfileImageUrl(user?.avatar || user?.profileImage || '');
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -496,7 +563,7 @@ export default function AccountPage() {
             <div className="rounded-2xl border border-blue-100 bg-white shadow-sm p-4">
               <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
                 <img
-                  src={user?.avatar || user?.profileImage || '/default-avatar.svg'}
+                  src={accountAvatarSrc || '/default-avatar.svg'}
                   alt="profile"
                   className="w-14 h-14 rounded-full object-cover"
                 />

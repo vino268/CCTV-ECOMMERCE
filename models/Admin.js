@@ -34,10 +34,8 @@ const AdminSchema = new mongoose.Schema({
   resetTokenExpiry: {
     type: Date,
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+}, {
+  timestamps: true,
 });
 
 export default mongoose.models.Admin || mongoose.model("Admin", AdminSchema);

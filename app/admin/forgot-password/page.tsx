@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (data.success) {
         setMessage({ type: 'success', text: data.message });
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ token, newPassword }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (data.success) {
         setMessage({ type: 'success', text: 'Password reset successfully!' });

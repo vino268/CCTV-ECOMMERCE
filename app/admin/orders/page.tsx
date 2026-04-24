@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatINRCurrency } from '@/lib/currency';
 import { Ban, Eye, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 interface OrderProduct {
   productId: string;
@@ -23,12 +24,24 @@ interface DeliveryInfo {
   zip?: string;
 }
 
+interface AddressDetails {
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}
+
 interface Order {
   _id: string;
+  orderId?: string;
   orderNumber: string;
   customerName: string;
   email: string;
   phone?: string;
+  address?: string | AddressDetails;
   products: OrderProduct[];
   totalAmount: number;
   paymentMethod: string;
@@ -36,6 +49,7 @@ interface Order {
   status?: string;
   orderStatus: 'Ordered' | 'Shipped' | 'Delivered' | 'Cancelled' | string;
   trackingStatus?: string;
+  cancelledBy?: 'USER' | 'ADMIN' | string | null;
   deliveryInfo?: DeliveryInfo;
   createdAt: string;
 }
@@ -98,6 +112,25 @@ function getCustomerDisplayName(order: Order): string {
   return `${first} ${last}`.trim() || 'Customer';
 }
 
+function getDisplayAddress(order: Order): string {
+  if (typeof order.address === 'string' && order.address.trim()) {
+    return order.address.trim();
+  }
+
+  if (order.address && typeof order.address === 'object') {
+    const line1 = [order.address?.fullName, order.address?.address].filter(Boolean).join(', ');
+    const line2 = [order.address?.city, order.address?.state, order.address?.pincode].filter(Boolean).join(', ');
+    const phone = order.address?.phone ? `Phone: ${order.address.phone}` : '';
+    const email = order.address?.email ? `Email: ${order.address.email}` : '';
+
+    return [line1, line2, phone, email].filter(Boolean).join(' | ');
+  }
+
+  return [order.deliveryInfo?.street, order.deliveryInfo?.city, order.deliveryInfo?.state, order.deliveryInfo?.zip]
+    .filter(Boolean)
+    .join(', ');
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,12 +150,17 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to fetch orders');
-      const data = await res.json();
-      setOrders(data);
+      const res = await fetch(buildApiUrl('/api/admin/orders'), { cache: 'no-store', credentials: 'include' });
+      const data = await parseResponseBody<any>(res);
+
+      if (!res.ok) {
+        setOrders([]);
+        return;
+      }
+
+      setOrders(Array.isArray(data?.orders) ? data.orders : []);
     } catch (err) {
-      console.error('Error fetching orders:', err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -197,12 +235,13 @@ export default function AdminOrdersPage() {
   const handleStatusChange = async (id: string, nextStatus: string) => {
     try {
       setUpdatingId(id);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${id}`), {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<any>(res);
       if (!res.ok) {
         alert(data.error || 'Failed to update order status');
         return;
@@ -221,12 +260,13 @@ export default function AdminOrdersPage() {
 
     try {
       setCancellingId(id);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/cancel/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${id}/cancel`), {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Cancelled', source: 'admin' }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseResponseBody<any>(res);
       if (!res.ok) {
         alert(data.error || data.message || 'Failed to cancel order');
         return;
@@ -249,8 +289,8 @@ export default function AdminOrdersPage() {
 
     try {
       setDeletingId(selectedId);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${selectedId}`, { method: 'DELETE' });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${selectedId}`), { method: 'DELETE', credentials: 'include' });
+      const data = await parseResponseBody<any>(res);
       if (!res.ok) {
         alert(data.error || data.message || 'Failed to delete order');
         return;
@@ -361,6 +401,16 @@ export default function AdminOrdersPage() {
                       <div className="flex flex-wrap gap-2">
                         <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${paymentStyles[order.paymentStatus] || 'bg-gray-100 text-gray-800'}`}>{order.paymentStatus}</span>
                         <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${statusStyles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                        {displayStatus === 'Cancelled' && order.cancelledBy === 'USER' && (
+                          <span className="px-2.5 py-1 text-xs rounded-full font-medium bg-rose-100 text-rose-800">
+                            Cancelled by user
+                          </span>
+                        )}
+                        {displayStatus === 'Cancelled' && order.cancelledBy === 'ADMIN' && (
+                          <span className="px-2.5 py-1 text-xs rounded-full font-medium bg-orange-100 text-orange-800">
+                            Cancelled by admin
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -430,9 +480,15 @@ export default function AdminOrdersPage() {
               </button>
             </div>
             <div className="p-5">
-              <p className="text-sm text-gray-700">Order ID: {selectedOrder.orderNumber || selectedOrder._id}</p>
+              <p className="text-sm text-gray-700">Order ID: {selectedOrder.orderId || selectedOrder.orderNumber || selectedOrder._id}</p>
               <p className="text-sm text-gray-700">Customer: {getCustomerDisplayName(selectedOrder)}</p>
               <p className="text-sm text-gray-700">Email: {selectedOrder.email || selectedOrder.deliveryInfo?.email || '-'}</p>
+              <p className="text-sm text-gray-700">Phone: {selectedOrder.phone || selectedOrder.deliveryInfo?.phone || '-'}</p>
+              <p className="text-sm text-gray-700">
+                Address: {getDisplayAddress(selectedOrder) || '-'}
+              </p>
+              <p className="text-sm text-gray-700">Payment Status: {selectedOrder.paymentStatus || 'Unpaid'}</p>
+              <p className="text-sm text-gray-700">Order Date &amp; Time: {new Date(selectedOrder.createdAt).toLocaleString()}</p>
               <p className="text-sm text-gray-700 mt-3 font-semibold">Total: {formatINRCurrency(selectedOrder.totalAmount)}</p>
             </div>
           </div>

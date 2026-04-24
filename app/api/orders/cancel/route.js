@@ -45,8 +45,8 @@ export async function PATCH(req) {
     await order.save();
 
     await Notification.create({
-      type: "cancel",
-      message: `Order ${order.orderNumber || order._id} was cancelled by customer`,
+      type: "CANCELLED",
+      message: `Order cancelled: ${order.orderId || order.orderNumber || order._id}`,
       orderId: order.orderNumber || "",
     });
 

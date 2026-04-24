@@ -2,6 +2,40 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Cart from "@/models/Cart";
 
+function toCleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toPositiveInteger(value, fallback = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(1, Math.floor(n));
+}
+
+function normalizeProductSnapshot(product) {
+  if (!product || typeof product !== "object") return {};
+
+  const normalized = {};
+
+  const name = toCleanString(product.name);
+  if (name) normalized.name = name;
+
+  const priceNum = Number(product.price);
+  if (Number.isFinite(priceNum)) normalized.price = priceNum;
+
+  const image = toCleanString(product.image);
+  if (image) normalized.image = image;
+
+  const category = toCleanString(product.category);
+  if (category) normalized.category = category;
+
+  if (typeof product.inStock === "boolean") {
+    normalized.inStock = product.inStock;
+  }
+
+  return normalized;
+}
+
 // GET /api/cart?userId=xxx — get all cart items for a user
 export async function GET(req) {
   try {
@@ -31,7 +65,11 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     await connectDB();
-    const { userId, productId, quantity, product } = await req.json();
+    const payload = await req.json();
+    const userId = toCleanString(payload?.userId);
+    const productId = toCleanString(payload?.productId);
+    const quantity = toPositiveInteger(payload?.quantity, 1);
+    const product = normalizeProductSnapshot(payload?.product);
 
     if (!userId || !productId) {
       return NextResponse.json(
@@ -44,7 +82,7 @@ export async function POST(req) {
     const existing = await Cart.findOne({ userId, productId });
 
     if (existing) {
-      if (product) {
+      if (Object.keys(product).length > 0) {
         existing.product = product;
         await existing.save();
       }
@@ -58,8 +96,8 @@ export async function POST(req) {
       const item = await Cart.create({
         userId,
         productId,
-        quantity: quantity || 1,
-        product: product || {},
+        quantity,
+        product,
       });
 
       return NextResponse.json(

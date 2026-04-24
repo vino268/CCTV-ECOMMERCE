@@ -16,12 +16,14 @@ export async function verifyUser(request) {
   try {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
     const { payload } = await jwtVerify(token, secret);
+    const tokenUserId = String(payload?.userId || payload?.id || "").trim();
+    const tokenRole = String(payload?.role || "").trim().toLowerCase();
 
-    if (!payload?.userId || payload?.role !== "user") {
+    if (!tokenUserId || (tokenRole && tokenRole !== "user")) {
       return { ok: false, status: 403, message: "Forbidden" };
     }
 
-    const user = await User.findById(String(payload.userId)).select("_id isBlocked isDeleted");
+    const user = await User.findById(tokenUserId).select("_id email isBlocked isDeleted");
     if (!user) {
       return { ok: false, status: 401, message: "Unauthorized" };
     }
@@ -42,7 +44,11 @@ export async function verifyUser(request) {
       };
     }
 
-    return { ok: true, userId: String(user._id) };
+    return {
+      ok: true,
+      userId: String(user._id),
+      email: String(user.email || payload?.email || "").toLowerCase(),
+    };
   } catch {
     return { ok: false, status: 401, message: "Unauthorized" };
   }

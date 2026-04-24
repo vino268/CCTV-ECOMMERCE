@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
@@ -36,14 +37,19 @@ export default function ChangePasswordPage() {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/password`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: (() => {
+          const headers = getAdminAuthHeaders();
+          headers.set('Content-Type', 'application/json');
+          return headers;
+        })(),
         body: JSON.stringify({
           currentPassword,
           newPassword,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (data.success) {
         setMessage({ type: 'success', text: 'Password changed successfully' });

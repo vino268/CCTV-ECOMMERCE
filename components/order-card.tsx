@@ -20,6 +20,7 @@ interface OrderProduct {
 export interface AccountOrder {
   _id: string;
   id?: string;
+  orderId?: string;
   orderNumber: string;
   email: string;
   products: OrderProduct[];
@@ -35,7 +36,7 @@ export interface AccountOrder {
 interface OrderCardProps {
   order: AccountOrder;
   isCancelling: boolean;
-  onCancel: (orderId: string, mode: 'cancel' | 'request') => void;
+  onCancel: (orderId: string) => void;
 }
 
 const timelineSteps = ['Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
@@ -95,13 +96,14 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
     normalizedStatus === 'Out for Delivery' ||
     normalizedStatus === 'Delivered';
 
-  const canDirectCancel = isOrderPlaced;
-  const canRequestCancel = isPacked && !order.cancelRequested;
+  const canDirectCancel = isOrderPlaced || isPacked;
+  const canRequestCancel = false;
   const showDisabledCancel = isAfterPacked;
   const showSupportActions = !isOrderPlaced;
 
   const activeTimelineIndex = getTimelineActiveStep(normalizedStatus);
   const orderId = order._id || order.id;
+  const displayOrderId = order.orderId || order.orderNumber || order._id;
 
   const firstProduct = order.products?.[0];
   const productImage = getSafeImageSrc(firstProduct?.productImage || firstProduct?.image, '/products/default.jpg');
@@ -137,7 +139,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
                 {firstProduct?.productName || 'Product'}
               </h3>
               <p className="mt-1 text-xs text-gray-500">
-                {itemCount} item{itemCount === 1 ? '' : 's'} | Order ID: {order.orderNumber || order._id}
+                {itemCount} item{itemCount === 1 ? '' : 's'} | Order ID: {displayOrderId}
               </p>
               <p className="text-xs text-gray-500">
                 Ordered on{' '}
@@ -221,7 +223,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
                 variant="destructive"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => onCancel(order._id, 'cancel')}
+                onClick={() => onCancel(order._id)}
                 disabled={isCancelling}
               >
                 {isCancelling ? (
@@ -242,7 +244,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
               <Button
                 size="sm"
                 className="gap-1.5 bg-yellow-500 text-white hover:bg-yellow-600"
-                onClick={() => onCancel(order._id, 'request')}
+                onClick={() => onCancel(order._id)}
                 disabled={isCancelling}
               >
                 {isCancelling ? (
@@ -317,7 +319,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
                 <Button asChild size="sm" className="gap-1.5 bg-green-500 text-white hover:bg-green-600">
                   <a
                     href={`https://wa.me/917845283678?text=${encodeURIComponent(
-                      `Hi, I need support for order ${order.orderNumber || order._id}`
+                      `Hi, I need support for order ${displayOrderId}`
                     )}`}
                     target="_blank"
                     rel="noreferrer"

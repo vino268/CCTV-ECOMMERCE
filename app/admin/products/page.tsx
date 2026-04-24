@@ -30,7 +30,7 @@ interface CategoryItem {
   name: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -53,7 +53,8 @@ export default function AdminProductsPage() {
     category: '',
     description: '',
   });
-  const [addImages, setAddImages] = useState<string[]>([]);
+  const [addImages, setAddImages] = useState<File[]>([]);
+  const [addImagePreviews, setAddImagePreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const [isAddImageUploading, setIsAddImageUploading] = useState(false);
@@ -80,12 +81,18 @@ export default function AdminProductsPage() {
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const editFileRef = useRef<HTMLInputElement>(null);
 
+  const apiBase = BASE_URL;
+
   const fetchProducts = async (page = currentPage) => {
     try {
       setLoading(true);
-      const res = await fetch(`${BASE_URL}/api/products?page=${page}&limit=10`, { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/api/products?page=${page}&limit=10`, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       const nextProducts = Array.isArray(data)
         ? data
@@ -120,8 +127,8 @@ export default function AdminProductsPage() {
 
   async function fetchCategories() {
     try {
-      const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
-      const data = await res.json();
+      const res = await fetch(`${apiBase}/api/categories`, { cache: 'no-store', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
 
       console.log('Admin categories:', data);
 
@@ -177,20 +184,23 @@ export default function AdminProductsPage() {
       let res: Response;
 
       if (categoryModalType === 'add') {
-        res = await fetch(`${BASE_URL}/api/categories`, {
+        res = await fetch(`${apiBase}/api/categories`, {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else if (categoryModalType === 'edit') {
-        res = await fetch(`${BASE_URL}/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(`${apiBase}/api/categories/${selectedCategory?._id}`, {
           method: 'PUT',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else {
-        res = await fetch(`${BASE_URL}/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(`${apiBase}/api/categories/${selectedCategory?._id}`, {
           method: 'DELETE',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
         });
       }
@@ -198,7 +208,7 @@ export default function AdminProductsPage() {
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(payload.error || 'Failed to update category');
+        throw new Error(payload.message || payload.error || 'Failed to update category');
       }
 
       closeCategoryModal();
@@ -225,8 +235,9 @@ export default function AdminProductsPage() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch(`${BASE_URL}/api/products/upload-image`, {
+    const res = await fetch(`${apiBase}/api/products/upload-image`, {
       method: 'POST',
+      credentials: 'include',
       body: formData,
     });
 
@@ -271,8 +282,11 @@ export default function AdminProductsPage() {
     try {
       setCheckingSku(true);
 
-      const res = await fetch(`${BASE_URL}/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`);
-      const data = await res.json();
+      const res = await fetch(`${apiBase}/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
 
       if (data.exists) {
         setSkuError('SKU already exists');
@@ -308,8 +322,10 @@ export default function AdminProductsPage() {
       setIsAddImageUploading(true);
       setAddImageError('');
 
-      const uploadedUrls = await Promise.all(validFiles.map((file) => uploadImageFile(file)));
-      setAddImages((prev) => [...prev, ...uploadedUrls]);
+      const merged = [...addImages, ...validFiles].slice(0, 5);
+      setAddImages(merged);
+      setAddImagePreviews(merged.map((file) => URL.createObjectURL(file)));
+      console.log(merged);
     } catch (err: any) {
       setAddImageError(err.message || 'Failed to upload one or more images.');
     } finally {
@@ -319,6 +335,7 @@ export default function AdminProductsPage() {
 
   const removeAddImage = (index: number) => {
     setAddImages((prev) => prev.filter((_, i) => i !== index));
+    setAddImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -338,23 +355,24 @@ export default function AdminProductsPage() {
       return;
     }
 
-    const payload = {
-      sku: addFormData.sku.trim(),
-      name: addFormData.name.trim(),
-      price: Number(addFormData.price),
-      category: addFormData.category,
-      description: addFormData.description.trim(),
-      images: addImages,
-      image: addImages[0] || '',
-      inStock: true,
-    };
-
     try {
       setIsAddSubmitting(true);
-      const res = await fetch(`${BASE_URL}/api/products`, {
+      const formData = new FormData();
+      formData.append('sku', addFormData.sku.trim());
+      formData.append('name', addFormData.name.trim());
+      formData.append('price', String(Number(addFormData.price)));
+      formData.append('category', addFormData.category);
+      formData.append('description', addFormData.description.trim());
+      formData.append('inStock', 'true');
+
+      for (let i = 0; i < addImages.length; i += 1) {
+        formData.append('images', addImages[i]);
+      }
+
+      const res = await fetch(`${apiBase}/api/products`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        credentials: 'include',
+        body: formData,
       });
 
       if (!res.ok) {
@@ -375,6 +393,7 @@ export default function AdminProductsPage() {
       setSkuError('');
       setAddImageError('');
       setAddImages([]);
+      setAddImagePreviews([]);
       if (addFileRef.current) addFileRef.current.value = '';
       setShowAddModal(false);
     } catch (err) {
@@ -414,6 +433,7 @@ export default function AdminProductsPage() {
     try {
       const res = await fetch(`${BASE_URL}/api/products/${id}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sku: editFormData.sku,
@@ -443,7 +463,10 @@ export default function AdminProductsPage() {
 
     try {
       setIsDeleteSubmitting(true);
-      const res = await fetch(`${BASE_URL}/api/products/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${BASE_URL}/api/products/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       if (res.ok) {
         setDeleteItem(null);
         setDeleteType('');
@@ -1014,12 +1037,12 @@ export default function AdminProductsPage() {
 
                   {addImageError && <p className="text-xs text-red-500 mt-2">{addImageError}</p>}
 
-                  {addImages.length > 0 && (
+                  {addImagePreviews.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                    {addImages.map((img, i) => (
+                    {addImagePreviews.map((img, i) => (
                       <div key={`${img}-${i}`} className="relative group">
                         <img
-                          src={getSafeImageSrc(img, '/products/default.jpg')}
+                          src={img}
                           alt={`Preview ${i + 1}`}
                           className="w-full h-28 object-cover rounded-lg border"
                         />

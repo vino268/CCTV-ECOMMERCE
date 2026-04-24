@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, CheckCircle2, Plus, RefreshCw, Upload, X } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
-import { getSafeImageSrc } from '@/lib/product-image';
 
 type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'features', string>>;
 
@@ -23,7 +22,7 @@ interface AddProductForm {
   description: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 function generateSku(category: string) {
   const prefixMap: Record<string, string> = {
@@ -59,7 +58,8 @@ export default function AddProductPage() {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [categoryMessage, setCategoryMessage] = useState('');
 
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageNames, setImageNames] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,7 +83,7 @@ export default function AddProductPage() {
       setLoadingCategories(true);
       const res = await fetch(`${BASE_URL}/api/categories`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch categories');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       const nextCategories = Array.isArray(data)
         ? data
@@ -150,41 +150,16 @@ export default function AddProductPage() {
     try {
       setIsUploadingImages(true);
 
-      const uploadedUrls: string[] = [];
-      const uploadedNames: string[] = [];
-      const failedNames: string[] = [];
+      const merged = [...images, ...validFiles].slice(0, 5);
+      setImages(merged);
+      setImageNames(merged.map((file) => file.name));
+      setImagePreviews(merged.map((file) => URL.createObjectURL(file)));
 
-      for (const file of validFiles) {
-        const formData = new FormData();
-        formData.append('file', file);
+      // Mandatory debug log to verify selected files before upload.
+      console.log(merged);
 
-        const res = await fetch(`${BASE_URL}/api/products/upload-image`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data?.imageUrl) {
-          uploadedUrls.push(data.imageUrl);
-          uploadedNames.push(file.name);
-        } else {
-          failedNames.push(file.name);
-        }
-      }
-
-      if (uploadedUrls.length > 0) {
-        setImages((prev) => [...prev, ...uploadedUrls]);
-        setImageNames((prev) => [...prev, ...uploadedNames]);
-        if (errors.images) {
-          setErrors((prev) => ({ ...prev, images: undefined }));
-        }
-      }
-
-      if (failedNames.length > 0) {
-        setErrors((prev) => ({
-          ...prev,
-          images: `Failed to upload: ${failedNames.join(', ')}`,
-        }));
+      if (errors.images) {
+        setErrors((prev) => ({ ...prev, images: undefined }));
       }
     } finally {
       setIsUploadingImages(false);
@@ -208,6 +183,7 @@ export default function AddProductPage() {
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
     setImageNames((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = (): FormErrors => {
@@ -229,29 +205,35 @@ export default function AddProductPage() {
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
-    const payload = {
-      name: form.name.trim(),
-      sku: form.sku.trim(),
-      price: Number(form.price),
-      category: form.category,
-      description: form.description.trim(),
-      features,
-      images,
-      image: images[0] || '',
-      inStock: true,
-    };
-
     try {
       setIsSubmitting(true);
+
+      const formData = new FormData();
+      formData.append('name', form.name.trim());
+      formData.append('sku', form.sku.trim());
+      formData.append('price', String(Number(form.price)));
+      formData.append('category', form.category.trim());
+      formData.append('description', form.description.trim());
+      formData.append('inStock', 'true');
+      formData.append('features', JSON.stringify(features));
+
+      for (let i = 0; i < images.length; i += 1) {
+        formData.append('images', images[i]);
+      }
+
+      // Mandatory debug log to ensure request uses file objects.
+      console.log(images);
+
       const res = await fetch(`${BASE_URL}/api/products`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        credentials: 'include',
+        body: formData,
       });
 
       const result = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        alert(result?.message || result?.error || 'Upload failed');
         setErrors((prev) => ({
           ...prev,
           name: result?.fieldErrors?.name || prev.name,
@@ -263,9 +245,12 @@ export default function AddProductPage() {
         return;
       }
 
+      alert('Product created successfully');
+
       router.push('/admin/products');
     } catch (error) {
       console.error('Error creating product:', error);
+      alert('Upload failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -506,10 +491,10 @@ export default function AddProductPage() {
 
           {images.length > 0 && (
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-              {images.map((image, index) => (
-                <div key={`${image}-${index}`} className="relative">
+              {imagePreviews.map((image, index) => (
+                <div key={`${imageNames[index] || 'image'}-${index}`} className="relative">
                   <img
-                    src={getSafeImageSrc(image, '/products/default.jpg')}
+                    src={image}
                     alt={`Product preview ${index + 1}`}
                     className="w-full h-28 object-cover rounded-md border border-border"
                   />

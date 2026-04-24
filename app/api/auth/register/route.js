@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import Notification from "@/models/Notification";
 
 export async function POST(req) {
   try {
@@ -46,6 +47,14 @@ export async function POST(req) {
       phone: String(data?.phone || "").trim(),
       dob: data?.dob || null,
       role: "user",
+    });
+
+    await Notification.create({
+      title: "New User Registered",
+      type: "user",
+      message: `${name} created a new account`,
+      userId: createdUser._id,
+      isRead: false,
     });
 
     return Response.json(

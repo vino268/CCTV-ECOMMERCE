@@ -36,9 +36,9 @@ function normalizeIncomingStatus(status) {
 
 function mapWorkflowStatus(status) {
   switch (status) {
-    case "Pending":
     case "Ordered":
-      return "Pending";
+    case "Pending":
+      return "Ordered";
     case "Packed":
       return "Packed";
     case "Shipped":
@@ -156,16 +156,14 @@ export async function PUT(req, { params }) {
 
       if (nextStatus === "Cancelled") {
         await Notification.create({
-          type: "cancel",
-          message: `Order ${order.orderNumber || order._id} was cancelled`,
+          type: "CANCELLED",
+          message: `Order cancelled: ${order.orderId || order.orderNumber || order._id}`,
           orderId: order.orderNumber || "",
         });
-      }
-
-      if (nextStatus === "Delivered") {
+      } else {
         await Notification.create({
-          type: "delivery",
-          message: `Order ${order.orderNumber || order._id} was delivered`,
+          type: "STATUS_UPDATED",
+          message: `Order ${order.orderId || order.orderNumber || order._id} moved to ${nextStatus}`,
           orderId: order.orderNumber || "",
         });
       }

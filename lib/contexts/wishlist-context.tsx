@@ -3,6 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Product } from '@/lib/types';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { parseResponseBody } from '@/lib/http-response';
 
 export interface WishlistItem {
   _id: string;
@@ -52,6 +53,10 @@ function getProductId(product: Product) {
   return String(product._id || '');
 }
 
+function buildWishlistUrl(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -87,18 +92,19 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wishlist/${encodeURIComponent(userId)}`, {
+      const res = await fetch(buildWishlistUrl('/api/wishlist'), {
         cache: 'no-store',
+        credentials: 'include',
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await parseResponseBody(res);
         console.warn('Wishlist fetch non-OK response:', res.status, body);
         setWishlist([]);
         return;
       }
 
-      const data = await res.json();
+      const data = await parseResponseBody<{ wishlist?: any[]; items?: any[] }>(res);
       if (process.env.NODE_ENV !== 'production') {
         console.log('[wishlist][context] fetched payload:', data);
       }
@@ -136,11 +142,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     };
 
     window.addEventListener('user-auth-change', handleAuthChange);
-    window.addEventListener('storage', handleAuthChange);
 
     return () => {
       window.removeEventListener('user-auth-change', handleAuthChange);
-      window.removeEventListener('storage', handleAuthChange);
     };
   }, [refreshWishlist]);
 
@@ -169,19 +173,41 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
 
     const exists = wishlistIds.has(pid);
+    const previousWishlist = wishlist;
+    const optimisticItem: WishlistItem = {
+      _id: `temp-${pid}`,
+      userId,
+      productId: {
+        ...product,
+        _id: pid,
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    // Optimistic UI: update heart state immediately.
+    setWishlist((prev) => {
+      if (exists) {
+        return prev.filter((entry) => String(entry.productId?._id || '') !== pid);
+      }
+
+      const alreadyPresent = prev.some((entry) => String(entry.productId?._id || '') === pid);
+      return alreadyPresent ? prev : [optimisticItem, ...prev];
+    });
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wishlist/toggle`, {
+      const res = await fetch(buildWishlistUrl('/api/wishlist/toggle'), {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, productId: pid }),
+        body: JSON.stringify({ productId: pid }),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to toggle');
+        const body = await parseResponseBody<{ error?: string; message?: string }>(res);
+        throw new Error(String(body?.error || body?.message || 'Failed to toggle wishlist'));
       }
 
-      const data = await res.json();
+      const data = await parseResponseBody<{ added?: boolean }>(res);
       const added = Boolean(data?.added);
       await refreshWishlist();
       return {
@@ -191,9 +217,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (error) {
       console.error('Wishlist toggle failed:', error);
+      setWishlist(previousWishlist);
       return { ok: false, added: false, message: 'Failed to update wishlist' };
     }
-  }, [wishlistIds, refreshWishlist, userId]);
+  }, [wishlist, wishlistIds, refreshWishlist, userId]);
 
   const getWishlistCount = useCallback(
     () => wishlist.filter((entry) => Boolean(entry.productId)).length,

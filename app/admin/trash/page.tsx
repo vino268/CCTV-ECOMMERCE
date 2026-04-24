@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import { buildApiUrl } from '@/lib/http-response';
 
 interface DeletedOrder {
   _id: string;
@@ -51,21 +53,25 @@ export default function AdminTrashPage() {
     try {
       setLoading(true);
       const [ordersRes, customersRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/orders/deleted`, { cache: 'no-store' }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/customers/deleted`, { cache: 'no-store' }),
+        fetch(buildApiUrl('/api/admin/orders/deleted'), {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: getAdminAuthHeaders(),
+        }),
+        fetch(buildApiUrl('/api/admin/customers/deleted'), {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: getAdminAuthHeaders(),
+        }),
       ]);
-
-      if (!ordersRes.ok || !customersRes.ok) {
-        throw new Error('Failed to fetch deleted data');
-      }
 
       const [ordersData, customersData] = await Promise.all([
-        ordersRes.json(),
-        customersRes.json(),
+        ordersRes.json().catch(() => ([])),
+        customersRes.json().catch(() => ([])),
       ]);
 
-      setOrders(Array.isArray(ordersData) ? ordersData : []);
-      setCustomers(Array.isArray(customersData) ? customersData : []);
+      setOrders(ordersRes.ok && Array.isArray(ordersData) ? ordersData : []);
+      setCustomers(customersRes.ok && Array.isArray(customersData) ? customersData : []);
     } catch (error) {
       console.error('Error fetching trash data:', error);
       setOrders([]);
@@ -88,10 +94,14 @@ export default function AdminTrashPage() {
 
       const endpoint =
         currentTab === 'orders'
-          ? `/api/admin/orders/${id}/restore`
-          : `/api/admin/customers/${id}/restore`;
+          ? buildApiUrl(`/api/admin/orders/${id}/restore`)
+          : buildApiUrl(`/api/admin/customers/${id}/restore`);
 
-      const res = await fetch(endpoint, { method: 'PATCH' });
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -116,10 +126,14 @@ export default function AdminTrashPage() {
 
       const endpoint =
         pendingDelete.tab === 'orders'
-          ? `/api/admin/orders/${pendingDelete.id}/permanent`
-          : `/api/admin/customers/${pendingDelete.id}/permanent`;
+          ? buildApiUrl(`/api/admin/orders/${pendingDelete.id}/permanent`)
+          : buildApiUrl(`/api/admin/customers/${pendingDelete.id}/permanent`);
 
-      const res = await fetch(endpoint, { method: 'DELETE' });
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {

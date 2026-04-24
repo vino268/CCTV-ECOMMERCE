@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { User } from 'lucide-react';
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
 import { useAuth } from '@/lib/contexts/auth-context';
+import { toProfileImageUrl } from '@/lib/profile-image-url';
 
 function getInitial(name?: string, email?: string) {
   return (name || email || 'U').charAt(0).toUpperCase();
@@ -73,7 +74,7 @@ export function AccountMenu() {
 
   // Logged in — show avatar button + dropdown
   const userProfileImage = String(user.profileImage || user.avatar || '').trim();
-  const avatarSrc = userProfileImage;
+  const avatarSrc = toProfileImageUrl(userProfileImage);
   const initial = getInitial(user.name, user.email);
 
   return (
