@@ -57,6 +57,7 @@ export default function AdminAccountMenu() {
     });
     setShowLogoutModal(false);
     router.replace('/admin/login');
+    router.refresh();
   };
 
   const handleOpenLogoutModal = () => {

@@ -185,7 +185,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
     return withCors(request, NextResponse.next(), isApiRoute);
   } catch {
-    const response = NextResponse.redirect(new URL("/admin/login", request.url));
+    const response = NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
     response.cookies.delete("token");
     response.cookies.delete("adminToken");
     return withCors(request, response, isApiRoute);

@@ -39,24 +39,14 @@ export default function AdminLoginPage() {
   useEffect(() => {
     if (searchParams.get('error') === 'unauthorized') {
       setError('Unauthorized Access');
+      return;
     }
 
-    const checkSession = async () => {
-      try {
-        const res = await fetchWithAuth('/api/admin/profile', {
-          method: 'GET',
-          cache: 'no-store',
-        });
+    const hasToken = document.cookie.includes('token=');
 
-        if (res.ok) {
-          router.replace('/admin/dashboard');
-        }
-      } catch {
-        // stay login page
-      }
-    };
-
-    checkSession();
+    if (hasToken) {
+      router.replace('/admin/dashboard');
+    }
   }, [router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,8 +68,11 @@ export default function AdminLoginPage() {
         return;
       }
 
-      if (data?.success) {
-        router.push('/admin/dashboard');
+      if (res.ok && data?.success) {
+        setTimeout(() => {
+          router.replace('/admin/dashboard');
+          router.refresh();
+        }, 500);
         return;
       }
 

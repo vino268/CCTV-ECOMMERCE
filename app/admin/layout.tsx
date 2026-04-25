@@ -78,6 +78,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     });
     clearAdmin();
     router.replace('/admin/login');
+    router.refresh();
   };
 
   // Overlay for mobile drawer
