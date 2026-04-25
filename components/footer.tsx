@@ -43,8 +43,8 @@ export function Footer() {
   useEffect(() => {
     fetch(buildApiUrl('/api/settings'))
       .then((r) => parseResponseBody(r))
-      .then((data) => {
-        const payload = data?.data || data;
+     .then((data: any) => {
+const payload = data?.data || data;
         setS({
           storeName: payload.storeName ?? '',
           description: payload.description ?? '',
