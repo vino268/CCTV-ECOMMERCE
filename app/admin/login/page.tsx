@@ -8,7 +8,6 @@ import { fetchWithAuth } from '@/utils/api';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 async function parseApiResponse(res: Response) {
   const contentType = res.headers.get('content-type') || '';
@@ -30,13 +29,13 @@ async function parseApiResponse(res: Response) {
 export default function AdminLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, redirect to dashboard
   useEffect(() => {
     if (searchParams.get('error') === 'unauthorized') {
       setError('Unauthorized Access');
@@ -44,15 +43,16 @@ export default function AdminLoginPage() {
 
     const checkSession = async () => {
       try {
-        const res = await fetchWithAuth(`${API_BASE}/api/admin/profile`, {
+        const res = await fetchWithAuth('/api/admin/profile', {
           method: 'GET',
           cache: 'no-store',
         });
+
         if (res.ok) {
           router.replace('/admin/dashboard');
         }
       } catch {
-        // Ignore and stay on login page.
+        // stay login page
       }
     };
 
@@ -65,7 +65,7 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetchWithAuth(`${API_BASE}/api/admin/login`, {
+      const res = await fetchWithAuth('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -78,12 +78,12 @@ export default function AdminLoginPage() {
         return;
       }
 
-      if (res.ok && data?.success) {
+      if (data?.success) {
         router.push('/admin/dashboard');
         return;
       }
 
-      router.push('/');
+      setError('Login failed');
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -94,19 +94,23 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary/30 to-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
+
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Shield className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
+
+          <h1 className="text-2xl font-bold text-foreground">
+            Admin Login
+          </h1>
+
           <p className="text-sm text-muted-foreground mt-1">
             TN Automation — Authorized Access Only
           </p>
         </div>
 
-        {/* Login Card */}
         <div className="bg-card border border-border rounded-xl shadow-sm p-8">
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
@@ -114,20 +118,22 @@ export default function AdminLoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Admin Email
               </label>
+
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@gmail.com"
                 className={inputClass}
-                inputMode="email"
                 required
                 autoFocus
               />
+
               <p className="mt-1 text-xs text-muted-foreground">
                 Use your authorized admin email.
               </p>
@@ -137,6 +143,7 @@ export default function AdminLoginPage() {
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Password
               </label>
+
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -146,6 +153,7 @@ export default function AdminLoginPage() {
                   className={inputClass + ' pr-10'}
                   required
                 />
+
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -168,6 +176,7 @@ export default function AdminLoginPage() {
             >
               {loading ? 'Signing in...' : 'Sign In to Admin'}
             </Button>
+
           </form>
         </div>
 
