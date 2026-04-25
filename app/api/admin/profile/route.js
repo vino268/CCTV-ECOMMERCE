@@ -5,7 +5,7 @@ import User from "@/models/User";
 import { jwtVerify } from "jose";
 
 async function verifyAdmin(request) {
-  const cookieToken = request.cookies.get("adminToken")?.value;
+  const cookieToken = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
   const authHeader = request.headers.get("authorization")?.trim() || "";
   const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
     ? authHeader.slice(7).trim()

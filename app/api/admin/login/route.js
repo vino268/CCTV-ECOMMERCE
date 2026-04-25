@@ -83,12 +83,18 @@ export async function POST(req) {
       role: "admin",
       admin: adminData,
     });
-    response.cookies.set("adminToken", token, {
+    const isProduction = process.env.NODE_ENV === "production";
+    response.cookies.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
+    });
+    response.cookies.set("adminToken", "", {
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
     });
     response.cookies.set("userToken", "", {
       path: "/",

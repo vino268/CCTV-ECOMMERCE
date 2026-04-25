@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { jwtVerify } from "jose";
 
 async function verifyAdmin(request) {
-  const token = request.cookies.get("adminToken")?.value;
+  const token = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
   if (!token) {
     return { ok: false, status: 401, message: "Unauthorized" };
   }

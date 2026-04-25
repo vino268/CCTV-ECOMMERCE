@@ -1,8 +1,20 @@
 const jwt = require("jsonwebtoken");
 
+function getTokenFromRequest(req) {
+  const cookieToken = String(req.cookies?.token || req.cookies?.adminToken || "").trim();
+  if (cookieToken) return cookieToken;
+
+  const authHeader = String(req.headers.authorization || "").trim();
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+
+  return "";
+}
+
 const verifyAdmin = (req, res, next) => {
   try {
-    const token = String(req.cookies?.adminToken || "").trim();
+    const token = getTokenFromRequest(req);
 
     if (!token) {
       return res.status(401).json({ message: "No token" });

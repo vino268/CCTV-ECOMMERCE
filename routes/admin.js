@@ -7,20 +7,23 @@ const Order = require("../models/OrderModel");
 
 const router = express.Router();
 
-const adminCookieOptions = {
-  httpOnly: true,
-  secure: false,
-  sameSite: "lax",
-  path: "/",
-  maxAge: 24 * 60 * 60 * 1000,
-};
+function getAdminCookieOptions(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
+  const isHttps = req.secure || forwardedProto.includes("https");
 
-const adminCookieClearOptions = {
-  httpOnly: true,
-  secure: false,
-  sameSite: "lax",
-  path: "/",
-};
+  return {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: isHttps ? "none" : "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
+function getAdminClearCookieOptions(req) {
+  const { maxAge: _maxAge, ...options } = getAdminCookieOptions(req);
+  return options;
+}
 
 async function loadAdminModel() {
   const { default: Admin } = await import("../models/Admin.js");
@@ -75,10 +78,14 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       { id: String(admin._id), role: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "7d" }
     );
 
-    res.cookie("adminToken", token, adminCookieOptions);
+    const cookieOptions = getAdminCookieOptions(req);
+    const clearOptions = getAdminClearCookieOptions(req);
+    res.cookie("token", token, cookieOptions);
+    res.clearCookie("adminToken", clearOptions);
+    res.clearCookie("userToken", clearOptions);
 
     return res.json({
       success: true,
@@ -154,8 +161,10 @@ router.put("/profile", protectAdmin, async (req, res) => {
   }
 });
 
-router.post("/logout", (_req, res) => {
-  res.clearCookie("adminToken", adminCookieClearOptions);
+router.post("/logout", (req, res) => {
+  const clearOptions = getAdminClearCookieOptions(req);
+  res.clearCookie("token", clearOptions);
+  res.clearCookie("adminToken", clearOptions);
   return res.json({
     success: true,
     message: "Logged out successfully",

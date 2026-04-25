@@ -1,24 +1,19 @@
 const jwt = require("jsonwebtoken");
 
-function parseCookieValue(cookieHeader, name) {
-  if (!cookieHeader) return "";
-  const parts = String(cookieHeader).split(";");
-  for (const part of parts) {
-    const [key, ...rest] = part.split("=");
-    if (String(key || "").trim() === name) {
-      return decodeURIComponent(rest.join("=").trim());
-    }
+function getTokenFromRequest(req) {
+  const cookieToken = String(req.cookies?.token || req.cookies?.adminToken || "").trim();
+  if (cookieToken) return cookieToken;
+
+  const authHeader = String(req.headers.authorization || "").trim();
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
   }
+
   return "";
 }
 
 module.exports = (req, res, next) => {
-  const authHeader = String(req.headers.authorization || "").trim();
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const cookieToken = parseCookieValue(req.headers.cookie || "", "adminToken");
-  const token = bearerToken || cookieToken;
+  const token = getTokenFromRequest(req);
 
   if (!token) {
     return res.status(401).json({ message: "No token" });

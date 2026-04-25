@@ -4,7 +4,7 @@ import SiteSettings from "@/models/SiteSettings";
 import AdminLog from "@/models/AdminLog";
 import { jwtVerify } from "jose";
 
-const ALLOWED_ORIGINS = ["http://localhost:3000", "https://tnautomation.in"];
+const ALLOWED_ORIGINS = ["http://localhost:3000", "https://tnautomation.in", "https://www.tnautomation.in"];
 
 function getCorsHeaders(request) {
   const origin = request?.headers?.get("origin") || "";
@@ -47,7 +47,7 @@ function isValidHttpsUrl(value) {
 }
 
 async function verifyAdmin(request) {
-  const token = request.cookies.get("adminToken")?.value;
+  const token = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
   if (!token) {
     return { ok: false, status: 401, message: "Unauthorized" };
   }

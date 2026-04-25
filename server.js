@@ -20,6 +20,8 @@ const addressRoutes = require("./routes/address");
 const profileRoutes = require("./routes/profile");
 
 dotenv.config();
+console.log("Mongo URI Exists:", !!process.env.MONGODB_URI);
+console.log("JWT Exists:", !!process.env.JWT_SECRET);
 
 const app = express();
 
@@ -44,20 +46,6 @@ app.use(
         return;
       }
 
-      callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      // Allow non-browser clients (no Origin header) and configured frontend origins.
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

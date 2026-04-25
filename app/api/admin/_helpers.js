@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 function extractAdminToken(request) {
-  const cookieToken = request.cookies.get("adminToken")?.value;
+  const cookieToken = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
   if (cookieToken) return cookieToken;
 
   const authHeader = request.headers.get("authorization") || "";

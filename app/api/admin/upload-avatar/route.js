@@ -15,7 +15,7 @@ function extensionFromType(type) {
 }
 
 async function verifyAdmin(request) {
-  const cookieToken = request.cookies.get("adminToken")?.value;
+  const cookieToken = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
   const authHeader = request.headers.get("authorization") || "";
   const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
     ? authHeader.slice(7).trim()

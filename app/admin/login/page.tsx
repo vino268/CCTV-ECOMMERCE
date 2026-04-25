@@ -65,9 +65,8 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/login`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/admin/login`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
@@ -80,9 +79,6 @@ export default function AdminLoginPage() {
       }
 
       if (res.ok && data?.success) {
-        if (data?.token && typeof window !== 'undefined') {
-          localStorage.setItem('adminToken', String(data.token));
-        }
         router.push('/admin/dashboard');
         return;
       }
