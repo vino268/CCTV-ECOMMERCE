@@ -31,6 +31,7 @@ interface CustomerOrder {
 }
 
 const ITEMS_PER_PAGE = 10;
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
 
 type CustomerFilter = 'all' | 'active' | 'deleted';
 
@@ -71,7 +72,7 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const res = await fetch(`/api/admin/customers?${params.toString()}`, {
+      const res = await fetch(`${API_BASE}/api/admin/customers?${params.toString()}`, {
         cache: 'no-store',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -145,7 +146,7 @@ export default function AdminCustomersPage() {
     setLoadingCustomerOrders(true);
 
     try {
-      const res = await fetch(`/api/admin/customers/${customer._id}/orders`, {
+      const res = await fetch(`${API_BASE}/api/admin/customers/${customer._id}/orders`, {
         cache: 'no-store',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -168,7 +169,7 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(`/api/admin/customers/${customerId}`, {
+      const res = await fetch(`${API_BASE}/api/admin/customers/${customerId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -198,7 +199,7 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(`/api/admin/customers/${customer._id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/customers/${customer._id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: (() => {
