@@ -28,8 +28,27 @@ mongoose.set("strictQuery", true);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://tnautomation.in",
+  "https://www.tnautomation.in",
   String(process.env.FRONTEND_ORIGIN || "").trim(),
 ].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.includes("vercel.app")
+      ) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
 
 app.use(
   cors({
