@@ -4,27 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
-import { fetchWithAuth } from '@/utils/api';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
-
-async function parseApiResponse(res: Response) {
-  const contentType = res.headers.get('content-type') || '';
-
-  if (contentType.includes('application/json')) {
-    return res.json().catch(() => ({}));
-  }
-
-  const text = await res.text().catch(() => '');
-  const htmlLike = /^\s*<!doctype|^\s*<html/i.test(text);
-
-  return {
-    message: htmlLike
-      ? 'Received HTML instead of JSON from admin API. Check backend URL and server status.'
-      : text || 'Unexpected server response',
-  };
-}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -39,45 +21,47 @@ export default function AdminLoginPage() {
   useEffect(() => {
     if (searchParams.get('error') === 'unauthorized') {
       setError('Unauthorized Access');
-      return;
     }
+  }, [searchParams]);
 
-    const hasToken = document.cookie.includes('token=');
-
-    if (hasToken) {
-      router.replace('/admin/dashboard');
-    }
-  }, [router, searchParams]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+
+    if (loading) return;
+
     setLoading(true);
+    setError('');
 
     try {
-      const res = await fetchWithAuth('/api/admin/login', {
+      const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim()
+        })
       });
 
-      const data = await parseApiResponse(res);
+      const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || data.message || 'Login failed');
+        setError(data.message || 'Login failed');
+        setLoading(false);
         return;
       }
 
-      if (res.ok && data?.success) {
-        setTimeout(() => {
-          router.replace('/admin/dashboard');
-          router.refresh();
-        }, 500);
+      if (data.success) {
+        router.replace('/admin/dashboard');
+        router.refresh();
         return;
       }
 
-      setError('Login failed');
-    } catch {
+      setError('Invalid login');
+    } catch (error) {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
