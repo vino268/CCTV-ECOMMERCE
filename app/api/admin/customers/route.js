@@ -2,32 +2,50 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Order from "@/models/Order";
+import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
 export async function GET(req) {
   try {
+    console.log("[admin/customers] route hit");
+
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) return adminAuthError(auth);
+
     await connectDB();
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim() || "";
     const status = (searchParams.get("status") || "all").toLowerCase();
 
-    const query = { role: "user" };
+    const roleFilter = {
+      $or: [
+        { role: "user" },
+        { role: { $exists: false } },
+        { role: null },
+        { role: "" },
+      ],
+    };
+    const query = {
+      $and: [roleFilter],
+    };
 
     if (status === "active") {
-      query.isDeleted = false;
+      query.$and.push({ isDeleted: false });
     } else if (status === "deleted") {
-      query.isDeleted = true;
+      query.$and.push({ isDeleted: true });
     }
 
     if (search) {
       // Escape special regex characters to prevent injection
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      query.$or = [
-        { name:    { $regex: escaped, $options: "i" } },
-        { email:   { $regex: escaped, $options: "i" } },
-        { phone:   { $regex: escaped, $options: "i" } },
-        { address: { $regex: escaped, $options: "i" } },
-      ];
+      query.$and.push({
+        $or: [
+          { name:    { $regex: escaped, $options: "i" } },
+          { email:   { $regex: escaped, $options: "i" } },
+          { phone:   { $regex: escaped, $options: "i" } },
+          { address: { $regex: escaped, $options: "i" } },
+        ],
+      });
     }
 
     const users = await User.find(query)
@@ -67,19 +85,41 @@ export async function GET(req) {
     const enrichedUsers = users.map((user) => {
       const key = String(user.email || "").toLowerCase();
       const stats = statsByEmail.get(key);
+      const statusValue =
+        typeof user.status === "string" && user.status.trim()
+          ? user.status
+          : user.isDeleted
+            ? "deleted"
+            : user.isBlocked
+              ? "blocked"
+              : "active";
 
       return {
-        ...user.toObject(),
+        _id: String(user._id),
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        createdAt: user.createdAt,
+        status: statusValue,
+        isBlocked: !!user.isBlocked,
+        isDeleted: !!user.isDeleted,
+        deletedAt: user.deletedAt || null,
+        address: user.address || "",
         totalOrders: stats?.totalOrders || 0,
         totalSpent: stats?.totalSpent || 0,
       };
     });
 
-    return NextResponse.json(enrichedUsers);
+    console.log(`[admin/customers] fetched count: ${enrichedUsers.length}`);
+
+    return NextResponse.json({
+      success: true,
+      customers: enrichedUsers,
+    });
   } catch (error) {
     console.error("Error fetching customers:", error);
     return NextResponse.json(
-      { message: "Failed to fetch customers" },
+      { success: false, message: "Failed to fetch customers" },
       { status: 500 }
     );
   }

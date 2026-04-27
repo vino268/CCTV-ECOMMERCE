@@ -6,6 +6,8 @@ import { formatINRCurrency } from '@/lib/currency';
 import { Eye, RefreshCw, Search, Trash2, UserX, UserCheck, X } from 'lucide-react';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import ToastNotification from '@/components/ui/toast-notification';
+import { useToast } from '@/hooks/use-toast';
 
 interface Customer {
   _id: string;
@@ -31,7 +33,6 @@ interface CustomerOrder {
 }
 
 const ITEMS_PER_PAGE = 10;
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
 
 type CustomerFilter = 'all' | 'active' | 'deleted';
 
@@ -50,6 +51,7 @@ function toDisplayValue(value?: string) {
 }
 
 export default function AdminCustomersPage() {
+  const { toast, showError, showSuccess } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,16 +74,36 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const res = await fetch(`${API_BASE}/api/admin/customers?${params.toString()}`, {
+      const endpoint = '/api/admin/customers';
+      const query = params.toString();
+      const url = query ? `${endpoint}?${query}` : endpoint;
+
+      const res = await fetch(url, {
+        method: 'GET',
         cache: 'no-store',
         credentials: 'include',
-        headers: getAdminAuthHeaders(),
       });
-      if (!res.ok) throw new Error('Failed to fetch customers');
-      const data = await res.json().catch(() => ({}));
-      setCustomers(data);
+
+      const payload = await res.json().catch(() => ({}));
+      console.log('[admin/customers] frontend response:', payload);
+
+      if (!res.ok) {
+        throw new Error((payload as { message?: string; error?: string })?.message || (payload as { message?: string; error?: string })?.error || 'Failed to fetch customers');
+      }
+
+      const typedPayload = payload as { success?: boolean; customers?: Customer[]; message?: string };
+      if (typedPayload.success === false) {
+        throw new Error(typedPayload.message || 'Failed to fetch customers');
+      }
+
+      const nextCustomers = Array.isArray(typedPayload.customers)
+        ? typedPayload.customers
+        : [];
+      setCustomers(nextCustomers);
     } catch (error) {
       console.error('Error fetching customers:', error);
+      setCustomers([]);
+      showError(error instanceof Error ? error.message : 'Failed to fetch customers');
     } finally {
       setLoading(false);
     }
@@ -146,16 +168,17 @@ export default function AdminCustomersPage() {
     setLoadingCustomerOrders(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/customers/${customer._id}/orders`, {
+      const res = await fetch(`/api/admin/customers/${customer._id}/orders`, {
+        method: 'GET',
         cache: 'no-store',
         credentials: 'include',
-        headers: getAdminAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch customer orders');
       const data = await res.json().catch(() => ({}));
       setSelectedCustomerOrders(data);
     } catch (error) {
       console.error('Error fetching customer orders:', error);
+      showError(error instanceof Error ? error.message : 'Failed to fetch customer orders');
       setSelectedCustomerOrders([]);
     } finally {
       setLoadingCustomerOrders(false);
@@ -169,7 +192,7 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(`${API_BASE}/api/admin/customers/${customerId}`, {
+      const res = await fetch(`/api/admin/customers/${customerId}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -177,7 +200,7 @@ export default function AdminCustomersPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.error || 'Failed to delete customer');
+        showError(data.error || data.message || 'Failed to delete customer');
         return;
       }
 
@@ -188,9 +211,11 @@ export default function AdminCustomersPage() {
 
       setDeleteItem(null);
       setDeleteType('');
+      showSuccess(data.message || 'Customer deleted successfully');
       await fetchCustomers();
     } catch (error) {
       console.error('Error deleting customer:', error);
+      showError(error instanceof Error ? error.message : 'Failed to delete customer');
     } finally {
       setActionLoadingId(null);
     }
@@ -199,7 +224,7 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(`${API_BASE}/api/admin/customers/${customer._id}`, {
+      const res = await fetch(`/api/admin/customers/${customer._id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: (() => {
@@ -212,13 +237,15 @@ export default function AdminCustomersPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || 'Failed to update customer status');
+        showError(data.error || data.message || 'Failed to update customer status');
         return;
       }
 
+      showSuccess(data.message || 'Customer status updated');
       await fetchCustomers();
     } catch (error) {
       console.error('Error updating customer status:', error);
+      showError(error instanceof Error ? error.message : 'Failed to update customer status');
     } finally {
       setActionLoadingId(null);
     }
@@ -554,6 +581,8 @@ export default function AdminCustomersPage() {
         }}
         onConfirm={confirmDelete}
       />
+
+      <ToastNotification toast={toast} />
     </div>
   );
 }

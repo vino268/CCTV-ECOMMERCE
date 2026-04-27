@@ -1,29 +1,37 @@
 import { NextResponse } from "next/server";
 
 export async function POST() {
+  const isProduction = process.env.NODE_ENV === "production";
+
   const response = NextResponse.json({
     success: true,
-    message: "Logged out successfully"
+    message: "Logged out successfully",
   });
 
-  // Clear all authentication cookies
-  response.cookies.set("token", "", {
-    path: "/",
-    expires: new Date(0),
-    maxAge: 0,
-  });
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
 
-  response.cookies.set("adminToken", "", {
+  const secureCookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
-    expires: new Date(0),
     maxAge: 0,
-  });
+    expires: new Date(0),
+  };
 
-  response.cookies.set("userToken", "", {
+  const cookieOptions = {
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
-    expires: new Date(0),
     maxAge: 0,
-  });
+    expires: new Date(0),
+  };
+
+  response.cookies.set("token", "", secureCookieOptions);
+  response.cookies.set("adminToken", "", cookieOptions);
+  response.cookies.set("userToken", "", cookieOptions);
 
   return response;
 }

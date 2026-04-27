@@ -5,6 +5,24 @@ const ALLOWED_ORIGINS = ["http://localhost:3000", "https://tnautomation.in", "ht
 const ALLOWED_METHODS = "GET, POST, PUT, DELETE";
 const ALLOWED_HEADERS = "Content-Type, Authorization";
 
+function applyNoCacheHeaders(response: NextResponse): NextResponse {
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  return response;
+}
+
+function isAdminAuthPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/login" ||
+    pathname === "/admin/forgot-password" ||
+    pathname === "/admin/reset-password" ||
+    pathname === "/api/admin/login" ||
+    pathname === "/api/admin/logout" ||
+    pathname === "/api/admin/profile"
+  );
+}
+
 function resolveAllowedOrigin(request: NextRequest): string {
   const origin = request.headers.get("origin") || "";
   if (ALLOWED_ORIGINS.includes(origin as (typeof ALLOWED_ORIGINS)[number])) {
@@ -29,6 +47,11 @@ function withCors(request: NextRequest, response: NextResponse, isApiRoute: bool
       response.headers.set(key, value);
     });
   }
+
+  if (isAdminAuthPath(request.nextUrl.pathname)) {
+    applyNoCacheHeaders(response);
+  }
+
   return response;
 }
 
@@ -157,18 +180,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const token = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
-  const userToken = request.cookies.get("token")?.value || request.cookies.get("userToken")?.value;
+  const token = request.cookies.get("token")?.value;
 
   if (!token || !jwtSecret) {
-    if (userToken) {
-      return withCors(
-        request,
-        NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url)),
-        isApiRoute
-      );
-    }
-
     return withCors(request, NextResponse.redirect(new URL("/admin/login", request.url)), isApiRoute);
   }
 
@@ -177,7 +191,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const { payload } = await jwtVerify(token, secret);
 
     if (String(payload?.role || "") !== "admin") {
-      const response = NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
+      const response = NextResponse.redirect(new URL("/admin/login", request.url));
       response.cookies.delete("token");
       response.cookies.delete("adminToken");
       return withCors(request, response, isApiRoute);
@@ -185,7 +199,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
     return withCors(request, NextResponse.next(), isApiRoute);
   } catch {
-    const response = NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
+    const response = NextResponse.redirect(new URL("/admin/login", request.url));
     response.cookies.delete("token");
     response.cookies.delete("adminToken");
     return withCors(request, response, isApiRoute);

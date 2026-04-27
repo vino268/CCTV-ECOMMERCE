@@ -84,6 +84,11 @@ export async function POST(req) {
       admin: adminData,
     });
     const isProduction = process.env.NODE_ENV === "production";
+
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: isProduction,
@@ -92,11 +97,15 @@ export async function POST(req) {
       path: "/",
     });
     response.cookies.set("adminToken", "", {
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       path: "/",
       maxAge: 0,
       expires: new Date(0),
     });
     response.cookies.set("userToken", "", {
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       path: "/",
       maxAge: 0,
       expires: new Date(0),

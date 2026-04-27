@@ -2,31 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 import User from "@/models/User";
-import { jwtVerify } from "jose";
-
-async function verifyAdmin(request) {
-  const cookieToken = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
-  const authHeader = request.headers.get("authorization")?.trim() || "";
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const token = cookieToken || bearerToken;
-  if (!token) {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    if (payload.role !== "admin") {
-      return { ok: false, status: 403, message: "Forbidden" };
-    }
-
-    return { ok: true, adminId: String(payload.id || "") };
-  } catch {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
-}
+import { verifyAdmin } from "@/app/api/admin/_helpers";
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -74,8 +50,11 @@ export async function GET(req) {
       profileImage: admin.profileImage || admin.avatar || "",
       createdAt: admin.createdAt,
     };
-
-    return NextResponse.json({ success: true, admin: adminPayload });
+    const response = NextResponse.json({ success: true, admin: adminPayload });
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+    return response;
   } catch (error) {
     console.error("Get admin profile error:", error);
     return NextResponse.json(

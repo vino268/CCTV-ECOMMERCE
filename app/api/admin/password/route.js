@@ -3,27 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 import AdminLog from "@/models/AdminLog";
 import bcrypt from "bcryptjs";
-import { jwtVerify } from "jose";
-
-async function verifyAdmin(request) {
-  const token = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
-  if (!token) {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-
-    if (payload.role !== "admin") {
-      return { ok: false, status: 403, message: "Forbidden" };
-    }
-
-    return { ok: true, adminId: String(payload.id || "") };
-  } catch {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
-}
+import { verifyAdmin } from "@/app/api/admin/_helpers";
 
 export async function PUT(req) {
   try {

@@ -32,7 +32,7 @@ export function useToast() {
     timeoutRef.current = window.setTimeout(() => {
       setToast(null);
       timeoutRef.current = null;
-    }, 3000);
+    }, 2500);
   }, []);
 
   const showSuccess = useCallback((message: string) => {

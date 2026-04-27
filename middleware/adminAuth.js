@@ -1,15 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 function getTokenFromRequest(req) {
-  const cookieToken = String(req.cookies?.token || req.cookies?.adminToken || "").trim();
-  if (cookieToken) return cookieToken;
-
-  const authHeader = String(req.headers.authorization || "").trim();
-  if (authHeader.toLowerCase().startsWith("bearer ")) {
-    return authHeader.slice(7).trim();
-  }
-
-  return "";
+  return String(req.cookies?.token || "").trim();
 }
 
 module.exports = (req, res, next) => {

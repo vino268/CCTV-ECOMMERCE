@@ -18,6 +18,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import AdminHeader from '@/components/admin/AdminHeader';
 import { fetchWithAuth } from '@/utils/api';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/contexts/admin-auth-context';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -48,7 +49,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { admin, loading: adminLoading, clearAdmin } = useAdminAuth();
+  const { admin, loading: adminLoading, clearAdmin, refreshAdmin } = useAdminAuth();
 
   const isLoginPage = pathname === '/admin/login';
   const isPublicPage =
@@ -64,21 +65,46 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (!admin?._id) {
-      router.replace('/admin/login?error=unauthorized');
+    if (admin?._id) {
+      setAuthChecked(true);
       return;
     }
 
-    setAuthChecked(true);
-  }, [admin?._id, adminLoading, isPublicPage, router]);
+    let cancelled = false;
+
+    const validateAdminSession = async () => {
+      const refreshedAdmin = await refreshAdmin();
+      if (cancelled) return;
+
+      if (refreshedAdmin?._id) {
+        setAuthChecked(true);
+        return;
+      }
+
+      setAuthChecked(false);
+      router.replace('/admin/login');
+      router.refresh();
+    };
+
+    validateAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [admin?._id, adminLoading, isPublicPage, refreshAdmin, router]);
 
   const handleLogout = async () => {
-    await fetchWithAuth(`${API_BASE}/api/admin/logout`, {
-      method: 'POST',
-    });
-    clearAdmin();
-    router.replace('/admin/login');
-    router.refresh();
+    try {
+      await fetchWithAuth(`${API_BASE}/api/admin/logout`, {
+        method: 'POST',
+        headers: getAdminAuthHeaders(),
+        cache: 'no-store',
+      });
+    } finally {
+      clearAdmin();
+      router.replace('/admin/login');
+      router.refresh();
+    }
   };
 
   // Overlay for mobile drawer

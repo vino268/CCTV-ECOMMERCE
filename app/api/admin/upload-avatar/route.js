@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { jwtVerify } from "jose";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 import User from "@/models/User";
+import { verifyAdmin } from "@/app/api/admin/_helpers";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png"]);
@@ -12,28 +12,6 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png"]);
 function extensionFromType(type) {
   if (type === "image/png") return "png";
   return "jpg";
-}
-
-async function verifyAdmin(request) {
-  const cookieToken = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
-  const authHeader = request.headers.get("authorization") || "";
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const token = cookieToken || bearerToken;
-  if (!token) return { ok: false, status: 401, message: "Unauthorized" };
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    if (String(payload.role || "").toLowerCase() !== "admin") {
-      return { ok: false, status: 403, message: "Forbidden" };
-    }
-
-    return { ok: true, adminId: String(payload.id || "") };
-  } catch {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
 }
 
 async function updateAdminImage(adminId, profileImage) {

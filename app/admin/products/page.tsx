@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Edit2, Trash2, Plus, X, RefreshCw, Upload } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
-import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
+import ProductDeleteConfirmModal from '@/components/admin/ProductDeleteConfirmModal';
+import ToastNotification from '@/components/ui/toast-notification';
 import { getSafeImageSrc } from '@/lib/product-image';
+import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddFormData {
   sku: string;
@@ -33,6 +36,7 @@ interface CategoryItem {
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
 
 export default function AdminProductsPage() {
+  const { toast, showError, showSuccess } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -461,19 +465,45 @@ export default function AdminProductsPage() {
 
     const id = deleteItem._id;
 
+    if (!id) {
+      console.error('Delete product error: missing MongoDB _id', deleteItem);
+      showError('Unable to delete product: missing product id');
+      return;
+    }
+
     try {
       setIsDeleteSubmitting(true);
-      const res = await fetch(`${BASE_URL}/api/products/${id}`, {
+      console.log('Deleting product id:', id);
+
+      const res = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
         credentials: 'include',
+        headers: getAdminAuthHeaders(),
       });
-      if (res.ok) {
-        setDeleteItem(null);
-        setDeleteType('');
-        await fetchProducts();
+
+      const data = await res.json().catch(() => ({}));
+      console.log('Delete product API response:', data);
+
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to delete product');
       }
+
+      setProducts((prev) => prev.filter((product) => product._id !== id));
+
+      const remainingCount = Math.max(0, totalProducts - 1);
+      const nextTotalPages = Math.max(1, Math.ceil(remainingCount / 10));
+      setTotalProducts(remainingCount);
+      setTotalPages(nextTotalPages);
+      if (currentPage > nextTotalPages) {
+        setCurrentPage(nextTotalPages);
+      }
+
+      setDeleteItem(null);
+      setDeleteType('');
+      showSuccess(data?.message || 'Product deleted successfully');
     } catch (err) {
-      console.error('Error deleting product:', err);
+      console.error('Delete product error:', err);
+      showError(err instanceof Error ? err.message : 'Failed to delete product');
     } finally {
       setIsDeleteSubmitting(false);
     }
@@ -1148,7 +1178,7 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      <DeleteConfirmModal
+      <ProductDeleteConfirmModal
         open={!!deleteItem && deleteType === 'product'}
         message={`Are you sure you want to delete this product${deleteItem?.name ? ` (${deleteItem.name})` : ''}? This action cannot be undone.`}
         isDeleting={isDeleteSubmitting}
@@ -1158,6 +1188,8 @@ export default function AdminProductsPage() {
         }}
         onConfirm={confirmDelete}
       />
+
+      <ToastNotification toast={toast} />
 
       <style jsx global>{`
         .animate-modal {
