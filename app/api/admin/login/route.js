@@ -103,8 +103,15 @@ export async function POST(req) {
     });
     return response;
   } catch (error) {
+    console.error("ADMIN LOGIN ERROR:", error);
+
     return NextResponse.json(
-      { success: false, message: "Login failed" },
+      {
+        success: false,
+        message: error?.message || "Login failed",
+        error: String(error),
+        stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
+      },
       { status: 500 }
     );
   }
