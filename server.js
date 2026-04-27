@@ -28,10 +28,12 @@ const app = express();
 mongoose.set("strictQuery", true);
 
 const allowedOrigins = [
-  "http://localhost:3000",
-  "https://tnautomation.in",
-  "https://www.tnautomation.in",
-  String(process.env.FRONTEND_ORIGIN || "").trim(),
+ "http://localhost:3000",
+ "http://localhost:3001",
+ "https://tnautomation.in",
+ "https://www.tnautomation.in",
+ "https://cctv-ecommerce.vercel.app",
+ String(process.env.FRONTEND_ORIGIN || "").trim(),
 ].filter(Boolean);
 
 app.use(
