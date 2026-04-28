@@ -74,7 +74,7 @@ export default function ActivityLogPage() {
     setLoading(true);
     setError('');
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity?page=${targetPage}&limit=${pageSize}`, {
+    fetch(`/api/admin/activity?page=${targetPage}&limit=${pageSize}`, {
       credentials: 'include',
       headers: getAdminAuthHeaders(),
     })
@@ -119,14 +119,14 @@ export default function ActivityLogPage() {
 
       if (actionType === 'single') {
         setDeletingId(selectedId || '');
-        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity/${selectedId}`, {
+        res = await fetch(`/api/admin/activity/${selectedId}`, {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
       } else {
         setClearingAll(true);
-        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/activity`, {
+        res = await fetch(`/api/admin/activity`, {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),

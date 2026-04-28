@@ -11,7 +11,8 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 export function AdminAccessTriggers() {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+  // Use same-origin relative paths for production
+  const API_BASE = '';
   const router = useRouter();
   const pathname = usePathname();
 

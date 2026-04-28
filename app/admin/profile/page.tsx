@@ -23,7 +23,8 @@ import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+// Use same-origin relative paths for production
+const API_BASE = '';
 
 interface AdminProfile {
   _id: string;

@@ -35,7 +35,7 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/password`, {
+      const res = await fetch(`/api/admin/password`, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {

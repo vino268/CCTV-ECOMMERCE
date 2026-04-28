@@ -1,6 +1,13 @@
-export const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000')
-  .trim()
-  .replace(/\/+$/, '');
+export const BASE_URL = (() => {
+  // For localhost dev, support external API server
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
+    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+    if (envBase) return envBase;
+    return 'http://localhost:5000';
+  }
+  // Production: use same-origin
+  return '';
+})();
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, '/');

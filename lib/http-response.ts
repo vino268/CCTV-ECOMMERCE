@@ -1,12 +1,13 @@
 export function buildApiUrl(path: string): string {
-  const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  // Use same-origin relative paths for production (cookies sent with credentials:'include')
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-  if (envBase) {
-    return `${envBase}${normalizedPath}`;
-  }
-
+  // For localhost dev, support external API server
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
+    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+    if (envBase) {
+      return `${envBase}${normalizedPath}`;
+    }
     return `http://localhost:5000${normalizedPath}`;
   }
 

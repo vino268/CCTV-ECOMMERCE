@@ -43,7 +43,8 @@ export default function AdminLayout({
 }
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+  // Use same-origin relative paths for production
+  const API_BASE = '';
   const [authChecked, setAuthChecked] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);

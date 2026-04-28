@@ -10,7 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AccountMenu } from '@/components/account-menu';
 
 export function Navbar() {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+  // Use same-origin relative paths for production
+  const API_BASE = '';
   const { getCartCount } = useCart();
   const { getWishlistCount } = useWishlist();
   const router = useRouter();

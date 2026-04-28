@@ -1,6 +1,7 @@
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").trim();
+// Use relative paths for same-origin requests (cookies sent with credentials:'include')
+const API_BASE = "";
 
 export async function apiFetch<T>(
   path: string,

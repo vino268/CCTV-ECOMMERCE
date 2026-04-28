@@ -257,8 +257,6 @@ export default function AdminDashboard() {
         setErrorMessage('Backend API is unreachable. Please ensure the Express server is running and MongoDB Atlas is accessible.');
       } else if ([dashboardResult, revenueResult, orderStatusResult, latestOrdersResult, latestCustomersResult].some((result) => result.status === 401)) {
         setErrorMessage('Admin session expired or is missing. Please sign in again.');
-      } else if (!dashboardResult.ok || !revenueResult.ok || !orderStatusResult.ok || !latestOrdersResult.ok || !latestCustomersResult.ok) {
-        setErrorMessage('Some analytics endpoints returned errors. Showing latest available data.');
       } else {
         setErrorMessage('');
       }

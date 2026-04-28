@@ -9,7 +9,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/lib/contexts/auth-context';
 
 type AuthMode = 'signin' | 'signup';
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').trim().replace(/\/+$/, '');
+// Use same-origin relative paths for production
+const API_BASE = (() => {
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
+    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+    if (envBase) return envBase;
+    return 'http://localhost:5000';
+  }
+  return '';
+})();
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all';
