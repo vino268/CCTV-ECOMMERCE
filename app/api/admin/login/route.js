@@ -92,34 +92,36 @@ export async function POST(req) {
     response.headers.set("Expires", "0");
 
     // Set admin auth token cookie for production HTTPS domain
-    response.cookies.set("token", token, {
+    response.cookies.set("admin_token", token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60,
+      sameSite: "none",
       path: "/",
-      domain: isProduction ? ".tnautomation.in" : undefined,
+      maxAge: 60 * 60 * 24 * 7,
     });
 
-    // Clear old/alternate admin tokens
+    // Keep legacy cookies cleared to prevent stale auth collisions.
+    response.cookies.set("token", "", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "none",
+      path: "/",
+      maxAge: 0,
+    });
+
     response.cookies.set("adminToken", "", {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: "none",
       path: "/",
-      domain: isProduction ? ".tnautomation.in" : undefined,
       maxAge: 0,
-      expires: new Date(0),
     });
 
-    // Clear user token if set
     response.cookies.set("userToken", "", {
       secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: "none",
       path: "/",
-      domain: isProduction ? ".tnautomation.in" : undefined,
       maxAge: 0,
-      expires: new Date(0),
     });
 
     return response;

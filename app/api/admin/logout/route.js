@@ -15,23 +15,20 @@ export async function POST() {
   const secureCookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    sameSite: "none",
     path: "/",
-    domain: isProduction ? ".tnautomation.in" : undefined,
     maxAge: 0,
-    expires: new Date(0),
   };
 
   const cookieOptions = {
     secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    sameSite: "none",
     path: "/",
-    domain: isProduction ? ".tnautomation.in" : undefined,
     maxAge: 0,
-    expires: new Date(0),
   };
 
   // Clear all admin tokens
+  response.cookies.set("admin_token", "", secureCookieOptions);
   response.cookies.set("token", "", secureCookieOptions);
   response.cookies.set("adminToken", "", cookieOptions);
   response.cookies.set("userToken", "", cookieOptions);
