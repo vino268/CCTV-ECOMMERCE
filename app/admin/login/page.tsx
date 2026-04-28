@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
-import { getAdminAuthHeaders } from '@/lib/admin-auth';
-import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
@@ -13,7 +11,6 @@ const inputClass =
 export default function AdminLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { admin } = useAdminAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,13 +28,6 @@ export default function AdminLoginPage() {
     setError('');
   }, [router, searchParams]);
 
-  useEffect(() => {
-    if (admin?._id) {
-      router.replace('/admin/dashboard');
-      router.refresh();
-    }
-  }, [admin?._id, router]);
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -49,30 +39,24 @@ export default function AdminLoginPage() {
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: getAdminAuthHeaders(),
         credentials: 'include',
-        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: email.trim(),
-          password: password.trim()
+          email,
+          password
         })
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !data.success) {
         setError(data.message || 'Login failed');
         return;
       }
 
-      if (res.ok && data.success) {
-        router.replace('/admin/dashboard');
-        router.refresh();
-        return;
-      }
-
-      setError('Invalid login');
-    } catch (error) {
+      router.replace('/admin/dashboard');
+      router.refresh();
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);

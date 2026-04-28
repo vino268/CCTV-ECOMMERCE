@@ -83,33 +83,45 @@ export async function POST(req) {
       role: "admin",
       admin: adminData,
     });
+    
     const isProduction = process.env.NODE_ENV === "production";
 
+    // Set cache control headers
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
 
+    // Set admin auth token cookie for production HTTPS domain
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
+      domain: isProduction ? ".tnautomation.in" : undefined,
     });
+
+    // Clear old/alternate admin tokens
     response.cookies.set("adminToken", "", {
+      httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
       path: "/",
+      domain: isProduction ? ".tnautomation.in" : undefined,
       maxAge: 0,
       expires: new Date(0),
     });
+
+    // Clear user token if set
     response.cookies.set("userToken", "", {
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
       path: "/",
+      domain: isProduction ? ".tnautomation.in" : undefined,
       maxAge: 0,
       expires: new Date(0),
     });
+
     return response;
   } catch (error) {
     console.error("ADMIN LOGIN ERROR:", error);

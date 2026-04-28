@@ -73,17 +73,33 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const validateAdminSession = async () => {
-      const refreshedAdmin = await refreshAdmin();
-      if (cancelled) return;
+      try {
+        const refreshedAdmin = await refreshAdmin();
+        if (cancelled) return;
 
-      if (refreshedAdmin?._id) {
-        setAuthChecked(true);
-        return;
+        if (refreshedAdmin?._id) {
+          setAuthChecked(true);
+          return;
+        }
+
+        // If we get here, no valid admin session
+        if (!cancelled) {
+          setAuthChecked(false);
+          // Only redirect if not already on login page
+          if (pathname !== '/admin/login') {
+            router.replace('/admin/login');
+            router.refresh();
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAuthChecked(false);
+          if (pathname !== '/admin/login') {
+            router.replace('/admin/login');
+            router.refresh();
+          }
+        }
       }
-
-      setAuthChecked(false);
-      router.replace('/admin/login');
-      router.refresh();
     };
 
     validateAdminSession();
@@ -91,7 +107,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [admin?._id, adminLoading, isPublicPage, refreshAdmin, router]);
+  }, [admin?._id, adminLoading, isPublicPage, pathname, refreshAdmin, router]);
 
   const handleLogout = async () => {
     try {

@@ -17,6 +17,7 @@ export async function POST() {
     secure: isProduction,
     sameSite: isProduction ? "none" : "lax",
     path: "/",
+    domain: isProduction ? ".tnautomation.in" : undefined,
     maxAge: 0,
     expires: new Date(0),
   };
@@ -25,10 +26,12 @@ export async function POST() {
     secure: isProduction,
     sameSite: isProduction ? "none" : "lax",
     path: "/",
+    domain: isProduction ? ".tnautomation.in" : undefined,
     maxAge: 0,
     expires: new Date(0),
   };
 
+  // Clear all admin tokens
   response.cookies.set("token", "", secureCookieOptions);
   response.cookies.set("adminToken", "", cookieOptions);
   response.cookies.set("userToken", "", cookieOptions);
