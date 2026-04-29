@@ -209,10 +209,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 export const config = {
   matcher: [
     "/admin/:path*",
+    "/account/:path*",
     "/account/orders/:path*",
     "/account/profile/:path*",
     "/wishlist/:path*",
     "/checkout/:path*",
+    "/login",
     "/api/:path*",
   ],
 };
