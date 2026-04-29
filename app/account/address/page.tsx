@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, Loader2, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { parseResponseBody } from '@/lib/http-response';
 
 interface AddressItem {
   _id: string;
@@ -51,7 +51,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(buildApiUrl('/api/address/my'), {
+      const res = await fetch('/api/address/my', {
         cache: 'no-store',
         credentials: 'include',
       });
@@ -134,7 +134,7 @@ export default function MyAddressPage() {
       const endpoint = editingAddress ? `/api/address/${editingAddress._id}` : '/api/address/add';
       const method = editingAddress ? 'PUT' : 'POST';
 
-      const res = await fetch(buildApiUrl(endpoint), {
+      const res = await fetch(endpoint, {
         method,
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -163,7 +163,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/address/${id}`), {
+      const res = await fetch(`/api/address/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -187,7 +187,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/address/${id}`), {
+      const res = await fetch(`/api/address/${id}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

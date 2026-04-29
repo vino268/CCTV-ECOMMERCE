@@ -15,23 +15,24 @@ export async function POST() {
   const secureCookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "none",
+    sameSite: "lax",
     path: "/",
     maxAge: 0,
   };
 
   const cookieOptions = {
     secure: isProduction,
-    sameSite: "none",
+    sameSite: "lax",
     path: "/",
     maxAge: 0,
   };
 
   // Clear all admin tokens
-  response.cookies.set("admin_token", "", secureCookieOptions);
+  response.cookies.set("adminToken", "", secureCookieOptions);
   response.cookies.set("token", "", secureCookieOptions);
   response.cookies.set("adminToken", "", cookieOptions);
   response.cookies.set("userToken", "", cookieOptions);
+  response.cookies.set("admin_token", "", cookieOptions);
 
   return response;
 }

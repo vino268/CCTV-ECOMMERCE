@@ -79,7 +79,6 @@ export async function POST(req) {
 
     const response = NextResponse.json({
       success: true,
-      token,
       role: "admin",
       admin: adminData,
     });
@@ -91,38 +90,27 @@ export async function POST(req) {
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
 
-    // Set admin auth token cookie for production HTTPS domain
-    response.cookies.set("admin_token", token, {
+    // Store the admin session in an HTTP-only cookie.
+    response.cookies.set("adminToken", token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: "none",
+      sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    // Keep legacy cookies cleared to prevent stale auth collisions.
-    response.cookies.set("token", "", {
+    // Clear any user session cookies so admin and customer sessions never collide.
+    const clearOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: "none",
+      sameSite: "lax",
       path: "/",
       maxAge: 0,
-    });
+    };
 
-    response.cookies.set("adminToken", "", {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "none",
-      path: "/",
-      maxAge: 0,
-    });
-
-    response.cookies.set("userToken", "", {
-      secure: isProduction,
-      sameSite: "none",
-      path: "/",
-      maxAge: 0,
-    });
+    response.cookies.set("token", "", clearOptions);
+    response.cookies.set("userToken", "", clearOptions);
+    response.cookies.set("admin_token", "", clearOptions);
 
     return response;
   } catch (error) {

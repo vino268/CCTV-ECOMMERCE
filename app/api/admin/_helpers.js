@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 function extractAdminToken(request) {
-  return request.cookies.get("token")?.value || "";
+  return (
+    request.cookies.get("adminToken")?.value ||
+    request.cookies.get("admin_token")?.value ||
+    request.cookies.get("token")?.value ||
+    ""
+  );
 }
 
 export async function verifyAdmin(request) {

@@ -9,16 +9,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/lib/contexts/auth-context';
 
 type AuthMode = 'signin' | 'signup';
-// Use same-origin relative paths for production
-const API_BASE = (() => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-    if (envBase) return envBase;
-    return 'http://localhost:5000';
-  }
-  return '';
-})();
-
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all';
 
@@ -81,7 +71,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,7 +124,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const signupRes = await fetch(`${API_BASE}/api/auth/register`, {
+      const signupRes = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -154,7 +144,7 @@ export default function LoginPage() {
       }
 
       // Login immediately after signup to ensure auth cookie is set.
-      const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
+      const loginRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -67,7 +67,7 @@ export default function ProfilePage() {
   const fetchProfile = async (email: string) => {
     try {
       const res = await fetch(
-        buildApiUrl(`/api/user/profile?email=${encodeURIComponent(email)}`),
+        `/api/user/profile?email=${encodeURIComponent(email)}`,
         {
           cache: 'no-store',
           credentials: 'include',
@@ -117,7 +117,7 @@ export default function ProfilePage() {
         const uploadData = new FormData();
         uploadData.append('profileImage', avatarFile);
 
-        const uploadRes = await fetch(buildApiUrl('/api/profile/image'), {
+        const uploadRes = await fetch('/api/profile/image', {
           method: 'PUT',
           body: uploadData,
           credentials: 'include',
@@ -140,7 +140,7 @@ export default function ProfilePage() {
         setProfile((prev) => (prev ? { ...prev, avatar: avatarUrl, profileImage: avatarUrl } : prev));
       }
 
-      const res = await fetch(buildApiUrl('/api/user/profile'), {
+      const res = await fetch('/api/user/profile', {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -198,7 +198,7 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      const res = await fetch(buildApiUrl('/api/profile/image'), {
+      const res = await fetch('/api/profile/image', {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -262,7 +262,7 @@ export default function ProfilePage() {
     setDeleteError('');
 
     try {
-      const res = await fetch(buildApiUrl('/api/user/delete-account'), {
+      const res = await fetch('/api/user/delete-account', {
         method: 'DELETE',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

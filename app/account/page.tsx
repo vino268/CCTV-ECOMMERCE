@@ -171,7 +171,7 @@ export default function AccountPage() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const res = await fetch(buildApiUrl('/api/address/my'), {
+      const res = await fetch('/api/address/my', {
         cache: 'no-store',
         credentials: 'include',
       });
@@ -190,11 +190,11 @@ export default function AccountPage() {
 
     try {
       const [profileRes, ordersRes] = await Promise.all([
-        fetch(buildApiUrl('/api/auth/me'), {
+        fetch('/api/auth/me', {
           cache: 'no-store',
           credentials: 'include',
         }),
-        fetch(buildApiUrl('/api/orders/my-orders'), {
+        fetch('/api/orders/my-orders', {
           cache: 'no-store',
           credentials: 'include',
         }),
@@ -298,7 +298,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(buildApiUrl('/api/user/profile'), {
+      const res = await fetch('/api/user/profile', {
         method: 'PUT',
         credentials: 'include',
         headers: {

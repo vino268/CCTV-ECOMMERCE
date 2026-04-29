@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { parseResponseBody } from '@/lib/http-response';
 
 export interface AuthUser {
   _id: string;
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch(buildApiUrl('/api/auth/me'), {
+      const res = await fetch('/api/auth/me', {
         cache: 'no-store',
         credentials: 'include',
       });
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch(buildApiUrl('/api/auth/logout'), {
+      await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });

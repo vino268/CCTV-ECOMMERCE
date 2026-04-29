@@ -4,11 +4,15 @@ export async function POST() {
   try {
     const response = NextResponse.json({ success: true });
     const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       path: "/",
+      maxAge: 0,
     };
 
-    response.cookies.delete("token", cookieOptions);
-    response.cookies.delete("userToken", cookieOptions);
+    response.cookies.set("token", "", cookieOptions);
+    response.cookies.set("userToken", "", cookieOptions);
 
     return response;
   } catch (error) {

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
-import { buildApiUrl } from '@/lib/http-response';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
@@ -38,8 +37,7 @@ export default function AdminLoginPage() {
     setError('');
 
     try {
-      const apiUrl = buildApiUrl('/api/admin/login');
-      const res = await fetch(apiUrl, {
+      const res = await fetch('/api/admin/login', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

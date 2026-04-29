@@ -1,7 +1,20 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+
+function getCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  };
+}
 
 export async function POST(req) {
   try {
@@ -61,7 +74,7 @@ export async function POST(req) {
       { expiresIn: "7d" }
     );
 
-    const response = Response.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         _id: user._id,
@@ -72,15 +85,9 @@ export async function POST(req) {
       },
     });
 
-    response.headers.append(
-      "Set-Cookie",
-      `token=${token}; Path=/; HttpOnly; SameSite=None; Max-Age=${60 * 60 * 24 * 7}; Secure`
-    );
-
-    response.headers.append(
-      "Set-Cookie",
-      `userToken=${token}; Path=/; HttpOnly; SameSite=None; Max-Age=${60 * 60 * 24 * 7}; Secure`
-    );
+    const cookieOptions = getCookieOptions();
+    response.cookies.set("token", token, cookieOptions);
+    response.cookies.set("userToken", token, cookieOptions);
 
     return response;
   } catch (error) {

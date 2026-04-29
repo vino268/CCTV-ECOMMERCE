@@ -29,7 +29,7 @@ export function Footer() {
     event.preventDefault();
 
     try {
-      await fetch(buildApiUrl('/api/admin/logout'), {
+      await fetch('/api/admin/logout', {
         method: 'POST',
         credentials: 'include',
       });

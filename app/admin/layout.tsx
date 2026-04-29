@@ -19,7 +19,6 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import { fetchWithAuth } from '@/utils/api';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/contexts/admin-auth-context';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
-import { buildApiUrl } from '@/lib/http-response';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -111,8 +110,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     try {
-      const logoutUrl = buildApiUrl('/api/admin/logout');
-      await fetchWithAuth(logoutUrl, {
+      await fetchWithAuth('/api/admin/logout', {
         method: 'POST',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',

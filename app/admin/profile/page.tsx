@@ -20,7 +20,6 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { toProfileImageUrl } from '@/lib/profile-image-url';
 import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
-import { buildApiUrl } from '@/lib/http-response';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
@@ -170,7 +169,7 @@ export default function AdminProfilePage() {
         const formData = new FormData();
         formData.append('profileImage', selectedAvatarFile);
 
-        const uploadRes = await fetch(buildApiUrl('/api/profile/image'), {
+        const uploadRes = await fetch('/api/profile/image', {
           method: 'PUT',
           credentials: 'include',
           body: formData,
@@ -191,7 +190,7 @@ export default function AdminProfilePage() {
           avatarVersion: Date.now(),
         });
       } else if (removeAvatarOnSave) {
-        const removeRes = await fetch(buildApiUrl('/api/profile/image'), {
+        const removeRes = await fetch('/api/profile/image', {
           method: 'DELETE',
           credentials: 'include',
         });
@@ -212,7 +211,7 @@ export default function AdminProfilePage() {
         });
       }
 
-      const res = await fetchWithAuth(buildApiUrl('/api/admin/profile'), {
+      const res = await fetchWithAuth('/api/admin/profile', {
         method: 'PUT',
         body: JSON.stringify({ name, email, phone }),
       });
@@ -258,7 +257,7 @@ export default function AdminProfilePage() {
 
     setSavingPassword(true);
     try {
-      const res = await fetchWithAuth(buildApiUrl('/api/admin/password'), {
+      const res = await fetchWithAuth('/api/admin/password', {
         method: 'PUT',
         body: JSON.stringify({ currentPassword, newPassword }),
       });

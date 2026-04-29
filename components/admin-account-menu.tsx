@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, KeyRound, HelpCircle, Settings, LogOut, ChevronDown } from 'lucide-react';
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
-import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { parseResponseBody } from '@/lib/http-response';
 import { fetchWithAuth } from '@/utils/api';
 
 export default function AdminAccountMenu() {
@@ -20,7 +20,7 @@ export default function AdminAccountMenu() {
   useEffect(() => {
     const loadAdmin = async () => {
       try {
-        const res = await fetchWithAuth(buildApiUrl('/api/admin/profile'), {
+        const res = await fetchWithAuth('/api/admin/profile', {
           method: 'GET',
           cache: 'no-store',
         });
@@ -52,7 +52,7 @@ export default function AdminAccountMenu() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
-    await fetchWithAuth(buildApiUrl('/api/admin/logout'), {
+    await fetchWithAuth('/api/admin/logout', {
       method: 'POST',
     });
     setShowLogoutModal(false);

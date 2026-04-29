@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { parseResponseBody } from '@/lib/http-response';
 
 export interface AdminUser {
   _id: string;
@@ -30,7 +30,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshAdmin = async () => {
     try {
-      const res = await fetch(buildApiUrl('/api/admin/profile'), {
+      const res = await fetch('/api/admin/profile', {
         method: 'GET',
         cache: 'no-store',
         credentials: 'include',
