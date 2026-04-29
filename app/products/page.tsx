@@ -39,10 +39,10 @@ export default function ProductsPage() {
   const lastQuerySignatureRef = useRef(`${searchTerm}|${initialCategory}`);
   const activeRequestKeyRef = useRef('');
 
-  const fetchApi = async (path: string) => {
+  const fetchApi = async (path: string, init?: RequestInit) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const res = await fetch(buildApiUrl(path), { cache: 'no-store' });
+        const res = await fetch(buildApiUrl(path), { cache: 'no-store', ...init });
         if (res.ok) return res;
       } catch {
         // retry once
@@ -181,7 +181,7 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetchApi('/api/categories/with-count');
+      const res = await fetchApi('/api/categories/with-count', { method: 'GET' });
 
       if (!res) {
         setCategories([]);

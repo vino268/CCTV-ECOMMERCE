@@ -33,8 +33,8 @@ import {
   Tag,
 } from 'lucide-react';
 
-async function fetchJson(path: string) {
-  const res = await fetch(buildApiUrl(path), { cache: 'no-store' });
+async function fetchJson(path: string, init?: RequestInit) {
+  const res = await fetch(buildApiUrl(path), { cache: 'no-store', ...init });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
@@ -244,7 +244,7 @@ export default function Home() {
     const loadTopCategories = async () => {
       try {
         setCategoriesError(null);
-        const categoriesData = await fetchJson('/api/categories/with-count');
+        const categoriesData = await fetchJson('/api/categories/with-count', { method: 'GET' });
 
         const categories = Array.isArray(categoriesData)
           ? categoriesData
