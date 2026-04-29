@@ -1,5 +1,6 @@
-'use client';
+"use client";
 
+import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { RootNavbar } from '@/components/root-navbar';
 import { RootFooter } from '@/components/root-footer';
@@ -18,7 +19,11 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <AdminAccessTriggers />
-      {!hideLayout && <RootNavbar />}
+      {!hideLayout && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <RootNavbar />
+        </Suspense>
+      )}
       <main className={`flex-1 ${mainSpacingClass}`}>{children}</main>
       {!hideFooter && <RootFooter />}
     </div>
