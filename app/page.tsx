@@ -11,6 +11,7 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
+import { buildApiUrl } from '@/lib/http-response';
 import {
   ArrowRight,
   Wrench,
@@ -32,18 +33,8 @@ import {
   Tag,
 } from 'lucide-react';
 
-// Use same-origin relative paths for production
-const BASE_URL = (() => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-    if (envBase) return envBase;
-    return 'http://localhost:5000';
-  }
-  return '';
-})();
-
 async function fetchJson(path: string) {
-  const res = await fetch(`${BASE_URL}${path}`, { cache: 'no-store' });
+  const res = await fetch(buildApiUrl(path), { cache: 'no-store' });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
@@ -73,7 +64,7 @@ function HomeProductCard({ product, isPending, onAddToCart, onBuyNow }: HomeProd
   return (
     <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 p-4 flex flex-col h-full">
       <div>
-        <Link href={`/products/${productId}`}>
+        <Link href={`/products/${productId}`} prefetch>
           <div className="bg-gray-100 rounded-xl overflow-hidden h-[200px] flex items-center justify-center">
             <Image
               src={primaryImage}
@@ -86,7 +77,7 @@ function HomeProductCard({ product, isPending, onAddToCart, onBuyNow }: HomeProd
           </div>
         </Link>
 
-        <Link href={`/products/${productId}`}>
+        <Link href={`/products/${productId}`} prefetch>
           <h3 className="mt-4 font-semibold text-gray-800 text-sm line-clamp-2 min-h-[2.5rem]">
             {product.name}
           </h3>
@@ -221,8 +212,7 @@ export default function Home() {
         setProductsLoading(true);
         setProductsError(null);
 
-        const apiBase = BASE_URL || 'http://localhost:5000';
-        const res = await fetch(`${apiBase}/api/products?limit=8`, { cache: 'no-store' });
+        const res = await fetch(buildApiUrl('/api/products?limit=8'), { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
@@ -375,12 +365,12 @@ export default function Home() {
             </p>
 
             <div className="mt-7 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <Link href="/products">
+              <Link href="/products" prefetch>
                 <Button className="bg-blue-500 text-white hover:bg-blue-600">
                   Shop Cameras
                 </Button>
               </Link>
-              <Link href="/services">
+              <Link href="/services" prefetch>
                 <Button variant="outline" className="border-white bg-transparent text-white hover:bg-white hover:text-indigo-800">
                   Get Free Consultation
                 </Button>
@@ -437,7 +427,7 @@ export default function Home() {
                 <h2 className="text-2xl font-bold text-gray-900 md:text-3xl">Shop by Category</h2>
                 <p className="mt-1 text-sm text-gray-600">Choose the right surveillance setup for your space</p>
               </div>
-              <Link href="/products" className="category-browse-link">
+              <Link href="/products" prefetch className="category-browse-link">
                 Browse All <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -488,7 +478,7 @@ export default function Home() {
               <h2 className="mb-4 text-2xl font-semibold text-gray-800">Recent Products</h2>
               <p className="text-sm text-gray-600">Top picks from our newest and best-selling inventory</p>
             </div>
-            <Link href="/products">
+              <Link href="/products" prefetch>
               <Button variant="outline" className="gap-2 border-blue-600 text-blue-700 hover:bg-blue-600 hover:text-white">
                 Explore Full Catalog <ArrowRight className="h-4 w-4" />
               </Button>

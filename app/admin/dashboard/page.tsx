@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   Package,
   ShoppingCart,
@@ -11,10 +12,19 @@ import {
   FolderPlus,
   ClipboardList,
 } from 'lucide-react';
-import RevenueChart from '@/components/admin/RevenueChart';
-import OrdersStatusChart from '@/components/admin/OrdersStatusChart';
 import { formatINRCurrency } from '@/lib/currency';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const RevenueChart = dynamic(() => import('@/components/admin/RevenueChart'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[320px] rounded-xl" />,
+});
+
+const OrdersStatusChart = dynamic(() => import('@/components/admin/OrdersStatusChart'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[320px] rounded-xl" />,
+});
 
 interface RevenuePoint {
   date: string;

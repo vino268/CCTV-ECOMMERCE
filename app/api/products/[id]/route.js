@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import AdminLog from "@/models/AdminLog";
@@ -98,20 +99,33 @@ function validationErrorResponse(fieldErrors) {
 export async function GET(req, { params }) {
   try {
     await connectDB();
-    const { id } = await params;
+    const { id } = params;
+
+    // Validate MongoDB ObjectId format
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid product ID" },
+        { status: 400 }
+      );
+    }
+
     const product = await Product.findById(id);
 
     if (!product) {
       return NextResponse.json(
-        { error: "Product not found" },
+        { success: false, error: "Product not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(product);
+    return NextResponse.json({
+      success: true,
+      product,
+    });
   } catch (error) {
+    console.error("GET /api/products/[id] error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch product" },
+      { success: false, error: "Failed to fetch product" },
       { status: 500 }
     );
   }

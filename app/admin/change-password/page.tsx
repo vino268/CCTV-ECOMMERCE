@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import { buildApiUrl } from '@/lib/http-response';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
@@ -35,7 +36,8 @@ export default function ChangePasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/admin/password`, {
+      const passwordUrl = buildApiUrl('/api/admin/password');
+      const res = await fetch(passwordUrl, {
         method: 'PUT',
         credentials: 'include',
         headers: (() => {

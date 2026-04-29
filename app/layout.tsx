@@ -7,18 +7,31 @@ import { AuthProvider } from '@/lib/contexts/auth-context'
 import { ConditionalLayout } from '@/components/conditional-layout'
 import './globals.css'
 
-export const dynamic = 'force-dynamic'
-
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'TN Automation - Professional CCTV',
+  metadataBase: new URL('https://tnautomation.in'),
+  title: {
+    default: 'TN Automation',
+    template: '%s | TN Automation',
+  },
   description: 'Professional CCTV cameras, security systems, and installation services. Shop dome cameras, bullet cameras, and more from trusted brands.',
-  generator: 'v0.app',
   icons: {
     icon: '/images/tnlogo.png',
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    title: 'TN Automation',
+    description: 'Professional CCTV cameras, security systems, and installation services.',
+    url: 'https://tnautomation.in',
+    siteName: 'TN Automation',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TN Automation',
+    description: 'Professional CCTV cameras, security systems, and installation services.',
   },
 }
 

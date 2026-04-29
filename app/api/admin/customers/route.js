@@ -50,7 +50,8 @@ export async function GET(req) {
 
     const users = await User.find(query)
       .sort({ createdAt: -1 })
-      .select("-password");
+      .select("name email phone address createdAt role isDeleted deletedAt isBlocked profileImage avatar")
+      .lean();
 
     const usersByEmail = new Map();
     users.forEach((user) => {

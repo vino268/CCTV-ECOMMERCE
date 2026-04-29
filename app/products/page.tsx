@@ -13,19 +13,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Camera, HardDrive, Cable, Network, ShieldCheck, Tag } from 'lucide-react';
+import { buildApiUrl } from '@/lib/http-response';
 
 const PAGE_SIZE = 12;
 
 export default function ProductsPage() {
   // Use same-origin relative paths for production
-  const baseUrl = (() => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-      const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-      if (envBase) return envBase;
-      return 'http://localhost:5000';
-    }
-    return '';
-  })();
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchTerm = (searchParams.get('search') || '').trim();
@@ -49,7 +42,7 @@ export default function ProductsPage() {
   const fetchApi = async (path: string) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const res = await fetch(`${baseUrl}${path}`, { cache: 'no-store' });
+        const res = await fetch(buildApiUrl(path), { cache: 'no-store' });
         if (res.ok) return res;
       } catch {
         // retry once

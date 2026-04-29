@@ -12,6 +12,7 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .limit(5)
       .select("name email createdAt")
+      .lean()
       .catch((err) => {
         console.error("LatestCustomers: find error:", err.message);
         return [];

@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import { buildApiUrl } from '@/lib/http-response';
 
 type LogEntry = {
   _id: string;
@@ -74,7 +75,7 @@ export default function ActivityLogPage() {
     setLoading(true);
     setError('');
 
-    fetch(`/api/admin/activity?page=${targetPage}&limit=${pageSize}`, {
+    fetch(buildApiUrl(`/api/admin/activity?page=${targetPage}&limit=${pageSize}`), {
       credentials: 'include',
       headers: getAdminAuthHeaders(),
     })
@@ -119,14 +120,14 @@ export default function ActivityLogPage() {
 
       if (actionType === 'single') {
         setDeletingId(selectedId || '');
-        res = await fetch(`/api/admin/activity/${selectedId}`, {
+        res = await fetch(buildApiUrl(`/api/admin/activity/${selectedId}`), {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
         });
       } else {
         setClearingAll(true);
-        res = await fetch(`/api/admin/activity`, {
+        res = await fetch(buildApiUrl(`/api/admin/activity`), {
           method: 'DELETE',
           credentials: 'include',
           headers: getAdminAuthHeaders(),

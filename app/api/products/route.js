@@ -102,6 +102,8 @@ export async function GET(req) {
     const pageParam = Number.parseInt(searchParams.get("page") || "1", 10);
     const limitParam = Number.parseInt(searchParams.get("limit") || "10", 10);
     const search = (searchParams.get("search") || "").trim();
+    const category = (searchParams.get("category") || "").trim();
+    const exclude = (searchParams.get("exclude") || "").trim();
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
     const limit = Number.isFinite(limitParam) && limitParam > 0
       ? Math.min(limitParam, 50)
@@ -119,6 +121,14 @@ export async function GET(req) {
         }
       : {};
 
+    if (category && category !== "All Categories") {
+      query.category = category;
+    }
+
+    if (exclude) {
+      query._id = { $ne: exclude };
+    }
+
     const total = await Product.countDocuments(query);
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -126,6 +136,7 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .select("name sku slug price description image images features category inStock createdAt updatedAt")
       .lean();
 
     console.log("✅ PRODUCTS COUNT:", products.length);

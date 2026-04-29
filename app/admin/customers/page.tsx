@@ -8,6 +8,7 @@ import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
+import { buildApiUrl } from '@/lib/http-response';
 
 interface Customer {
   _id: string;
@@ -74,7 +75,7 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const endpoint = '/api/admin/customers';
+      const endpoint = buildApiUrl('/api/admin/customers');
       const query = params.toString();
       const url = query ? `${endpoint}?${query}` : endpoint;
 
@@ -168,7 +169,7 @@ export default function AdminCustomersPage() {
     setLoadingCustomerOrders(true);
 
     try {
-      const res = await fetch(`/api/admin/customers/${customer._id}/orders`, {
+      const res = await fetch(buildApiUrl(`/api/admin/customers/${customer._id}/orders`), {
         method: 'GET',
         cache: 'no-store',
         credentials: 'include',
@@ -192,7 +193,7 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(`/api/admin/customers/${customerId}`, {
+      const res = await fetch(buildApiUrl(`/api/admin/customers/${customerId}`), {
         method: 'DELETE',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -224,7 +225,7 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(`/api/admin/customers/${customer._id}`, {
+      const res = await fetch(buildApiUrl(`/api/admin/customers/${customer._id}`), {
         method: 'PATCH',
         credentials: 'include',
         headers: (() => {

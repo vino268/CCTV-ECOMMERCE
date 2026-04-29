@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
@@ -26,6 +27,7 @@ console.log("JWT Exists:", !!process.env.JWT_SECRET);
 const app = express();
 
 mongoose.set("strictQuery", true);
+app.set("trust proxy", 1);
 
 const allowedOrigins = [
  "http://localhost:3000",
@@ -55,6 +57,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use(compression());
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));

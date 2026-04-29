@@ -12,6 +12,7 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .limit(5)
       .select("orderId orderNumber customerName totalAmount orderStatus createdAt email")
+      .lean()
       .catch((err) => {
         console.error("LatestOrders: find error:", err.message);
         return [];

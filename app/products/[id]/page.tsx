@@ -1,26 +1,18 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, use } from 'react';
 import { Product } from '@/lib/types';
 import { ProductCard } from '@/components/product-card';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/contexts/cart-context';
 import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState, useEffect, use } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
-
-// Use same-origin relative paths for production
-const BASE_URL = (() => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-    if (envBase) return envBase;
-    return 'http://localhost:5000';
-  }
-  return '';
-})();
+import { buildApiUrl } from '@/lib/http-response';
 
 export default function ProductDetailPage({
   params,
@@ -45,7 +37,7 @@ export default function ProductDetailPage({
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const res = await fetch(`${BASE_URL}/api/products/${id}`, { cache: 'no-store' });
+        const res = await fetch(buildApiUrl(`/api/products/${encodeURIComponent(id)}`), { cache: 'no-store' });
         if (!res.ok) {
           setLoading(false);
           setNotFound(true);
@@ -62,26 +54,8 @@ export default function ProductDetailPage({
 
         setProduct(productData);
         setCurrentImage(0);
-
-        // Fetch related products from API
-        const allRes = await fetch(`${BASE_URL}/api/products?page=1&limit=200`, { cache: 'no-store' });
-        if (allRes.ok) {
-          const allData = await allRes.json().catch(() => ({}));
-          const allProducts: Product[] = Array.isArray(allData)
-            ? allData
-            : Array.isArray(allData?.products)
-              ? allData.products
-              : [];
-          const pid = productData._id;
-          const related = allProducts
-            .filter(
-              (p) =>
-                p.category === productData.category &&
-                p._id !== pid
-            )
-            .slice(0, 3);
-          setRelatedProducts(related);
-        }
+        const relatedProducts = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
+        setRelatedProducts(relatedProducts);
       } catch (err) {
         console.error('Error fetching product:', err);
         setNotFound(true);
@@ -203,12 +177,14 @@ export default function ProductDetailPage({
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 mb-16 items-start">
           {/* Product Image */}
           <div className="md:sticky md:top-24">
-            <div className="group w-full h-96 lg:h-[28rem] bg-white rounded-xl p-6 flex items-center justify-center overflow-hidden shadow-md border border-border">
+            <div className="group relative w-full h-96 lg:h-[28rem] bg-white rounded-xl p-6 flex items-center justify-center overflow-hidden shadow-md border border-border">
               {productImages[currentImage] ? (
-                <img
+                <Image
                   src={productImages[currentImage]}
                   alt={product.name}
-                  className="max-h-full max-w-full cursor-zoom-in rounded-lg object-contain transition-transform duration-500 group-hover:scale-110"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="cursor-zoom-in rounded-lg object-contain p-6 transition-transform duration-500 group-hover:scale-110"
                   onClick={() => {
                     setCurrentModalIndex(currentImage);
                     setShowImageModal(true);
@@ -234,7 +210,7 @@ export default function ProductDetailPage({
                         : 'border-border hover:border-blue-300'
                     }`}
                   >
-                    <img src={img} alt={`Thumbnail ${i + 1}`} className="w-full h-16 object-cover" />
+                    <Image src={img} alt={`Thumbnail ${i + 1}`} width={240} height={128} className="w-full h-16 object-cover" />
                   </button>
                 ))}
               </div>
@@ -480,9 +456,11 @@ export default function ProductDetailPage({
                 </button>
               )}
 
-              <img
+              <Image
                 src={productImages[currentModalIndex]}
                 alt={`${product.name} preview`}
+                fill
+                sizes="100vw"
                 className="max-h-[85vh] max-w-[90%] rounded-lg object-contain transition-all duration-300"
               />
 
@@ -513,7 +491,7 @@ export default function ProductDetailPage({
                           : 'border-gray-300 hover:border-blue-300'
                       }`}
                     >
-                      <img src={img} alt={`Preview ${index + 1}`} className="h-16 w-20 object-cover md:h-16 md:w-full" />
+                        <Image src={img} alt={`Preview ${index + 1}`} width={160} height={128} className="h-16 w-20 object-cover md:h-16 md:w-full" />
                     </button>
                   );
                 })}

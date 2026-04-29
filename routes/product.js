@@ -31,7 +31,9 @@ router.get("/latest", async (req, res) => {
     const limit = Math.max(1, Number(req.query.limit || 8));
     const products = await Product.find({})
       .sort({ createdAt: -1 })
-      .limit(limit);
+      .limit(limit)
+      .select("name sku slug price image images category inStock createdAt updatedAt")
+      .lean();
 
     return res.status(200).json({
       success: true,
@@ -52,6 +54,7 @@ router.get("/", async (req, res) => {
   try {
     const search = String(req.query.search || "").trim();
     const category = String(req.query.category || "").trim();
+    const exclude = String(req.query.exclude || "").trim();
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.max(1, Number(req.query.limit || 50));
 
@@ -64,6 +67,10 @@ router.get("/", async (req, res) => {
       query.name = { $regex: search, $options: "i" };
     }
 
+    if (exclude) {
+      query._id = { $ne: exclude };
+    }
+
     const [totalProducts, filteredProductsCount] = await Promise.all([
       Product.countDocuments(),
       Product.countDocuments(query),
@@ -73,7 +80,9 @@ router.get("/", async (req, res) => {
     const products = await Product.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(limit);
+      .limit(limit)
+      .select("name sku slug price image images features category inStock createdAt updatedAt")
+      .lean();
 
     const safeProducts = Array.isArray(products) ? products : [];
 
@@ -108,14 +117,13 @@ router.get("/", async (req, res) => {
 // GET /api/products/:id
 router.get("/:id", async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid product id",
-      });
-    }
+    const identifier = String(req.params.id || "").trim();
+    const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+    const projection = "name sku slug price description image images features category inStock createdAt updatedAt";
 
-    const product = await Product.findById(req.params.id);
+    const product = isObjectId
+      ? await Product.findById(identifier).select(projection).lean()
+      : await Product.findOne({ slug: identifier }).select(projection).lean();
 
     if (!product) {
       return res.status(404).json({
@@ -124,9 +132,19 @@ router.get("/:id", async (req, res) => {
       });
     }
 
+    const relatedProducts = await Product.find({
+      category: product.category,
+      _id: { $ne: product._id },
+    })
+      .sort({ createdAt: -1 })
+      .limit(3)
+      .select(projection)
+      .lean();
+
     return res.status(200).json({
       success: true,
       product,
+      relatedProducts,
     });
   } catch (error) {
     console.error("GET /api/products/:id error:", error);

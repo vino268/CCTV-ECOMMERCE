@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { HelpCircle, Mail, KeyRound, Eye, EyeOff, Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { buildApiUrl } from '@/lib/http-response';
 
 const inputClass =
   'w-full border border-border rounded-lg px-4 py-2.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors';
@@ -28,7 +29,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/admin/forgot-password`, {
+      const forgotUrl = buildApiUrl('/api/admin/forgot-password');
+      const res = await fetch(forgotUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -71,7 +73,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/admin/reset-password`, {
+      const resetUrl = buildApiUrl('/api/admin/reset-password');
+      const res = await fetch(resetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),

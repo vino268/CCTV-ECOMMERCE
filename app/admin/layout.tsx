@@ -19,6 +19,7 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import { fetchWithAuth } from '@/utils/api';
 import { AdminAuthProvider, useAdminAuth } from '@/lib/contexts/admin-auth-context';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
+import { buildApiUrl } from '@/lib/http-response';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -43,8 +44,6 @@ export default function AdminLayout({
 }
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
-  // Use same-origin relative paths for production
-  const API_BASE = '';
   const [authChecked, setAuthChecked] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -112,7 +111,8 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     try {
-      await fetchWithAuth(`${API_BASE}/api/admin/logout`, {
+      const logoutUrl = buildApiUrl('/api/admin/logout');
+      await fetchWithAuth(logoutUrl, {
         method: 'POST',
         headers: getAdminAuthHeaders(),
         cache: 'no-store',

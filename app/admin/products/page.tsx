@@ -11,6 +11,7 @@ import ToastNotification from '@/components/ui/toast-notification';
 import { getSafeImageSrc } from '@/lib/product-image';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import { useToast } from '@/hooks/use-toast';
+import { buildApiUrl } from '@/lib/http-response';
 
 interface AddFormData {
   sku: string;
@@ -32,16 +33,6 @@ interface CategoryItem {
   _id: string;
   name: string;
 }
-
-// Use same-origin relative paths for production
-const BASE_URL = (() => {
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-    if (envBase) return envBase;
-    return 'http://localhost:5000';
-  }
-  return '';
-})();
 
 export default function AdminProductsPage() {
   const { toast, showError, showSuccess } = useToast();
@@ -93,12 +84,10 @@ export default function AdminProductsPage() {
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const editFileRef = useRef<HTMLInputElement>(null);
 
-  const apiBase = BASE_URL;
-
   const fetchProducts = async (page = currentPage) => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiBase}/api/products?page=${page}&limit=10`, {
+      const res = await fetch(buildApiUrl(`/api/products?page=${page}&limit=10`), {
         method: 'GET',
         cache: 'no-store',
         credentials: 'include',
@@ -139,7 +128,7 @@ export default function AdminProductsPage() {
 
   async function fetchCategories() {
     try {
-      const res = await fetch(`${apiBase}/api/categories`, { cache: 'no-store', credentials: 'include' });
+      const res = await fetch(buildApiUrl('/api/categories'), { cache: 'no-store', credentials: 'include' });
       const data = await res.json().catch(() => ({}));
 
       console.log('Admin categories:', data);
@@ -196,21 +185,21 @@ export default function AdminProductsPage() {
       let res: Response;
 
       if (categoryModalType === 'add') {
-        res = await fetch(`${apiBase}/api/categories`, {
+        res = await fetch(buildApiUrl('/api/categories'), {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else if (categoryModalType === 'edit') {
-        res = await fetch(`${apiBase}/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(buildApiUrl(`/api/categories/${selectedCategory?._id}`), {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         });
       } else {
-        res = await fetch(`${apiBase}/api/categories/${selectedCategory?._id}`, {
+        res = await fetch(buildApiUrl(`/api/categories/${selectedCategory?._id}`), {
           method: 'DELETE',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -247,7 +236,7 @@ export default function AdminProductsPage() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch(`${apiBase}/api/products/upload-image`, {
+    const res = await fetch(buildApiUrl('/api/products/upload-image'), {
       method: 'POST',
       credentials: 'include',
       body: formData,
@@ -294,7 +283,7 @@ export default function AdminProductsPage() {
     try {
       setCheckingSku(true);
 
-      const res = await fetch(`${apiBase}/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`, {
+      const res = await fetch(buildApiUrl(`/api/products/check-sku?sku=${encodeURIComponent(normalizedSku)}`), {
         method: 'GET',
         credentials: 'include',
       });
@@ -381,7 +370,7 @@ export default function AdminProductsPage() {
         formData.append('images', addImages[i]);
       }
 
-      const res = await fetch(`${apiBase}/api/products`, {
+      const res = await fetch(buildApiUrl('/api/products'), {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -443,7 +432,7 @@ export default function AdminProductsPage() {
     const imageList = editImagePreview ? [editImagePreview] : [];
 
     try {
-      const res = await fetch(`${BASE_URL}/api/products/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/products/${id}`), {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -483,7 +472,7 @@ export default function AdminProductsPage() {
       setIsDeleteSubmitting(true);
       console.log('Deleting product id:', id);
 
-      const res = await fetch(`/api/admin/products/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/admin/products/${id}`), {
         method: 'DELETE',
         credentials: 'include',
         headers: getAdminAuthHeaders(),

@@ -1,9 +1,9 @@
 export function buildApiUrl(path: string): string {
-  // Use same-origin relative paths for production (cookies sent with credentials:'include')
+  // Use NODE_ENV for automatic environment switching
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-  // For localhost dev, support external API server
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
+  // Development environment - use localhost backend
+  if (process.env.NODE_ENV === 'development') {
     const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
     if (envBase) {
       return `${envBase}${normalizedPath}`;
@@ -11,6 +11,13 @@ export function buildApiUrl(path: string): string {
     return `http://localhost:5000${normalizedPath}`;
   }
 
+  // Production environment - use production domain
+  const renderUrl = (process.env.NEXT_PUBLIC_RENDER_URL || '').trim().replace(/\/+$/, '');
+  if (renderUrl) {
+    return `${renderUrl}${normalizedPath}`;
+  }
+
+  // Fallback: same-origin relative path
   return normalizedPath;
 }
 
