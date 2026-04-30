@@ -18,6 +18,14 @@ function parseCookieValue(cookieHeader, name) {
 }
 
 function getTokenFromRequest(req) {
+  // Prefer parsed cookies from cookie-parser when available (req.cookies)
+  try {
+    const cookieToken = String(req.cookies?.token || req.cookies?.userToken || req.cookies?.adminToken || "").trim();
+    if (cookieToken) return cookieToken;
+  } catch (e) {
+    // ignore and fallback to header parsing
+  }
+
   const authHeader = String(req.headers.authorization || "").trim();
   if (authHeader.toLowerCase().startsWith("bearer ")) {
     return authHeader.slice(7).trim();

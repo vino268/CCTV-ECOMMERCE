@@ -9,8 +9,9 @@ function getCookieOptions() {
 
   return {
     httpOnly: true,
+    // When deployed to a production domain over HTTPS, use cross-site cookie settings
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   };
