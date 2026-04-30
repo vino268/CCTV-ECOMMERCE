@@ -75,7 +75,7 @@ export default function AdminCustomersPage() {
       if (search.trim()) params.set('search', search.trim());
       params.set('status', filter);
 
-      const endpoint = buildApiUrl('/api/admin/customers');
+      const endpoint = '/api/admin/customers';
       const query = params.toString();
       const url = query ? `${endpoint}?${query}` : endpoint;
 

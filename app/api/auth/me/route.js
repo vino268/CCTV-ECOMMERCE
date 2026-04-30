@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 
-export async function GET(req) {
+export async function GET() {
   try {
-    const token = req.cookies.get("token")?.value || req.cookies.get("userToken")?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || cookieStore.get("userToken")?.value;
     if (!token) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
@@ -51,6 +53,10 @@ export async function GET(req) {
         },
         { status: 403 }
       );
+    }
+
+    if (String(user.role || "").toLowerCase() !== "user") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
     const userPayload = {

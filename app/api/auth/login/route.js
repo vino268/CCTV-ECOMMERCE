@@ -64,6 +64,13 @@ export async function POST(req) {
       );
     }
 
+    if (String(user.role || "").toLowerCase() === "admin") {
+      return Response.json(
+        { success: false, message: "Admins must login from admin panel" },
+        { status: 401 }
+      );
+    }
+
     const token = jwt.sign(
       {
         id: String(user._id),
@@ -88,6 +95,8 @@ export async function POST(req) {
     const cookieOptions = getCookieOptions();
     response.cookies.set("token", token, cookieOptions);
     response.cookies.set("userToken", token, cookieOptions);
+    response.cookies.set("adminToken", "", { ...cookieOptions, maxAge: 0 });
+    response.cookies.set("admin_token", "", { ...cookieOptions, maxAge: 0 });
 
     return response;
   } catch (error) {

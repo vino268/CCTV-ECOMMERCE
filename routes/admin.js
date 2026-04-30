@@ -35,6 +35,11 @@ async function loadUserModel() {
   return User;
 }
 
+async function loadAdminLogModel() {
+  const { default: AdminLog } = await import("../models/AdminLog.js");
+  return AdminLog;
+}
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -100,6 +105,102 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.get("/customers", protectAdmin, async (req, res) => {
+  try {
+    const User = await loadUserModel();
+    const search = String(req.query?.search || "").trim();
+    const status = String(req.query?.status || "all").trim().toLowerCase();
+
+    const roleFilter = {
+      $or: [
+        { role: "user" },
+        { role: { $exists: false } },
+        { role: null },
+        { role: "" },
+      ],
+    };
+
+    const query = { $and: [roleFilter] };
+
+    if (status === "active") {
+      query.$and.push({ isDeleted: false });
+    } else if (status === "deleted") {
+      query.$and.push({ isDeleted: true });
+    }
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      query.$and.push({
+        $or: [
+          { name: { $regex: escaped, $options: "i" } },
+          { email: { $regex: escaped, $options: "i" } },
+          { phone: { $regex: escaped, $options: "i" } },
+          { address: { $regex: escaped, $options: "i" } },
+        ],
+      });
+    }
+
+    const users = await User.find(query)
+      .sort({ createdAt: -1 })
+      .select("name email phone address createdAt role isDeleted deletedAt isBlocked profileImage avatar")
+      .lean();
+
+    const emails = (Array.isArray(users) ? users : [])
+      .map((user) => String(user.email || "").toLowerCase())
+      .filter(Boolean);
+
+    let statsByEmail = new Map();
+    if (emails.length > 0) {
+      const orderStats = await Order.aggregate([
+        {
+          $match: {
+            isDeleted: false,
+            email: { $in: emails },
+          },
+        },
+        {
+          $group: {
+            _id: "$email",
+            totalOrders: { $sum: 1 },
+            totalSpent: { $sum: "$totalAmount" },
+          },
+        },
+      ]);
+
+      statsByEmail = new Map(
+        (Array.isArray(orderStats) ? orderStats : []).map((item) => [
+          String(item._id || "").toLowerCase(),
+          item,
+        ])
+      );
+    }
+
+    const customers = (Array.isArray(users) ? users : []).map((user) => {
+      const key = String(user.email || "").toLowerCase();
+      const stats = statsByEmail.get(key);
+
+      return {
+        _id: String(user._id),
+        name: String(user.name || ""),
+        email: String(user.email || ""),
+        phone: String(user.phone || ""),
+        address: String(user.address || ""),
+        createdAt: user.createdAt,
+        isBlocked: !!user.isBlocked,
+        isDeleted: !!user.isDeleted,
+        deletedAt: user.deletedAt || null,
+        totalOrders: Number(stats?.totalOrders || 0),
+        totalSpent: Number(stats?.totalSpent || 0),
+      };
+    });
+
+    return res.status(200).json({ success: true, customers });
+  } catch (error) {
+    console.error("GET /api/admin/customers error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch customers", customers: [] });
+  }
+});
+
 router.get("/profile", protectAdmin, async (req, res) => {
   try {
     const Admin = await loadAdminModel();
@@ -115,6 +216,41 @@ router.get("/profile", protectAdmin, async (req, res) => {
     });
   } catch (_error) {
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/activity", protectAdmin, async (req, res) => {
+  try {
+    const AdminLog = await loadAdminLogModel();
+    const pageParam = Number(req.query?.page || 1);
+    const limitParam = Number(req.query?.limit || 10);
+
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(50, Math.max(1, Math.floor(limitParam))) : 10;
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      AdminLog.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      AdminLog.countDocuments(),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return res.status(200).json({
+      success: true,
+      logs: Array.isArray(logs) ? logs : [],
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    console.error("GET /api/admin/activity error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch logs", logs: [] });
   }
 });
 

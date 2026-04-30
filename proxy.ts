@@ -118,8 +118,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       const secret = new TextEncoder().encode(jwtSecret);
       const { payload } = await jwtVerify(token, secret);
       const email = String(payload.email || "").toLowerCase();
+      const role = String(payload.role || "user").toLowerCase();
 
-      if (!email) {
+      if (!email || role !== "user") {
         throw new Error("Invalid user token payload");
       }
 
@@ -180,7 +181,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const token = request.cookies.get("token")?.value;
+  const token = request.cookies.get("adminToken")?.value || request.cookies.get("admin_token")?.value || request.cookies.get("token")?.value;
 
   if (!token || !jwtSecret) {
     return withCors(request, NextResponse.redirect(new URL("/admin/login", request.url)), isApiRoute);
@@ -193,7 +194,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     if (String(payload?.role || "") !== "admin") {
       const response = NextResponse.redirect(new URL("/admin/login", request.url));
       response.cookies.delete("token");
+      response.cookies.delete("userToken");
       response.cookies.delete("adminToken");
+      response.cookies.delete("admin_token");
       return withCors(request, response, isApiRoute);
     }
 
@@ -201,7 +204,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   } catch {
     const response = NextResponse.redirect(new URL("/admin/login", request.url));
     response.cookies.delete("token");
+    response.cookies.delete("userToken");
     response.cookies.delete("adminToken");
+    response.cookies.delete("admin_token");
     return withCors(request, response, isApiRoute);
   }
 }

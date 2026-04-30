@@ -15,7 +15,7 @@ const inputClass =
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, loading: authLoading, refreshUser } = useAuth();
+  const { isAuthenticated, loading: authLoading, login } = useAuth();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [signinForm, setSigninForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({
@@ -96,7 +96,10 @@ export default function LoginPage() {
         throw new Error('Login failed');
       }
 
-      await refreshUser();
+      if (data?.user) {
+        login(data.user);
+      }
+
       router.push(getSafeRedirectPath());
       router.refresh();
     } catch (error: any) {
@@ -167,7 +170,10 @@ export default function LoginPage() {
         return;
       }
 
-      await refreshUser();
+      if (loginData?.user) {
+        login(loginData.user);
+      }
+
       router.push(getSafeRedirectPath());
       router.refresh();
     } catch {
