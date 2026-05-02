@@ -99,7 +99,8 @@ function validationErrorResponse(fieldErrors) {
 export async function GET(req, { params }) {
   try {
     await connectDB();
-    const { id } = params;
+    const { id: rawId } = await params;
+    const id = String(rawId || "").trim();
 
     // Validate MongoDB ObjectId format
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -141,7 +142,7 @@ export async function PUT(req, { params }) {
     if (hasDisallowedImageInputs(requestBody)) {
       return validationErrorResponse({
         images:
-          "External image URLs are not allowed. Use uploaded images (/uploads/...) or local assets (/products/...).",
+          "Invalid image value. Use a valid http(s) URL, an uploaded image (/uploads/...), or a local asset (/products/...).",
       });
     }
 

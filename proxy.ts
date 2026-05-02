@@ -193,8 +193,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
     if (String(payload?.role || "") !== "admin") {
       const response = NextResponse.redirect(new URL("/admin/login", request.url));
-      response.cookies.delete("token");
-      response.cookies.delete("userToken");
       response.cookies.delete("adminToken");
       response.cookies.delete("admin_token");
       return withCors(request, response, isApiRoute);
@@ -203,8 +201,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return withCors(request, NextResponse.next(), isApiRoute);
   } catch {
     const response = NextResponse.redirect(new URL("/admin/login", request.url));
-    response.cookies.delete("token");
-    response.cookies.delete("userToken");
     response.cookies.delete("adminToken");
     response.cookies.delete("admin_token");
     return withCors(request, response, isApiRoute);

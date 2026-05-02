@@ -40,6 +40,7 @@ export default function AdminServicesPage() {
   const [deleteItem, setDeleteItem] = useState<Service | null>(null);
   const [deleteType, setDeleteType] = useState<'service' | ''>('');
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
+  const [serviceMessage, setServiceMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   /* ---------------------------------------------------------------- */
   const fetchServices = async () => {
@@ -137,6 +138,7 @@ export default function AdminServicesPage() {
     const id = deleteItem._id;
 
     try {
+      setServiceMessage(null);
       setIsDeleteSubmitting(true);
       const res = await fetch(buildApiUrl(`/api/services/${id}`), {
         method: 'DELETE',
@@ -144,14 +146,15 @@ export default function AdminServicesPage() {
       });
       const data = await parseResponseBody<any>(res);
       if (!res.ok) {
-        alert(data.error ?? 'Delete failed');
+        setServiceMessage({ type: 'error', text: data.error ?? 'Delete failed' });
         return;
       }
       setDeleteItem(null);
       setDeleteType('');
+      setServiceMessage({ type: 'success', text: 'Service deleted successfully' });
       await fetchServices();
     } catch {
-      alert('Delete failed — check your connection and try again.');
+      setServiceMessage({ type: 'error', text: 'Delete failed — check your connection and try again.' });
     } finally {
       setIsDeleteSubmitting(false);
     }
@@ -179,6 +182,12 @@ export default function AdminServicesPage() {
           Add Service
         </Button>
       </div>
+
+      {serviceMessage && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${serviceMessage.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+          {serviceMessage.text}
+        </div>
+      )}
 
       {/* ====== Add Form ====== */}
       {showAddForm && (

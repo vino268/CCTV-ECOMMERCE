@@ -339,11 +339,11 @@ export default function Home() {
     if (authLoading) return;
 
     if (!isAuthenticated) {
-      router.push(`/login?redirect=${encodeURIComponent(`/checkout?productId=${productId}`)}`);
+      router.push(`/login?redirect=/checkout?productId=${productId}`);
       return;
     }
 
-    router.push(`/checkout?productId=${encodeURIComponent(productId)}`);
+    router.push(`/checkout?productId=${productId}`);
   };
 
   return (

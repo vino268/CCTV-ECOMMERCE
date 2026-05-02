@@ -58,6 +58,7 @@ export default function AdminProductsPage() {
   });
   const [addImages, setAddImages] = useState<File[]>([]);
   const [addImagePreviews, setAddImagePreviews] = useState<string[]>([]);
+  const [addImageUrl, setAddImageUrl] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const [isAddImageUploading, setIsAddImageUploading] = useState(false);
@@ -358,22 +359,36 @@ export default function AdminProductsPage() {
 
     try {
       setIsAddSubmitting(true);
-      const formData = new FormData();
-      formData.append('sku', addFormData.sku.trim());
-      formData.append('name', addFormData.name.trim());
-      formData.append('price', String(Number(addFormData.price)));
-      formData.append('category', addFormData.category);
-      formData.append('description', addFormData.description.trim());
-      formData.append('inStock', 'true');
-
-      for (let i = 0; i < addImages.length; i += 1) {
-        formData.append('images', addImages[i]);
+      const trimmedImageUrl = addImageUrl.trim();
+      if (trimmedImageUrl && !/^https?:\/\//i.test(trimmedImageUrl)) {
+        throw new Error('Invalid image URL. It must start with http or https.');
       }
+
+      const uploadedImageUrls = addImages.length > 0
+        ? await Promise.all(addImages.map((file) => uploadImageFile(file)))
+        : [];
+
+      const finalImage = uploadedImageUrls[0] || trimmedImageUrl;
+      const finalImages = uploadedImageUrls.length > 0
+        ? uploadedImageUrls
+        : trimmedImageUrl
+          ? [trimmedImageUrl]
+          : [];
 
       const res = await fetch(buildApiUrl('/api/products'), {
         method: 'POST',
         credentials: 'include',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: addFormData.sku.trim(),
+          name: addFormData.name.trim(),
+          price: Number(addFormData.price),
+          category: addFormData.category,
+          description: addFormData.description.trim(),
+          inStock: true,
+          images: finalImages,
+          image: finalImage,
+        }),
       });
 
       if (!res.ok) {
@@ -395,6 +410,7 @@ export default function AdminProductsPage() {
       setAddImageError('');
       setAddImages([]);
       setAddImagePreviews([]);
+      setAddImageUrl('');
       if (addFileRef.current) addFileRef.current.value = '';
       setShowAddModal(false);
     } catch (err) {
@@ -1015,6 +1031,15 @@ export default function AdminProductsPage() {
                 <div className="bg-gray-50 p-4 rounded-xl border">
                   <h3 className="font-semibold mb-4">Images</h3>
 
+                  <label>Image URL</label>
+                  <input
+                    type="text"
+                    placeholder="Enter image URL"
+                    value={addImageUrl}
+                    onChange={(e) => setAddImageUrl(e.target.value)}
+                    className="input"
+                  />
+
                   <div
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition ${
                       isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
@@ -1055,7 +1080,7 @@ export default function AdminProductsPage() {
                   </div>
 
                   <p className="text-xs text-gray-500 mt-3">
-                    External image URLs are blocked. Upload files only.
+                    You can upload images and/or paste an Image URL.
                   </p>
 
                   {isAddImageUploading && (

@@ -10,6 +10,7 @@ export interface AdminUser {
   phone?: string;
   role?: string;
   profileImage?: string;
+  avatar?: string;
   createdAt?: string;
   avatarVersion?: number;
 }
@@ -28,9 +29,23 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const apiBaseUrl = useMemo(() => {
+    const envBase = String(process.env.NEXT_PUBLIC_API_URL || '')
+      .trim()
+      .replace(/\/+$/, '');
+    return envBase;
+  }, []);
+
+  const buildApiUrl = (path: string) => {
+    if (/^https?:\/\//i.test(path)) return path;
+    if (!apiBaseUrl) return path;
+    if (!path.startsWith('/')) return `${apiBaseUrl}/${path}`;
+    return `${apiBaseUrl}${path}`;
+  };
+
   const refreshAdmin = async () => {
     try {
-      const res = await fetch('/api/admin/profile', {
+      const res = await fetch(buildApiUrl('/api/admin/profile'), {
         method: 'GET',
         cache: 'no-store',
         credentials: 'include',
@@ -51,7 +66,8 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         email: String(data.admin.email || ''),
         phone: String(data.admin.phone || ''),
         role: String(data.admin.role || 'admin'),
-        profileImage: String(data.admin.profileImage || ''),
+        profileImage: String(data.admin.profileImage || data.admin.avatar || ''),
+        avatar: String(data.admin.avatar || data.admin.profileImage || ''),
         createdAt: data.admin.createdAt,
       };
 

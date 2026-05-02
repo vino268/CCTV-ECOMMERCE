@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import ConfirmModal from '@/components/ConfirmModal';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import { buildApiUrl } from '@/lib/http-response';
@@ -30,6 +31,8 @@ type PendingDelete = {
   label: string;
 } | null;
 
+type BulkDeleteMode = 'selected' | 'all' | null;
+
 function formatDeletedDate(value?: string) {
   if (!value) return '-';
   return new Date(value).toLocaleString('en-IN', {
@@ -46,8 +49,12 @@ export default function AdminTrashPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<DeletedOrder[]>([]);
   const [customers, setCustomers] = useState<DeletedCustomer[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState<BulkDeleteMode>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>(null);
+  const [error, setError] = useState('');
 
   const fetchDeletedData = async () => {
     try {
@@ -85,10 +92,32 @@ export default function AdminTrashPage() {
     fetchDeletedData();
   }, []);
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [tab]);
+
   const currentRows = useMemo(() => (tab === 'orders' ? orders : customers), [tab, orders, customers]);
+  const currentIds = useMemo(() => currentRows.map((row) => row._id), [currentRows]);
+  const allSelected = currentRows.length > 0 && selectedIds.length === currentRows.length;
+  const anySelected = selectedIds.length > 0;
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(currentIds);
+      return;
+    }
+    setSelectedIds([]);
+  };
+
+  const toggleSingleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((existingId) => existingId !== id) : [...prev, id]
+    );
+  };
 
   const handleRestore = async (id: string, currentTab: TrashTab) => {
     try {
+      setError('');
       const key = `${currentTab}-restore-${id}`;
       setActionKey(key);
 
@@ -105,13 +134,14 @@ export default function AdminTrashPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.error || 'Failed to restore item');
+        setError(data.error || 'Failed to restore item');
         return;
       }
 
       await fetchDeletedData();
     } catch (error) {
       console.error('Restore error:', error);
+      setError('Failed to restore item');
     } finally {
       setActionKey(null);
     }
@@ -121,6 +151,7 @@ export default function AdminTrashPage() {
     if (!pendingDelete) return;
 
     try {
+      setError('');
       const key = `${pendingDelete.tab}-permanent-${pendingDelete.id}`;
       setActionKey(key);
 
@@ -137,7 +168,7 @@ export default function AdminTrashPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.error || 'Failed to permanently delete item');
+        setError(data.error || 'Failed to permanently delete item');
         return;
       }
 
@@ -145,9 +176,87 @@ export default function AdminTrashPage() {
       await fetchDeletedData();
     } catch (error) {
       console.error('Permanent delete error:', error);
+      setError('Failed to permanently delete item');
     } finally {
       setActionKey(null);
     }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return false;
+
+    try {
+      setError('');
+      setActionKey(`bulk-selected-${tab}`);
+
+      const res = await fetch(buildApiUrl('/api/admin/trash/delete-selected'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          ...getAdminAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedIds, tab }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Failed to delete selected items');
+        return false;
+      }
+
+      setSelectedIds([]);
+      await fetchDeletedData();
+      return true;
+    } catch (error) {
+      console.error('Bulk delete selected error:', error);
+      setError('Failed to delete selected items');
+      return false;
+    } finally {
+      setActionKey(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      setError('');
+      setActionKey(`bulk-all-${tab}`);
+
+      const res = await fetch(buildApiUrl(`/api/admin/trash/delete-all?tab=${tab}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getAdminAuthHeaders(),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Failed to delete all items');
+        return false;
+      }
+
+      setSelectedIds([]);
+      await fetchDeletedData();
+      return true;
+    } catch (error) {
+      console.error('Bulk delete all error:', error);
+      setError('Failed to delete all items');
+      return false;
+    } finally {
+      setActionKey(null);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const didDelete = bulkDeleteMode === 'selected' ? await handleDeleteSelected() : await handleDeleteAll();
+    if (didDelete) {
+      setShowModal(false);
+      setBulkDeleteMode(null);
+    }
+  };
+
+  const openBulkDeleteModal = (mode: BulkDeleteMode) => {
+    setBulkDeleteMode(mode);
+    setShowModal(true);
   };
 
   return (
@@ -161,6 +270,12 @@ export default function AdminTrashPage() {
           <RefreshCw className="w-4 h-4" /> Refresh
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white p-3 rounded-xl border shadow-sm flex gap-2">
         <button
@@ -183,6 +298,25 @@ export default function AdminTrashPage() {
         </button>
       </div>
 
+      <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-wrap items-center gap-2">
+        <Button
+          variant="destructive"
+          onClick={() => openBulkDeleteModal('selected')}
+          disabled={!anySelected || !!actionKey || loading}
+          className="h-9"
+        >
+          Delete Selected ({selectedIds.length})
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => openBulkDeleteModal('all')}
+          disabled={currentRows.length === 0 || !!actionKey || loading}
+          className="h-9 border-rose-200 text-rose-700 hover:bg-rose-50"
+        >
+          Delete All
+        </Button>
+      </div>
+
       <div className="rounded-xl border shadow-sm bg-white overflow-x-auto">
         {loading ? (
           <div className="p-10 text-center text-gray-500">Loading deleted data...</div>
@@ -192,6 +326,14 @@ export default function AdminTrashPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 w-12">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    aria-label="Select all deleted orders"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Order ID</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Name</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Email</th>
@@ -207,6 +349,14 @@ export default function AdminTrashPage() {
 
                 return (
                   <tr key={order._id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(order._id)}
+                        onChange={() => toggleSingleSelection(order._id)}
+                        aria-label={`Select order ${order.orderNumber || order._id}`}
+                      />
+                    </td>
                     <td className="px-4 py-3 text-gray-900 font-medium">{order.orderNumber || order._id}</td>
                     <td className="px-4 py-3 text-gray-700">{order.customerName || 'Customer'}</td>
                     <td className="px-4 py-3 text-gray-700">{order.email || '-'}</td>
@@ -246,6 +396,14 @@ export default function AdminTrashPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 w-12">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    aria-label="Select all deleted customers"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Name</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Email</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Deleted Date</th>
@@ -260,6 +418,14 @@ export default function AdminTrashPage() {
 
                 return (
                   <tr key={customer._id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(customer._id)}
+                        onChange={() => toggleSingleSelection(customer._id)}
+                        aria-label={`Select customer ${customer.name || customer.email || customer._id}`}
+                      />
+                    </td>
                     <td className="px-4 py-3 text-gray-900 font-medium">{customer.name || 'Customer'}</td>
                     <td className="px-4 py-3 text-gray-700">{customer.email || '-'}</td>
                     <td className="px-4 py-3 text-gray-700">{formatDeletedDate(customer.deletedAt)}</td>
@@ -306,6 +472,25 @@ export default function AdminTrashPage() {
           if (!actionKey) setPendingDelete(null);
         }}
         onConfirm={handlePermanentDelete}
+      />
+
+      <ConfirmModal
+        isOpen={showModal}
+        title={bulkDeleteMode === 'selected' ? 'Delete Selected Items' : 'Delete All Items'}
+        message={
+          bulkDeleteMode === 'selected'
+            ? 'Are you sure you want to permanently delete the selected items? This cannot be undone.'
+            : 'Are you sure you want to permanently delete all items in this tab? This cannot be undone.'
+        }
+        confirmLabel={bulkDeleteMode === 'selected' ? 'Delete Selected' : 'Delete All'}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => {
+          if (!actionKey) {
+            setShowModal(false);
+            setBulkDeleteMode(null);
+          }
+        }}
+        isLoading={!!actionKey}
       />
     </div>
   );

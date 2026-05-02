@@ -1,11 +1,28 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 const { protectAdmin } = require("../middleware/auth");
 const Product = require("../models/Product");
 const Order = require("../models/OrderModel");
 
 const router = express.Router();
+
+// Multer storage for admin profile images
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const uploadDir = path.join(process.cwd(), "uploads", "avatars");
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (_req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 function getAdminCookieOptions(req) {
   const forwardedProto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
@@ -88,9 +105,8 @@ router.post("/login", async (req, res) => {
 
     const cookieOptions = getAdminCookieOptions(req);
     const clearOptions = getAdminClearCookieOptions(req);
-    res.cookie("token", token, cookieOptions);
-    res.clearCookie("adminToken", clearOptions);
-    res.clearCookie("userToken", clearOptions);
+    // Set explicit adminToken cookie for admin sessions without disturbing user sessions
+    res.cookie("adminToken", token, cookieOptions);
 
     return res.json({
       success: true,
@@ -299,12 +315,88 @@ router.put("/profile", protectAdmin, async (req, res) => {
 
 router.post("/logout", (req, res) => {
   const clearOptions = getAdminClearCookieOptions(req);
-  res.clearCookie("token", clearOptions);
   res.clearCookie("adminToken", clearOptions);
   return res.json({
     success: true,
     message: "Logged out successfully",
   });
+});
+
+router.post("/profile/image", protectAdmin, upload.single("avatar"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded" });
+    }
+
+    const Admin = await loadAdminModel();
+    const admin = await Admin.findById(req.admin.id);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const normalizeStoredPath = (value) => {
+      return String(value || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "")
+        .trim();
+    };
+
+    // Remove old file if it exists
+    if (admin.avatar) {
+      const oldPath = path.join(process.cwd(), normalizeStoredPath(admin.avatar));
+      if (fs.existsSync(oldPath)) {
+        try { fs.unlinkSync(oldPath); } catch (_) { /* ignore */ }
+      }
+    }
+
+    // Store relative path like "uploads/avatars/123456.jpg"
+    const avatarPath = "uploads/avatars/" + req.file.filename;
+    admin.avatar = avatarPath;
+    admin.profileImage = avatarPath;
+    await admin.save();
+
+    return res.json({
+      message: "Image uploaded",
+      avatar: avatarPath,
+    });
+  } catch (error) {
+    console.error("POST /api/admin/profile/image error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete("/profile/avatar", protectAdmin, async (req, res) => {
+  try {
+    const Admin = await loadAdminModel();
+    const admin = await Admin.findById(req.admin.id);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const normalizeStoredPath = (value) => {
+      return String(value || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "")
+        .trim();
+    };
+
+    if (admin.avatar) {
+      const filePath = path.join(process.cwd(), normalizeStoredPath(admin.avatar));
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (_) { /* ignore */ }
+      }
+    }
+
+    admin.avatar = "";
+    admin.profileImage = "";
+    await admin.save();
+
+    res.json({ message: "Avatar removed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 router.get("/dashboard-stats", protectAdmin, async (_req, res) => {
@@ -378,96 +470,46 @@ router.get("/revenue", protectAdmin, async (req, res) => {
           ? 30
           : 7;
 
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setHours(0, 0, 0, 0);
-    if (days === 1) {
-      // Today bucket starts at local day boundary.
-      startDate.setHours(0, 0, 0, 0);
-    } else {
-      startDate.setDate(startDate.getDate() - (days - 1));
-    }
+    const startDate = new Date();
+    startDate.setUTCHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (days - 1));
 
-    const timezone = "Asia/Kolkata";
+    const filter = {
+      isDeleted: false,
+      createdAt: { $gte: startDate },
+      $or: [
+        { paymentStatus: "Paid" },
+        { status: "Delivered" },
+      ],
+    };
 
-    const revenueAgg = await Order.aggregate([
-      {
-        $match: {
-          isDeleted: { $ne: true },
-          createdAt: { $gte: startDate },
-        },
-      },
-      {
-        $addFields: {
-          normalizedStatus: {
-            $toLower: {
-              $trim: {
-                input: {
-                  $ifNull: [
-                    "$trackingStatus",
-                    { $ifNull: ["$orderStatus", { $ifNull: ["$status", "ordered"] }] },
-                  ],
-                },
-              },
-            },
-          },
-        },
-      },
-      {
-        $match: {
-          normalizedStatus: { $ne: "cancelled" },
-        },
-      },
+    console.log("Revenue Filter:", filter);
+    console.log("Matched Orders:", await Order.find(filter));
+
+    const revenueData = await Order.aggregate([
+      { $match: filter },
       {
         $group: {
-          _id: {
-            $dateToString: {
-              format: "%Y-%m-%d",
-              date: "$createdAt",
-              timezone,
-            },
-          },
-          total: {
-            $sum: {
-              $ifNull: ["$totalAmount", { $ifNull: ["$total", 0] }],
-            },
-          },
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" },
+          totalOrders: { $sum: 1 },
         },
       },
-      { $sort: { _id: 1 } },
     ]).allowDiskUse(true);
 
-    const totalsByDate = new Map(
-      (Array.isArray(revenueAgg) ? revenueAgg : []).map((entry) => [
-        String(entry?._id || ""),
-        Number(entry?.total || 0),
-      ])
-    );
+    const totalRevenue = revenueData.length > 0
+      ? revenueData[0].totalRevenue
+      : 0;
+    const totalOrders = revenueData.length > 0
+      ? revenueData[0].totalOrders
+      : 0;
 
-    const chartData = Array.from({ length: days }).map((_, index) => {
-      const day = new Date(startDate);
-      day.setDate(startDate.getDate() + index);
-
-      const dateKey = day.toLocaleDateString("en-CA", {
-        timeZone: timezone,
-      });
-
-      const label =
-        days === 30
-          ? day.toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: timezone })
-          : day.toLocaleDateString("en-IN", { weekday: "short", timeZone: timezone });
-
-      return {
-        date: label,
-        revenue: Number(totalsByDate.get(dateKey) || 0),
-      };
-    });
-
-    const total = chartData.reduce((sum, point) => sum + Number(point.revenue || 0), 0);
+    console.log("Revenue: Aggregation returned", revenueData.length, "rows");
 
     return res.status(200).json({
-      total,
-      data: chartData,
+      total: totalRevenue,
+      totalOrders,
+      data: [],
     });
   } catch (error) {
     console.error("GET /api/admin/revenue error:", error);
@@ -596,53 +638,52 @@ router.get("/dashboard", protectAdmin, async (_req, res) => {
 
     const range = String(_req.query?.range || "").trim().toLowerCase();
     const now = new Date();
-    let startDate;
+    let startDate = null;
+    let endDate = null;
+    const filter = { isDeleted: false };
 
     if (range === "today") {
       startDate = new Date(now);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $gte: startDate, $lte: endDate };
+    } else if (range === "30days") {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30);
+      startDate.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: startDate };
     } else if (range === "7days") {
       startDate = new Date(now);
       startDate.setDate(startDate.getDate() - 6);
-      startDate.setHours(0, 0, 0, 0);
-    } else if (range === "30days") {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 29);
-      startDate.setHours(0, 0, 0, 0);
-    } else {
-      startDate = new Date(0);
+      startDate.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: startDate };
     }
 
-    const [totalProducts, totalOrders, totalCustomers, revenueData] = await Promise.all([
-      Product.countDocuments({ createdAt: { $gte: startDate } }),
-      Order.countDocuments({ isDeleted: false, createdAt: { $gte: startDate } }),
-      User.countDocuments({ isDeleted: { $ne: true }, createdAt: { $gte: startDate } }),
-      Order.aggregate([
-        {
-          $match: {
-            isDeleted: { $ne: true },
-            createdAt: { $gte: startDate },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: { $ifNull: ["$totalAmount", { $ifNull: ["$total", 0] }] } },
-          },
-        },
-      ]),
-    ]);
+    console.log("FILTER USED:", filter);
 
-    const totalRevenue = Number(revenueData?.[0]?.total || 0);
-    console.log("Revenue:", totalRevenue, "Range:", range || "all");
+    const orders = await Order.find(filter).select("status paymentStatus totalAmount createdAt");
+    const ordersCount = orders.length;
+    const revenue = orders
+      .filter((o) => o.paymentStatus === "Paid" || o.status === "Delivered")
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+    console.log("ORDERS COUNT:", ordersCount);
+    console.log("REVENUE:", revenue);
+
+    const [totalProducts, , totalCustomers] = await Promise.all([
+      Product.countDocuments({ createdAt: { $gte: startDate || new Date(0) } }),
+      Promise.resolve(0),
+      User.countDocuments({ isDeleted: { $ne: true }, createdAt: { $gte: startDate || new Date(0) } }),
+    ]);
 
     return res.json({
       success: true,
       data: {
         totalProducts,
-        totalOrders,
+        totalOrders: ordersCount,
         totalCustomers,
-        totalRevenue,
+        totalRevenue: revenue,
       },
     });
   } catch (error) {
@@ -795,7 +836,13 @@ router.get("/analytics/overview", protectAdmin, async (_req, res) => {
 
 router.get("/orders", protectAdmin, async (_req, res) => {
   try {
-    const orders = await Order.find({ isDeleted: false }).sort({ createdAt: -1 }).lean();
+    // Populate potential refs for richer admin display
+    const orders = await Order.find({ isDeleted: false })
+      .sort({ createdAt: -1 })
+      .populate("userRef", "name email phone profileImage")
+      .populate("productRef", "name price image")
+      .lean();
+
     return res.status(200).json({ success: true, orders: Array.isArray(orders) ? orders : [] });
   } catch (error) {
     console.error("GET /api/admin/orders error:", error);
@@ -817,6 +864,7 @@ router.patch("/orders/:id", protectAdmin, async (req, res) => {
           status: nextStatus,
           orderStatus: nextStatus,
           trackingStatus: nextStatus,
+          ...(nextStatus === "Delivered" ? { paymentStatus: "Paid" } : {}),
           cancelledBy: nextStatus === "Cancelled" ? "ADMIN" : null,
           cancelledAt: nextStatus === "Cancelled" ? new Date() : null,
         },
@@ -837,9 +885,22 @@ router.patch("/orders/:id", protectAdmin, async (req, res) => {
 
 router.put("/orders/:id/cancel", protectAdmin, async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const orderId = String(req.params?.id || "").trim();
+    console.log("🔍 Admin cancel order - OrderID:", orderId);
+
+    const order = await Order.findById(orderId);
     if (!order || order.isDeleted) {
+      console.warn("⚠️  Order not found or deleted:", orderId);
       return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    console.log("✏️  Current status:", order.status, "| Target: Cancelled");
+
+    // Check if already cancelled
+    const currentStatus = String(order.status || order.orderStatus || order.trackingStatus || "").toLowerCase();
+    if (currentStatus === "cancelled") {
+      console.log("ℹ️  Order already cancelled, skipping update");
+      return res.status(400).json({ success: false, message: "Order is already cancelled" });
     }
 
     order.status = "Cancelled";
@@ -850,9 +911,25 @@ router.put("/orders/:id/cancel", protectAdmin, async (req, res) => {
     order.cancelRequested = false;
     await order.save();
 
-    return res.status(200).json({ success: true, order });
+    console.log("✅ Order cancelled successfully");
+
+    // Create notification for admin action
+    const orderIdentifier = String(order.orderId || order.orderNumber || order._id || "").trim();
+    const displayOrderIdentifier = orderIdentifier.startsWith("#") ? orderIdentifier : `#${orderIdentifier}`;
+    
+    await createNotification({
+      title: "Order Cancelled",
+      type: "ORDER_CANCELLED",
+      message: `Order ${displayOrderIdentifier} cancelled by admin`,
+      orderId: order._id,
+      isRead: false,
+    });
+
+    console.log("📢 Notification created for order cancellation");
+
+    return res.status(200).json({ success: true, message: "Order cancelled successfully", order });
   } catch (error) {
-    console.error("PUT /api/admin/orders/:id/cancel error:", error);
+    console.error("❌ PUT /api/admin/orders/:id/cancel error:", error);
     return res.status(500).json({ success: false, message: "Failed to cancel order" });
   }
 });

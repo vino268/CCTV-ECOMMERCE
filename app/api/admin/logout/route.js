@@ -27,11 +27,8 @@ export async function POST() {
     maxAge: 0,
   };
 
-  // Clear all admin tokens
   response.cookies.set("adminToken", "", secureCookieOptions);
-  response.cookies.set("token", "", secureCookieOptions);
   response.cookies.set("adminToken", "", cookieOptions);
-  response.cookies.set("userToken", "", cookieOptions);
   response.cookies.set("admin_token", "", cookieOptions);
 
   return response;

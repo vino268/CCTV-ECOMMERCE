@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import ConfirmModal from '@/components/confirm-modal';
 import { toProfileImageUrl } from '@/lib/profile-image-url';
 
 type AccountTab = 'dashboard' | 'orders' | 'address' | 'wishlist';
@@ -92,31 +93,6 @@ function displayAddressLine(address: AddressItem) {
   return `${address.address}, ${address.city}, ${address.state} - ${address.pincode}`;
 }
 
-function getCookieToken(name: string) {
-  if (typeof document === 'undefined') return '';
-  const prefix = `${name}=`;
-  const pair = document.cookie
-    .split(';')
-    .map((segment) => segment.trim())
-    .find((segment) => segment.startsWith(prefix));
-
-  if (!pair) return '';
-  return decodeURIComponent(pair.slice(prefix.length));
-}
-
-function getUserAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  const token = getCookieToken('userToken') || getCookieToken('token');
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  return headers;
-}
-
 export default function AccountPage() {
   const router = useRouter();
   const {
@@ -150,6 +126,8 @@ export default function AccountPage() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState('');
   const [defaultingAddressId, setDefaultingAddressId] = useState('');
+  const [showDeleteAddressModal, setShowDeleteAddressModal] = useState(false);
+  const [pendingDeleteAddressId, setPendingDeleteAddressId] = useState('');
   const [addressForm, setAddressForm] = useState({
     fullName: '',
     phone: '',
@@ -171,7 +149,7 @@ export default function AccountPage() {
 
   const loadAddresses = useCallback(async () => {
     try {
-      const res = await fetch('/api/address/my', {
+      const res = await fetch('/api/address/user', {
         cache: 'no-store',
         credentials: 'include',
       });
@@ -397,7 +375,7 @@ export default function AccountPage() {
       const endpoint = editingAddressId ? `/api/address/${editingAddressId}` : '/api/address';
       const method = editingAddressId ? 'PUT' : 'POST';
 
-      const res = await fetch(buildApiUrl(endpoint), {
+      const res = await fetch(endpoint, {
         method,
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -420,16 +398,21 @@ export default function AccountPage() {
     }
   };
 
-  const handleDeleteAddress = async (addressId: string) => {
-    const confirmed = window.confirm('Delete this address?');
-    if (!confirmed) return;
+  const handleDeleteAddress = (addressId: string) => {
+    setPendingDeleteAddressId(addressId);
+    setShowDeleteAddressModal(true);
+  };
 
-    setDeletingAddressId(addressId);
+  const confirmDeleteAddress = async () => {
+    if (!pendingDeleteAddressId) return;
+
+    setShowDeleteAddressModal(false);
+    setDeletingAddressId(pendingDeleteAddressId);
     setError('');
     setSuccess('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/address/${addressId}`), {
+      const res = await fetch(`/api/address/${pendingDeleteAddressId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -438,7 +421,7 @@ export default function AccountPage() {
         throw new Error(data.message || 'Failed to delete address');
       }
 
-      const nextAddresses = addresses.filter((item) => item._id !== addressId);
+      const nextAddresses = addresses.filter((item) => item._id !== pendingDeleteAddressId);
       await persistAddresses(nextAddresses);
       await loadAddresses();
       setSuccess('Address deleted successfully');
@@ -446,6 +429,7 @@ export default function AccountPage() {
       setError(err.message || 'Failed to delete address');
     } finally {
       setDeletingAddressId('');
+      setPendingDeleteAddressId('');
     }
   };
 
@@ -458,7 +442,7 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/address/${addressId}`), {
+      const res = await fetch(`/api/address/${addressId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -490,10 +474,10 @@ export default function AccountPage() {
     setSuccess('');
 
     try {
+      console.log("📡 Sending Order ID for cancel:", cancelModalOrderId);
       const res = await fetch(buildApiUrl(`/api/orders/${cancelModalOrderId}/cancel`), {
         method: 'PATCH',
         credentials: 'include',
-        headers: getUserAuthHeaders(),
       });
       const data = await parseResponseBody<{ success?: boolean; message?: string }>(res);
 
@@ -1072,6 +1056,19 @@ export default function AccountPage() {
           if (!open && !cancellingId) setCancelModalOrderId('');
         }}
         onConfirm={handleConfirmCancelOrder}
+      />
+
+      <ConfirmModal
+        open={showDeleteAddressModal}
+        title="Delete Address"
+        description="Are you sure you want to delete this address? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep Address"
+        isLoading={Boolean(deletingAddressId)}
+        onOpenChange={(open) => {
+          if (!open && !deletingAddressId) setShowDeleteAddressModal(false);
+        }}
+        onConfirm={confirmDeleteAddress}
       />
 
       <LogoutConfirmModal

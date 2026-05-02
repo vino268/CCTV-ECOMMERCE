@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { formatINRCurrency } from '@/lib/currency';
+import ConfirmModal from '@/components/confirm-modal';
 import { Ban, Eye, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
@@ -140,6 +141,9 @@ export default function AdminOrdersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -235,7 +239,7 @@ export default function AdminOrdersPage() {
   const handleStatusChange = async (id: string, nextStatus: string) => {
     try {
       setUpdatingId(id);
-      const res = await fetch(buildApiUrl(`/api/admin/orders/${id}`), {
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${id}/status`), {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -243,39 +247,57 @@ export default function AdminOrdersPage() {
       });
       const data = await parseResponseBody<any>(res);
       if (!res.ok) {
-        alert(data.error || 'Failed to update order status');
+        setMessage({ type: 'error', text: data.error || 'Failed to update order status' });
         return;
       }
+      setMessage({ type: 'success', text: 'Order status updated successfully' });
       await fetchOrders();
     } catch (error) {
       console.error('Error updating order status:', error);
+      setMessage({ type: 'error', text: 'Failed to update order status' });
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const handleCancelOrder = async (id: string) => {
-    const confirmed = confirm('Cancel this order? The order will remain in history.');
-    if (!confirmed) return;
+  const handleCancelOrder = (id: string) => {
+    if (!id) {
+      console.error('❌ Order ID missing');
+      setMessage({ type: 'error', text: 'Order ID missing' });
+      return;
+    }
+    setCancelOrderId(id);
+    setShowCancelConfirm(true);
+  };
 
+  const confirmCancelOrder = async () => {
+    if (!cancelOrderId) return;
+
+    setShowCancelConfirm(false);
     try {
-      setCancellingId(id);
-      const res = await fetch(buildApiUrl(`/api/admin/orders/${id}/cancel`), {
+      setCancellingId(cancelOrderId);
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${cancelOrderId}/cancel`), {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Cancelled', source: 'admin' }),
       });
       const data = await parseResponseBody<any>(res);
+
       if (!res.ok) {
-        alert(data.error || data.message || 'Failed to cancel order');
+        console.error('❌ Cancel failed:', data.error || data.message);
+        setMessage({ type: 'error', text: data.error || data.message || 'Failed to cancel order' });
         return;
       }
+
+      setMessage({ type: 'success', text: 'Order cancelled successfully' });
       await fetchOrders();
     } catch (error) {
-      console.error('Error cancelling order:', error);
+      console.error('❌ Error cancelling order:', error);
+      setMessage({ type: 'error', text: 'Failed to cancel order' });
     } finally {
       setCancellingId(null);
+      setCancelOrderId(null);
     }
   };
 
@@ -330,6 +352,12 @@ export default function AdminOrdersPage() {
           <RefreshCw className="w-4 h-4" /> Refresh
         </Button>
       </div>
+
+      {message && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+          {message.text}
+        </div>
+      )}
 
       <div className="bg-white p-4 md:p-5 rounded-xl shadow-sm border space-y-3">
         <div className="relative">
@@ -534,6 +562,19 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={showCancelConfirm}
+        title="Cancel Order"
+        description="Canceling this order will keep it in the system but mark it as cancelled. Do you want to continue?"
+        confirmLabel="Cancel Order"
+        cancelLabel="Keep Order"
+        isLoading={Boolean(cancellingId)}
+        onOpenChange={(open) => {
+          if (!open && !cancellingId) setShowCancelConfirm(false);
+        }}
+        onConfirm={confirmCancelOrder}
+      />
     </div>
   );
 }

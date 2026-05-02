@@ -1,11 +1,13 @@
 export const BASE_URL = (() => {
-  // For localhost dev, support external API server
+  const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  if (envBase) return envBase;
+
+  // Localhost dev fallback: if frontend runs on :3000 and backend on :5000.
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
-    if (envBase) return envBase;
     return 'http://localhost:5000';
   }
-  // Production: use same-origin
+
+  // Default: same-origin
   return '';
 })();
 

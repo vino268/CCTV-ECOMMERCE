@@ -6,19 +6,29 @@ import User from "@/models/User";
 
 function getDateRange(range) {
   const now = new Date();
-  const end = new Date(now);
-  const start = new Date(now);
 
-  if (range === "today") {
-    start.setHours(0, 0, 0, 0);
-    return { start, end };
+  // IST offset in milliseconds (+5:30)
+  const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+  const nowIST = new Date(now.getTime() + IST_OFFSET);
+
+  let startDate = new Date(nowIST);
+
+  if (range === 'today') {
+    startDate.setHours(0, 0, 0, 0);
+  } else if (range === '30days') {
+    startDate.setDate(startDate.getDate() - 29);
+    startDate.setHours(0, 0, 0, 0);
+  } else {
+    // default last 7 days (6 days back + today)
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
   }
 
-  const days = range === "30days" ? 30 : 7;
-  start.setDate(now.getDate() - (days - 1));
-  start.setHours(0, 0, 0, 0);
+  // Convert back to UTC for MongoDB comparisons
+  const startUTC = new Date(startDate.getTime() - IST_OFFSET);
+  const endUTC = new Date(nowIST.getTime() - IST_OFFSET);
 
-  return { start, end };
+  return { startUTC, endUTC };
 }
 
 export async function GET(req) {
@@ -26,40 +36,61 @@ export async function GET(req) {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const range = searchParams.get("range") || "7days";
-    const { start, end } = getDateRange(range);
+    const range = searchParams.get('range') || '7days';
+    const { startUTC, endUTC } = getDateRange(range);
+
+    const filter = {
+      isDeleted: false,
+      createdAt: { $gte: startUTC, $lte: endUTC },
+    };
 
     console.log("Dashboard: Fetching overview data for range:", range);
+    console.log("Dashboard: Filter:", filter);
 
-    const [totalProducts, totalOrders, totalCustomers, revenueAgg] = await Promise.all([
-      Product.countDocuments().catch((err) => {
+    const orders = await Order.find(filter).select("status paymentStatus totalAmount createdAt orderStatus trackingStatus");
+    const totalOrders = orders.length;
+    const deliveredOrders = orders.filter(
+      (o) =>
+        String(o.status || o.orderStatus || o.trackingStatus || "").toLowerCase() === "delivered"
+    ).length;
+    const totalRevenue = orders
+      .filter(
+        (o) =>
+          String(o.paymentStatus || "").toLowerCase() === "paid" ||
+          String(o.status || o.orderStatus || o.trackingStatus || "").toLowerCase() === "delivered"
+      )
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+    console.log("Dashboard: Filtered Orders:", orders.map((o) => ({
+      id: o._id,
+      totalAmount: o.totalAmount,
+      status: o.status,
+      orderStatus: o.orderStatus,
+      trackingStatus: o.trackingStatus,
+      paymentStatus: o.paymentStatus,
+      createdAt: o.createdAt,
+    })));
+    console.log("Dashboard: Total Orders:", totalOrders);
+    console.log("Dashboard: Delivered Orders:", deliveredOrders);
+    console.log("Dashboard: Total Revenue:", totalRevenue);
+
+    const [totalProducts, totalCustomers] = await Promise.all([
+      Product.countDocuments({ createdAt: { $gte: startUTC, $lte: endUTC } }).catch((err) => {
         console.error("Dashboard: countDocuments(Product) error:", err.message);
-        return 0;
-      }),
-      Order.countDocuments().catch((err) => {
-        console.error("Dashboard: countDocuments(Order) error:", err.message);
         return 0;
       }),
       User.countDocuments({ role: "user" }).catch((err) => {
         console.error("Dashboard: countDocuments(User) error:", err.message);
         return 0;
       }),
-      Order.aggregate([
-        { $match: { orderStatus: { $ne: "Cancelled" } } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-      ]).catch((err) => {
-        console.error("Dashboard: revenue aggregate error:", err.message);
-        return [{ total: 0 }];
-      }),
     ]);
-
-    const totalRevenue = revenueAgg?.[0]?.total || 0;
 
     console.log("Dashboard: Data retrieved -", {
       totalProducts,
       totalOrders,
       totalCustomers,
       totalRevenue,
+      deliveredOrders,
     });
 
     return NextResponse.json({
@@ -69,6 +100,7 @@ export async function GET(req) {
         totalOrders,
         totalCustomers,
         totalRevenue,
+        deliveredOrders,
       },
     });
   } catch (error) {

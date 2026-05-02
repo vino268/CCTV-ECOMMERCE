@@ -64,8 +64,9 @@ app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")
 
 try {
   fs.mkdirSync(path.join(__dirname, "uploads", "profile"), { recursive: true });
+  fs.mkdirSync(path.join(__dirname, "uploads", "avatars"), { recursive: true });
 } catch (error) {
-  console.error("Failed to ensure uploads/profile directory:", error);
+  console.error("Failed to ensure uploads directories:", error);
 }
 
 app.get("/", (_req, res) => {

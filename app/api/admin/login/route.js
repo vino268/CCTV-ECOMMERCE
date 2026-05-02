@@ -99,18 +99,7 @@ export async function POST(req) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    // Clear any user session cookies so admin and customer sessions never collide.
-    const clearOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 0,
-    };
-
-    response.cookies.set("token", "", clearOptions);
-    response.cookies.set("userToken", "", clearOptions);
-    response.cookies.set("admin_token", "", clearOptions);
+    // Keep user session cookies intact so admin and customer sessions can coexist.
 
     return response;
   } catch (error) {

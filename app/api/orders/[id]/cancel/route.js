@@ -17,18 +17,48 @@ function normalizeStatus(status) {
 
 async function cancelById(req, params) {
   try {
+    const normalizeOrderId = (value) => {
+      const cleaned = String(value || '').trim();
+      if (!cleaned) return '';
+      const lower = cleaned.toLowerCase();
+      if (lower === 'undefined' || lower === 'null') return '';
+      return cleaned;
+    };
+
+    let id = normalizeOrderId(params?.id);
+    // Fallback: allow clients to PATCH without path param and send { orderId }
+    if (!id) {
+      try {
+        const body = await req.json();
+        id = normalizeOrderId(body?.orderId || body?.id || body?._id);
+      } catch (e) {
+        // ignore JSON parse errors
+      }
+    }
+    console.log('🔍 User cancel order - OrderID:', id);
+
     await connectDB();
 
     const auth = await verifyUser(req);
-    if (!auth.ok) return authError(auth);
+    if (!auth.ok) {
+      console.warn("⚠️  User authentication failed");
+      return authError(auth);
+    }
 
-    const id = String(params?.id || "").trim();
     if (!id) {
-      return NextResponse.json({ success: false, message: "Order ID is required" }, { status: 400 });
+      console.warn('❌ Order ID is missing');
+      return NextResponse.json({ success: false, message: 'Order ID is required' }, { status: 400 });
+    }
+
+    const isValidObjectId = (value) => /^[0-9a-fA-F]{24}$/.test(value);
+    if (!isValidObjectId(id)) {
+      console.warn('❌ Invalid order ID format:', id);
+      return NextResponse.json({ success: false, message: 'Order ID is invalid' }, { status: 400 });
     }
 
     const order = await Order.findOne({ _id: id, isDeleted: false });
     if (!order) {
+      console.warn("⚠️  Order not found or deleted:", id);
       return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 });
     }
 
@@ -41,16 +71,23 @@ async function cancelById(req, params) {
       (Boolean(ownerId) && ownerId === requesterId) ||
       (Boolean(ownerEmail) && ownerEmail === requesterEmail);
 
+    console.log(`👤 Requester: ${requesterEmail || requesterId} | Order Owner: ${ownerEmail || ownerId}`);
+
     if (!isOwner) {
+      console.warn(`❌ Unauthorized cancellation attempt`);
       return NextResponse.json({ success: false, message: "Not your order" }, { status: 403 });
     }
 
     const currentStatus = normalizeStatus(order.status || order.orderStatus || order.trackingStatus);
+    console.log(`✏️  Current status: ${currentStatus} | Target: Cancelled`);
+
     if (["Shipped", "Delivered"].includes(currentStatus)) {
+      console.warn(`⚠️  Cannot cancel ${currentStatus} order`);
       return NextResponse.json({ success: false, message: "Cannot cancel shipped or delivered order" }, { status: 400 });
     }
 
     if (currentStatus === "Cancelled") {
+      console.log(`ℹ️  Order already cancelled, skipping update`);
       return NextResponse.json({ success: false, message: "Order is already cancelled" }, { status: 400 });
     }
 
@@ -61,6 +98,8 @@ async function cancelById(req, params) {
     order.cancelRequested = false;
     order.cancelledAt = new Date();
     await order.save();
+
+    console.log(`✅ Order cancelled successfully by user`);
 
     const orderIdentifier = String(order.orderId || order.orderNumber || order._id || "").trim();
     const displayOrderIdentifier = orderIdentifier.startsWith("#")
@@ -76,13 +115,15 @@ async function cancelById(req, params) {
       isRead: false,
     });
 
+    console.log(`📢 Notification created for order cancellation`);
+
     return NextResponse.json({
       success: true,
       message: "Order cancelled successfully",
       order,
     });
   } catch (error) {
-    console.error("PATCH /api/orders/[id]/cancel error:", error);
+    console.error("❌ PATCH /api/orders/[id]/cancel error:", error);
     return NextResponse.json({ success: false, message: "Failed to cancel order" }, { status: 500 });
   }
 }

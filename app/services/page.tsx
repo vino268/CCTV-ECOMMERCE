@@ -60,7 +60,7 @@ export default function ServicesPage() {
   ];
 
   useEffect(() => {
-    fetch(buildApiUrl('/api/services'))
+    fetch(buildApiUrl('/api/services'), { credentials: 'include' })
       .then((res) => parseResponseBody<any>(res))
       .then((data) => {
         const rows = Array.isArray(data) ? data : [];
@@ -108,6 +108,7 @@ export default function ServicesPage() {
     try {
       const response = await fetch(buildApiUrl('/api/support'), {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

@@ -13,9 +13,36 @@ export async function GET(req) {
   try {
     await connectDB();
 
-    console.log("OrderStatus: Fetching order status distribution");
+    console.log('OrderStatus: Fetching order status distribution');
+
+    const { searchParams } = new URL(req.url);
+    const range = searchParams.get('range') || '7days';
+    // IST-aware range function
+    function getDateRange(range) {
+      const now = new Date();
+      const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+      const nowIST = new Date(now.getTime() + IST_OFFSET);
+
+      let startDate = new Date(nowIST);
+      if (range === 'today') {
+        startDate.setHours(0, 0, 0, 0);
+      } else if (range === '30days') {
+        startDate.setDate(startDate.getDate() - 29);
+        startDate.setHours(0, 0, 0, 0);
+      } else {
+        startDate.setDate(startDate.getDate() - 6);
+        startDate.setHours(0, 0, 0, 0);
+      }
+
+      const startUTC = new Date(startDate.getTime() - IST_OFFSET);
+      const endUTC = new Date(nowIST.getTime() - IST_OFFSET);
+      return { startUTC, endUTC };
+    }
+
+    const { startUTC, endUTC } = getDateRange(range);
 
     const results = await Order.aggregate([
+      { $match: { isDeleted: false, createdAt: { $gte: startUTC, $lte: endUTC } } },
       {
         $group: {
           _id: "$orderStatus",
@@ -23,7 +50,7 @@ export async function GET(req) {
         },
       },
     ]).catch((err) => {
-      console.error("OrderStatus: aggregate error:", err.message);
+      console.error('OrderStatus: aggregate error:', err.message);
       return [];
     });
 

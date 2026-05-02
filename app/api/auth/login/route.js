@@ -96,8 +96,6 @@ export async function POST(req) {
     const cookieOptions = getCookieOptions();
     response.cookies.set("token", token, cookieOptions);
     response.cookies.set("userToken", token, cookieOptions);
-    response.cookies.set("adminToken", "", { ...cookieOptions, maxAge: 0 });
-    response.cookies.set("admin_token", "", { ...cookieOptions, maxAge: 0 });
 
     return response;
   } catch (error) {

@@ -54,6 +54,25 @@ function toPositiveNumber(value, fallback = 0) {
   return Math.max(0, parsed);
 }
 
+function normalizePaymentMethod(value) {
+  const method = toTrimmed(value || "COD");
+  const normalized = method.toLowerCase();
+  if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) {
+    return "COD";
+  }
+  return method || "COD";
+}
+
+function normalizePaymentStatus(value, paymentMethod = "COD") {
+  const raw = toTrimmed(value);
+  const validStatuses = ["Paid", "Unpaid", "Pending", "Refunded"];
+  const matched = validStatuses.find((status) => status.toLowerCase() === raw.toLowerCase());
+  if (matched) {
+    return matched;
+  }
+  return paymentMethod === "COD" ? "Pending" : "Paid";
+}
+
 function buildOrderNumber() {
   return `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -89,8 +108,12 @@ function normalizeOrderStatus(raw) {
 
 async function cancelOrderById(req, res, contextLabel = "") {
   try {
-    const order = await Order.findById(req.params.id);
+    const orderId = String(req.params?.id || "").trim();
+    console.log(`🔍 ${contextLabel} - OrderID:`, orderId);
+
+    const order = await Order.findById(orderId);
     if (!order || order.isDeleted) {
+      console.warn(`⚠️  Order not found or deleted:`, orderId);
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
@@ -100,12 +123,18 @@ async function cancelOrderById(req, res, contextLabel = "") {
       (Boolean(requesterId) && String(order.userId || "").trim() === requesterId) ||
       (Boolean(requesterEmail) && String(order.email || "").trim().toLowerCase() === requesterEmail);
 
+    console.log(`👤 Requester: ${requesterEmail || requesterId} | Order Owner: ${order.email || order.userId}`);
+
     if (!isOwner) {
+      console.warn(`❌ Unauthorized cancellation attempt`);
       return res.status(403).json({ success: false, message: "Not your order" });
     }
 
     const currentStatus = normalizeOrderStatus(order.status || order.trackingStatus || order.orderStatus);
+    console.log(`✏️  Current status: ${currentStatus} | Target: Cancelled`);
+
     if (["Shipped", "Delivered"].includes(currentStatus)) {
+      console.warn(`⚠️  Cannot cancel ${currentStatus} order`);
       return res.status(400).json({
         success: false,
         message: "Cannot cancel shipped or delivered order",
@@ -113,6 +142,7 @@ async function cancelOrderById(req, res, contextLabel = "") {
     }
 
     if (currentStatus === "Cancelled") {
+      console.log(`ℹ️  Order already cancelled, skipping update`);
       return res.status(400).json({
         success: false,
         message: "Order is already cancelled",
@@ -127,6 +157,8 @@ async function cancelOrderById(req, res, contextLabel = "") {
     order.cancelledAt = new Date();
     await order.save();
 
+    console.log(`✅ Order cancelled successfully by user`);
+
     const rawOrderIdentifier = toTrimmed(order.orderId || order.orderNumber || order._id);
     const displayOrderIdentifier = rawOrderIdentifier.startsWith("#")
       ? rawOrderIdentifier
@@ -140,13 +172,15 @@ async function cancelOrderById(req, res, contextLabel = "") {
       isRead: false,
     });
 
+    console.log(`📢 Notification created for order cancellation`);
+
     return res.status(200).json({
       success: true,
       message: "Order cancelled successfully",
       order,
     });
   } catch (error) {
-    console.error(`${contextLabel} cancel order error:`, error);
+    console.error(`❌ ${contextLabel} cancel order error:`, error);
     return res.status(500).json({ success: false, message: "Failed to cancel order" });
   }
 }
@@ -216,6 +250,8 @@ router.post("/buy-now", authenticate, async (req, res) => {
       expiresAt: { $lt: new Date() },
     });
 
+    const paymentMethod = normalizePaymentMethod(req.body?.paymentMethod || req.body?.payment?.method || req.body?.payment?.paymentMethod);
+    const paymentStatus = normalizePaymentStatus(req.body?.paymentStatus || req.body?.payment?.status, paymentMethod);
     const computedTotal = total > 0 ? total : resolvedUnitPrice * quantity;
     let finalizedOrder;
     let createdNewOrder = false;
@@ -569,18 +605,37 @@ router.post("/", authenticate, async (req, res) => {
   try {
     const payloadUser = req.body?.user && typeof req.body.user === "object" ? req.body.user : {};
     const payloadProduct = req.body?.product && typeof req.body.product === "object" ? req.body.product : {};
-    const payloadAddress = req.body?.address && typeof req.body.address === "object" ? req.body.address : {};
+    const payloadAddress = req.body?.address && typeof req.body.address === "object" ? req.body.address : null;
+
+    const productId = toTrimmed(req.body?.productId || payloadProduct.productId);
+    const quantity = toPositiveInteger(req.body?.quantity, 1);
+    const totalAmount = toPositiveNumber(req.body?.totalAmount, toPositiveNumber(req.body?.total, 0));
+
+    if (!productId || !payloadAddress || totalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    const dbProduct = await Product.findById(productId).lean().catch(() => null);
+    if (!dbProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
 
     const user = {
-      name: toTrimmed(payloadUser.name),
+      name: toTrimmed(payloadUser.name || req.user?.name || "Customer"),
       email: toTrimmed(payloadUser.email || req.user?.email).toLowerCase(),
     };
 
     const orderProduct = {
-      productId: toTrimmed(payloadProduct.productId),
-      name: toTrimmed(payloadProduct.name),
-      price: toPositiveNumber(payloadProduct.price, 0),
-      image: toTrimmed(payloadProduct.image),
+      productId,
+      name: toTrimmed(payloadProduct.name || dbProduct?.name || "Product"),
+      price: toPositiveNumber(payloadProduct.price, toPositiveNumber(dbProduct?.price, 0)),
+      image: toTrimmed(payloadProduct.image || dbProduct?.image),
     };
 
     const address = {
@@ -593,8 +648,11 @@ router.post("/", authenticate, async (req, res) => {
       pincode: toTrimmed(payloadAddress.pincode),
     };
 
-    if (!user.email || !orderProduct.productId || !orderProduct.name || !address.fullName || !address.phone || !address.address) {
-      return res.status(400).json({ success: false, message: "user, product and address are required" });
+    if (!user.email || !orderProduct.productId || !address.fullName || !address.phone || !address.address) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
     }
 
     const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
@@ -609,7 +667,12 @@ router.post("/", authenticate, async (req, res) => {
     }).lean();
 
     if (existingOrder) {
-      return res.status(200).json({ success: true, duplicate: true, order: existingOrder });
+      return res.status(200).json({
+        success: true,
+        message: "Order created successfully",
+        duplicate: true,
+        order: existingOrder,
+      });
     }
 
     const newOrder = await Order.create({
@@ -627,11 +690,13 @@ router.post("/", authenticate, async (req, res) => {
       userId: toTrimmed(req.user?.id),
       productId: orderProduct.productId,
       orderNumber: generateOrderId(),
+      quantity,
+      total: Number((orderProduct.price * quantity).toFixed(2)),
       items: [
         {
           name: orderProduct.name,
           price: orderProduct.price,
-          quantity: 1,
+          quantity,
           image: orderProduct.image,
         },
       ],
@@ -641,10 +706,10 @@ router.post("/", authenticate, async (req, res) => {
           productName: orderProduct.name,
           productImage: orderProduct.image,
           productPrice: orderProduct.price,
-          quantity: 1,
+          quantity,
         },
       ],
-      totalAmount: orderProduct.price,
+      totalAmount,
       deliveryDetails: {
         name: address.fullName,
         phone: address.phone,
@@ -676,10 +741,17 @@ router.post("/", authenticate, async (req, res) => {
       orderId: newOrder._id,
     });
 
-    return res.json({ success: true, order: newOrder });
+    return res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      order: newOrder,
+    });
   } catch (error) {
-    console.error("POST /api/orders error:", error);
-    return res.status(500).json({ success: false, error: error.message || "Failed to create order" });
+    console.error("ORDER ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 });
 
@@ -888,6 +960,9 @@ router.put("/:id([0-9a-fA-F]{24})/status", authenticate, requireAdmin, async (re
       cancelledBy: requested === "Cancelled" ? "ADMIN" : null,
       cancelledAt: requested === "Cancelled" ? new Date() : null,
     };
+    if (requested === "Delivered") {
+      update.paymentStatus = "Paid";
+    }
 
     const order = await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).lean();
     if (!order) {
@@ -923,6 +998,23 @@ router.patch("/:id([0-9a-fA-F]{24})/cancel", authenticate, async (req, res) => {
   return cancelOrderById(req, res, "PATCH /api/orders/:id/cancel");
 });
 
+// POST /api/orders/cancel - accept { orderId } in body for clients that send id in JSON
+router.post("/cancel", authenticate, async (req, res) => {
+  try {
+    const orderIdBody = String(req.body?.orderId || req.body?.id || "").trim();
+    if (!orderIdBody) {
+      return res.status(400).json({ success: false, message: "orderId is required in body" });
+    }
+    // route cancel through existing handler by setting params.id
+    req.params = req.params || {};
+    req.params.id = orderIdBody;
+    return cancelOrderById(req, res, "POST /api/orders/cancel");
+  } catch (error) {
+    console.error("POST /api/orders/cancel error:", error);
+    return res.status(500).json({ success: false, message: "Failed to cancel order" });
+  }
+});
+
 // PATCH /api/orders/:id (admin status updates)
 router.patch("/:id([0-9a-fA-F]{24})", authenticate, requireAdmin, async (req, res) => {
   try {
@@ -938,6 +1030,9 @@ router.patch("/:id([0-9a-fA-F]{24})", authenticate, requireAdmin, async (req, re
       cancelledBy: requested === "Cancelled" ? "ADMIN" : null,
       cancelledAt: requested === "Cancelled" ? new Date() : null,
     };
+    if (requested === "Delivered") {
+      update.paymentStatus = "Paid";
+    }
 
     const order = await Order.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).lean();
     if (!order) {

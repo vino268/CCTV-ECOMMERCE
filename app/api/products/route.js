@@ -181,7 +181,7 @@ export async function POST(req) {
     if (hasDisallowedImageInputs(requestBody)) {
       return validationErrorResponse({
         images:
-          "External image URLs are not allowed. Use uploaded images (/uploads/...) or local assets (/products/...).",
+          "Invalid image value. Use a valid http(s) URL, an uploaded image (/uploads/...), or a local asset (/products/...).",
       });
     }
 

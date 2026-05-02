@@ -89,7 +89,7 @@ export default function ContactPage() {
   useEffect(() => {
     const fetchContact = async () => {
       try {
-        const res = await fetch(buildApiUrl('/api/settings'), { cache: 'no-store' });
+        const res = await fetch(buildApiUrl('/api/settings'), { cache: 'no-store', credentials: 'include' });
         const data = await parseResponseBody<any>(res);
 
         if (!res.ok) {

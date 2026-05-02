@@ -2,21 +2,68 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 
+const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
 function getDateRange(range) {
   const now = new Date();
-  const end = new Date(now);
-  const start = new Date(now);
+  const nowIST = new Date(now.getTime() + IST_OFFSET);
 
-  if (range === "today") {
-    start.setHours(0, 0, 0, 0);
-    return { start, end, days: 0 };
+  let startDate = new Date(nowIST);
+
+  if (range === 'today') {
+    startDate.setHours(0, 0, 0, 0);
+  } else if (range === '30days') {
+    startDate.setDate(startDate.getDate() - 29);
+    startDate.setHours(0, 0, 0, 0);
+  } else {
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
   }
 
-  const days = range === "30days" ? 30 : 7;
-  start.setDate(now.getDate() - (days - 1));
-  start.setHours(0, 0, 0, 0);
+  const startUTC = new Date(startDate.getTime() - IST_OFFSET);
+  const endUTC = new Date(nowIST.getTime() - IST_OFFSET);
 
-  return { start, end, days };
+  return { startUTC, endUTC };
+}
+
+function toISTKey(date) {
+  const istDate = new Date(date.getTime() + IST_OFFSET);
+  const year = istDate.getUTCFullYear();
+  const month = String(istDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(istDate.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getExpectedDays(range) {
+  if (range === "today") return 1;
+  if (range === "30days") return 30;
+  return 7;
+}
+
+function getDailySeries(range) {
+  const now = new Date();
+  const nowIST = new Date(now.getTime() + IST_OFFSET);
+  nowIST.setUTCHours(0, 0, 0, 0);
+
+  const totalDays = getExpectedDays(range);
+  const days = [];
+
+  for (let i = totalDays - 1; i >= 0; i -= 1) {
+    const current = new Date(nowIST);
+    current.setUTCDate(current.getUTCDate() - i);
+
+    const key = toISTKey(new Date(current.getTime() - IST_OFFSET));
+    const label =
+      range === "today"
+        ? "Today"
+        : range === "30days"
+        ? current.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+        : current.toLocaleDateString("en-IN", { weekday: "short" });
+
+    days.push({ key, label, amount: 0 });
+  }
+
+  return days;
 }
 
 export async function GET(req) {
@@ -24,24 +71,28 @@ export async function GET(req) {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
-    const range = searchParams.get("range") || "7days";
-    const { start, end, days } = getDateRange(range);
+    const range = searchParams.get('range') || '7days';
+    const { startUTC, endUTC } = getDateRange(range);
 
-    console.log("Revenue: Fetching revenue data for range:", range);
+    const filter = {
+      isDeleted: false,
+      createdAt: { $gte: startUTC, $lte: endUTC },
+      $or: [
+        { paymentStatus: 'Paid' },
+        { status: 'Delivered' },
+      ],
+    };
 
-    const results = await Order.aggregate([
-      {
-        $match: {
-          orderStatus: "Delivered",
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
+    console.log("Revenue Filter:", filter);
+    console.log("Matched Orders:", await Order.find(filter));
+
+    // Aggregate revenue grouped by IST day
+    const grouped = await Order.aggregate([
+      { $match: filter },
       {
         $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          revenue: { $sum: "$totalAmount" },
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Kolkata" } },
+          totalRevenue: { $sum: "$totalAmount" },
         },
       },
       { $sort: { _id: 1 } },
@@ -50,33 +101,33 @@ export async function GET(req) {
       return [];
     });
 
-    console.log("Revenue: Aggregation returned", results.length, "rows");
+    const totalsByDay = new Map(
+      Array.isArray(grouped)
+        ? grouped.map((item) => [String(item._id), Number(item.totalRevenue || 0)])
+        : []
+    );
 
-    // Build array for date range, filling zeros for missing days
-    const data = [];
-    let currentDate = new Date(start);
+    const daily = getDailySeries(range).map((day) => ({
+      label: day.label,
+      amount: totalsByDay.get(day.key) || 0,
+    }));
 
-    while (currentDate <= end) {
-      const key = currentDate.toISOString().slice(0, 10);
-      const label = currentDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
+    const total = daily.reduce((sum, day) => sum + Number(day.amount || 0), 0);
 
-      const found = results.find((r) => r._id === key);
-      data.push({ date: label, revenue: found ? found.revenue : 0 });
-
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    const total = data.reduce((sum, row) => sum + row.revenue, 0);
-
-    console.log("Revenue: Returning data with total:", total);
+    console.log("Revenue: Aggregation returned", grouped.length, "rows");
 
     return NextResponse.json({
       success: true,
       total,
-      data,
+      data: daily,
+      daily,
+      // keep compatibility for existing consumers
+      totalRevenue: total,
+      revenueData: daily.map((day) => ({
+        date: day.label,
+        amount: day.amount,
+        revenue: day.amount,
+      })),
     });
   } catch (error) {
     console.error("Revenue API error:", error?.message || error);
@@ -85,6 +136,7 @@ export async function GET(req) {
         success: true,
         total: 0,
         data: [],
+        daily: [],
       },
       { status: 200 }
     );

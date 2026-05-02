@@ -12,7 +12,7 @@ export async function POST() {
     };
 
     response.cookies.set("token", "", cookieOptions);
-    response.cookies.set("userToken", "", cookieOptions);
+    response.cookies.set("userToken", "", cookieOptions); // Limit logout to user cookies only
 
     return response;
   } catch (error) {

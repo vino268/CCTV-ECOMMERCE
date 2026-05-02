@@ -210,6 +210,13 @@ router.post("/login", async (req, res) => {
     const cookieOptions = getCookieOptions();
     res.cookie("token", token, cookieOptions);
     res.cookie("userToken", token, cookieOptions);
+    // Clear any admin token to avoid cross-role cookie collisions
+    try {
+        // Do not clear adminToken to preserve admin sessions
+        // res.clearCookie("adminToken", clearOptions);
+    } catch (e) {
+      // ignore if clear fails
+    }
 
     return res.json({
       success: true,
@@ -259,6 +266,8 @@ router.post("/logout", (_req, res) => {
   const { maxAge: _ignored, ...clearOptions } = getCookieOptions();
   res.clearCookie("token", clearOptions);
   res.clearCookie("userToken", clearOptions);
+    // Do not clear adminToken to preserve admin sessions
+    // res.clearCookie("adminToken", clearOptions);
   return res.json({ success: true });
 });
 

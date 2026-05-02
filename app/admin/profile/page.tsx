@@ -75,7 +75,7 @@ export default function AdminProfilePage() {
     setName(admin.name || '');
     setEmail(admin.email || '');
     setPhone(admin.phone || '');
-    setAvatarPreview(admin.profileImage || '');
+    setAvatarPreview(admin.profileImage || admin.avatar || '');
   }, [admin?._id]);
 
   const joinedDate = useMemo(() => {
@@ -148,11 +148,32 @@ export default function AdminProfilePage() {
     setAvatarPreview(objectUrl);
   };
 
-  const handleRemoveAvatar = () => {
-    setSelectedAvatarFile(null);
-    setAvatarPreview('');
-    setRemoveAvatarOnSave(true);
-    setProfileMessage(null);
+  const handleRemoveAvatar = async () => {
+    try {
+      const res = await fetchWithAuth('/api/admin/profile/avatar', { method: 'DELETE' });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to remove profile image');
+      }
+
+      setSelectedAvatarFile(null);
+      setAvatarPreview('');
+      setRemoveAvatarOnSave(false);
+      
+      updateAdmin({
+        ...admin,
+        profileImage: '',
+        avatar: '',
+        avatarVersion: Date.now(),
+      });
+
+      setProfileMessage({ type: 'success', text: 'Image removed successfully' });
+    } catch (err: any) {
+      console.error(err);
+      setProfileMessage({ type: 'error', text: err.message || 'Failed to remove profile image' });
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -167,46 +188,27 @@ export default function AdminProfilePage() {
 
       if (selectedAvatarFile) {
         const formData = new FormData();
-        formData.append('profileImage', selectedAvatarFile);
+        formData.append('avatar', selectedAvatarFile);
 
-        const uploadRes = await fetch('/api/profile/image', {
-          method: 'PUT',
-          credentials: 'include',
+        const uploadRes = await fetchWithAuth('/api/admin/profile/image', {
+          method: 'POST',
           body: formData,
         });
 
         const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok || !uploadData?.success) {
+        if (!uploadRes.ok) {
           if (uploadRes.status === 401) {
             throw new Error('Session expired. Please login again.');
           }
           throw new Error(uploadData?.message || 'Failed to upload profile image');
         }
 
-        nextProfileImage = String(uploadData?.profileImage || uploadData?.avatar || uploadData?.admin?.profileImage || '');
+        nextProfileImage = String(uploadData?.avatar || '');
 
         updateAdmin({
+          ...admin,
           profileImage: nextProfileImage,
-          avatarVersion: Date.now(),
-        });
-      } else if (removeAvatarOnSave) {
-        const removeRes = await fetch('/api/profile/image', {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-
-        const removeData = await removeRes.json().catch(() => ({}));
-        if (!removeRes.ok || !removeData?.success) {
-          if (removeRes.status === 401) {
-            throw new Error('Session expired. Please login again.');
-          }
-          throw new Error(removeData?.message || 'Failed to remove profile image');
-        }
-
-        nextProfileImage = '';
-
-        updateAdmin({
-          profileImage: '',
+          avatar: nextProfileImage,
           avatarVersion: Date.now(),
         });
       }
@@ -228,6 +230,7 @@ export default function AdminProfilePage() {
         ...admin,
         ...data.admin,
         profileImage: String(nextProfileImage || ''),
+        avatar: String(nextProfileImage || ''),
         avatarVersion: selectedAvatarFile || removeAvatarOnSave ? Date.now() : admin?.avatarVersion,
       };
       updateAdmin(mergedAdmin);
@@ -237,8 +240,6 @@ export default function AdminProfilePage() {
 
       if (selectedAvatarFile) {
         setProfileMessage({ type: 'success', text: 'Profile and image updated successfully' });
-      } else if (removeAvatarOnSave) {
-        setProfileMessage({ type: 'success', text: 'Profile updated and image removed successfully' });
       } else {
         setProfileMessage({ type: 'success', text: 'Profile updated successfully' });
       }

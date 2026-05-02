@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
+import mongoose from "mongoose";
 
 const ALLOWED_TRANSITIONS = {
   Pending: ["Ordered", "Cancelled"],
@@ -49,8 +50,13 @@ export async function PATCH(req, { params }) {
     }
 
     // Update status fields
+    order.status = status;
     order.orderStatus = status;
     order.trackingStatus = status;
+
+    if (status === "Delivered") {
+      order.paymentStatus = order.paymentStatus === "Refunded" ? "Refunded" : "Paid";
+    }
 
     // Set timestamp for the new status
     const now = new Date();
@@ -83,22 +89,23 @@ export async function PATCH(req, { params }) {
       details: `${order.orderNumber || order._id} → ${status}`,
     });
 
-    // Create notification
-    const notifMessages = {
-      Packed: `Order ${order.orderNumber} has been packed`,
-      Shipped: `Order ${order.orderNumber} has been shipped`,
-      "Out for Delivery": `Order ${order.orderNumber} is out for delivery`,
-      Delivered: `Order ${order.orderNumber} has been delivered`,
-      Cancelled: `Order ${order.orderNumber} has been cancelled`,
-    };
+    const normalizedUserId =
+      order.user && mongoose.Types.ObjectId.isValid(order.user)
+        ? order.user
+        : order.userId && mongoose.Types.ObjectId.isValid(order.userId)
+        ? order.userId
+        : null;
+
+    console.log("Saving notification for:", order._id);
 
     await Notification.create({
       type: status === "Cancelled" ? "CANCELLED" : "STATUS_UPDATED",
       message:
         status === "Cancelled"
-          ? `Order cancelled: ${order.orderId || order.orderNumber || order._id}`
-          : `Order ${order.orderId || order.orderNumber || order._id} moved to ${status}`,
-      orderId: order.orderNumber || "",
+          ? `Order ${order.orderId} cancelled`
+          : `Order ${order.orderId} updated to ${status}`,
+      orderId: order._id,
+      userId: normalizedUserId,
     });
 
     return NextResponse.json({ success: true, order });

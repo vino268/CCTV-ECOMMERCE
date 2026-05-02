@@ -94,12 +94,12 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ["Paid", "Unpaid", "Refunded"],
-    default: "Paid",
+    enum: ["Paid", "Unpaid", "Pending", "Refunded"],
+    default: "Unpaid",
   },
   orderStatus: {
     type: String,
-    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Confirmed", "Packed", "Shipped", "OutForDelivery", "Out for Delivery", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   trackingStatus: {
@@ -109,7 +109,7 @@ const OrderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   cancelledBy: {
@@ -193,7 +193,23 @@ function generateOrderId() {
   return `#TN-${Date.now()}-${rand}`;
 }
 
-OrderSchema.pre("validate", function ensureOrderId(next) {
+function normalizeOrderStatus(value) {
+  if (!value || typeof value !== "string") return "Ordered";
+  const normalized = value.trim();
+  if (normalized === "Confirmed") return "Packed";
+  if (normalized === "OutForDelivery") return "Out for Delivery";
+  if (["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"].includes(normalized)) return normalized;
+  return "Ordered";
+}
+
+OrderSchema.pre("validate", function ensureOrderId() {
+  if (!this.status || typeof this.status !== "string" || !this.status.trim()) {
+    this.status = normalizeOrderStatus(this.orderStatus);
+  }
+
+  if (this.orderStatus === "OutForDelivery") {
+    this.orderStatus = "Out for Delivery";
+  }
   if ((!this.items || this.items.length === 0) && this.products && this.products.length > 0) {
     this.items = this.products.map((item) => ({
       name: String(item?.productName || "").trim(),
@@ -241,7 +257,6 @@ OrderSchema.pre("validate", function ensureOrderId(next) {
   if (!String(this.orderId || "").trim()) {
     this.orderId = generateOrderId();
   }
-  next();
 });
 
 OrderSchema.index({ orderId: 1 }, { unique: true });

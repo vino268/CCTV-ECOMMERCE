@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import ConfirmModal from '@/components/confirm-modal';
 import { ArrowLeft, Check, Loader2, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { parseResponseBody } from '@/lib/http-response';
@@ -32,6 +33,8 @@ export default function MyAddressPage() {
   const [editingAddress, setEditingAddress] = useState<AddressItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState('');
   const [settingDefaultId, setSettingDefaultId] = useState('');
 
   const [form, setForm] = useState({
@@ -51,7 +54,7 @@ export default function MyAddressPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/address/my', {
+      const res = await fetch('/api/address/user', {
         cache: 'no-store',
         credentials: 'include',
       });
@@ -156,14 +159,20 @@ export default function MyAddressPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure?')) return;
+  const handleDelete = (id: string) => {
+    setPendingDeleteId(id);
+    setShowDeleteModal(true);
+  };
 
-    setDeletingId(id);
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+
+    setShowDeleteModal(false);
+    setDeletingId(pendingDeleteId);
     setError('');
 
     try {
-      const res = await fetch(`/api/address/${id}`, {
+      const res = await fetch(`/api/address/${pendingDeleteId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -173,12 +182,13 @@ export default function MyAddressPage() {
         throw new Error(data.message || 'Failed to delete address');
       }
 
-      setAddresses((prev) => prev.filter((item) => item._id !== id));
+      setAddresses((prev) => prev.filter((item) => item._id !== pendingDeleteId));
       setToast('Address deleted');
     } catch (err: any) {
       setError(err.message || 'Failed to delete address');
     } finally {
       setDeletingId('');
+      setPendingDeleteId('');
     }
   };
 
@@ -400,6 +410,21 @@ export default function MyAddressPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showDeleteModal && (
+        <ConfirmModal
+          open={showDeleteModal}
+          title="Delete Address"
+          description="Are you sure you want to delete this address? This action cannot be undone."
+          confirmLabel="Delete"
+          cancelLabel="Keep Address"
+          isLoading={Boolean(deletingId)}
+          onOpenChange={(open) => {
+            if (!open && !deletingId) setShowDeleteModal(false);
+          }}
+          onConfirm={confirmDelete}
+        />
       )}
 
       {toast && (

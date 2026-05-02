@@ -154,34 +154,59 @@ export default function AccountOrdersPage() {
   }, [router, authLoading, isAuthenticated, user?._id, user?.email]);
 
   const handleCancelOrder = (orderId: string) => {
-    setCancelModalOrderId(orderId);
+    const normalizedOrderId = String(orderId || '').trim();
+    if (!normalizedOrderId || ['undefined', 'null'].includes(normalizedOrderId.toLowerCase())) {
+      console.error('❌ Invalid order ID provided for cancel flow', orderId);
+      showError('Unable to cancel order. Please try again.');
+      return;
+    }
+    setCancelModalOrderId(normalizedOrderId);
   };
 
   const handleConfirmCancelOrder = async () => {
-    if (!cancelModalOrderId) return;
+    const normalizedOrderId = String(cancelModalOrderId || '').trim();
+    if (!normalizedOrderId) {
+      console.error('❌ Order ID missing before cancel request');
+      showError('Order ID is required to cancel this order.');
+      setCancelModalOrderId('');
+      return;
+    }
 
-    setCancellingId(cancelModalOrderId);
+    setCancellingId(normalizedOrderId);
     setError('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/orders/${cancelModalOrderId}/cancel`), {
+      const endpoint = buildApiUrl(`/api/orders/${encodeURIComponent(normalizedOrderId)}/cancel`);
+      console.log('📡 Cancelling order at:', endpoint);
+
+      const res = await fetch(endpoint, {
         method: 'PATCH',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: normalizedOrderId }),
       });
+
+      console.log('📥 Response status:', res.status);
       const data = await parseResponseBody<{ success?: boolean; message?: string; order?: Partial<AccountOrder> }>(res);
+      console.log('📥 Response data:', data);
 
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to cancel order');
+        const errorMsg = data.message || 'Failed to cancel order';
+        console.error('❌ Cancel failed:', errorMsg);
+        throw new Error(errorMsg);
       }
+
+      console.log('✅ Order cancelled successfully');
 
       setOrders((prev) =>
         prev.map((order) =>
-          order._id === cancelModalOrderId ? { ...order, ...data.order } : order
+          (order._id || order.id) === normalizedOrderId ? { ...order, ...data.order } : order
         )
       );
-      showSuccess(data.message || 'Order status updated successfully');
+      showSuccess(data.message || 'Order cancelled successfully');
     } catch (err: any) {
       const message = err.message || 'Failed to cancel order';
+      console.error('❌ Error:', message);
       setError(message);
       showError(message);
     } finally {

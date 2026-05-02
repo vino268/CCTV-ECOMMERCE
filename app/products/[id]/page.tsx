@@ -12,7 +12,6 @@ import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check, X, Chevron
 import { useAuth } from '@/lib/contexts/auth-context';
 import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
-import { buildApiUrl } from '@/lib/http-response';
 
 export default function ProductDetailPage({
   params,
@@ -23,7 +22,7 @@ export default function ProductDetailPage({
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [currentImage, setCurrentImage] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -37,28 +36,28 @@ export default function ProductDetailPage({
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const res = await fetch(buildApiUrl(`/api/products/${encodeURIComponent(id)}`), { cache: 'no-store' });
+        setError(false);
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { cache: 'no-store' });
         if (!res.ok) {
-          setLoading(false);
-          setNotFound(true);
-          return;
+          throw new Error('Product not found');
         }
+
         const data = await res.json().catch(() => ({}));
         const productData: Product | null = (data?.product || null) as Product | null;
 
         if (!productData) {
-          setLoading(false);
-          setNotFound(true);
-          return;
+          throw new Error('Product not found');
         }
 
         setProduct(productData);
         setCurrentImage(0);
-        const relatedProducts = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
-        setRelatedProducts(relatedProducts);
+        const related = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
+        setRelatedProducts(related);
       } catch (err) {
         console.error('Error fetching product:', err);
-        setNotFound(true);
+        setError(true);
+        setProduct(null);
+        setRelatedProducts([]);
       } finally {
         setLoading(false);
       }
@@ -103,14 +102,12 @@ export default function ProductDetailPage({
     );
   }
 
-  if (notFound || !product) {
+  if (error || !product) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center px-6">
           <h1 className="text-2xl font-bold text-foreground mb-4">Product Not Found</h1>
-          <Link href="/products">
-            <Button>Browse Products</Button>
-          </Link>
+          <Button onClick={() => router.push('/products')}>Browse Products</Button>
         </div>
       </div>
     );
@@ -134,11 +131,11 @@ export default function ProductDetailPage({
 
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push(`/login?redirect=${encodeURIComponent(`/checkout?productId=${productId}`)}`);
+      router.push(`/login?redirect=/checkout?productId=${productId}`);
       return;
     }
 
-    router.push(`/checkout?productId=${encodeURIComponent(productId)}`);
+    router.push(`/checkout?productId=${productId}`);
   };
 
   const hasSpecs = product.specs && Object.keys(product.specs).length > 0;

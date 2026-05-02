@@ -8,7 +8,7 @@ import { ArrowLeft, CheckCircle2, Plus, RefreshCw, Upload, X } from 'lucide-reac
 import { formatPrice } from '@/lib/currency';
 import { buildApiUrl } from '@/lib/http-response';
 
-type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'features', string>>;
+type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'imageUrl' | 'features', string>>;
 
 interface CategoryItem {
   _id: string;
@@ -61,10 +61,41 @@ export default function AddProductPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageNames, setImageNames] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
+
+  const uploadImageFile = async (file: File): Promise<string> => {
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const maxSizeBytes = 5 * 1024 * 1024;
+
+    if (!allowedTypes.has(file.type)) {
+      throw new Error('Only JPG, PNG, and WEBP images are allowed.');
+    }
+
+    if (file.size > maxSizeBytes) {
+      throw new Error('Each image must be 5MB or less.');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(buildApiUrl('/api/products/upload-image'), {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.imageUrl) {
+      throw new Error(data.error || 'Failed to upload image');
+    }
+
+    return data.imageUrl as string;
+  };
 
   const isFormSubmittable = useMemo(() => {
     return (
@@ -194,6 +225,11 @@ export default function AddProductPage() {
     if (!form.category.trim()) nextErrors.category = 'Category is required.';
     if (!form.description.trim()) nextErrors.description = 'Description is required.';
 
+    const trimmedImageUrl = imageUrl.trim();
+    if (trimmedImageUrl && !/^https?:\/\//i.test(trimmedImageUrl)) {
+      nextErrors.imageUrl = 'Invalid image URL. It must start with http or https.';
+    }
+
     return nextErrors;
   };
 
@@ -207,26 +243,33 @@ export default function AddProductPage() {
     try {
       setIsSubmitting(true);
 
-      const formData = new FormData();
-      formData.append('name', form.name.trim());
-      formData.append('sku', form.sku.trim());
-      formData.append('price', String(Number(form.price)));
-      formData.append('category', form.category.trim());
-      formData.append('description', form.description.trim());
-      formData.append('inStock', 'true');
-      formData.append('features', JSON.stringify(features));
+      const uploadedImageUrls = images.length > 0
+        ? await Promise.all(images.map((file) => uploadImageFile(file)))
+        : [];
 
-      for (let i = 0; i < images.length; i += 1) {
-        formData.append('images', images[i]);
-      }
-
-      // Mandatory debug log to ensure request uses file objects.
-      console.log(images);
+      const trimmedImageUrl = imageUrl.trim();
+      const finalImage = uploadedImageUrls[0] || trimmedImageUrl;
+      const finalImages = uploadedImageUrls.length > 0
+        ? uploadedImageUrls
+        : trimmedImageUrl
+          ? [trimmedImageUrl]
+          : [];
 
       const res = await fetch(buildApiUrl('/api/products'), {
         method: 'POST',
         credentials: 'include',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          sku: form.sku.trim(),
+          price: Number(form.price),
+          category: form.category.trim(),
+          description: form.description.trim(),
+          inStock: true,
+          features,
+          images: finalImages,
+          image: finalImage,
+        }),
       });
 
       const result = await res.json().catch(() => ({}));
@@ -240,6 +283,7 @@ export default function AddProductPage() {
           price: result?.fieldErrors?.price || prev.price,
           category: result?.fieldErrors?.category || prev.category,
           description: result?.fieldErrors?.description || prev.description,
+          images: result?.fieldErrors?.images || prev.images,
         }));
         return;
       }
@@ -448,6 +492,21 @@ export default function AddProductPage() {
         <Card className="p-6 border border-border">
           <h2 className="text-lg font-semibold mb-4">Image Upload</h2>
 
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1.5">Image URL</label>
+            <input
+              type="text"
+              placeholder="Enter image URL"
+              value={imageUrl}
+              onChange={(e) => {
+                setImageUrl(e.target.value);
+                if (errors.imageUrl) setErrors((prev) => ({ ...prev, imageUrl: undefined }));
+              }}
+              className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            {errors.imageUrl && <p className="mt-1 text-xs text-red-600">{errors.imageUrl}</p>}
+          </div>
+
           <div
             className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
               isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/20'
@@ -481,7 +540,7 @@ export default function AddProductPage() {
           </div>
 
           <p className="mt-3 text-xs text-muted-foreground">
-            Use only uploaded files. External image URLs are blocked.
+            You can upload images and/or paste an Image URL.
           </p>
 
           {imageNames.length > 0 && (

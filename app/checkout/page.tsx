@@ -67,6 +67,19 @@ export default function CheckoutPage() {
   const isBuyNowFlow = Boolean(buyNowProductId || buyNowOrderId);
   const isBuyNowProductFlow = Boolean(buyNowProductId);
 
+  // If the URL indicates a buy-now product flow but no productId is present,
+  // show a friendly message instead of a blank page.
+  if (isBuyNowProductFlow && !buyNowProductId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold">No product selected</h2>
+          <p className="text-sm text-muted-foreground">Please go back and select a product to checkout.</p>
+        </div>
+      </div>
+    );
+  }
+
   // Auth guard + one-time auto-fill from user profile
   useEffect(() => {
     if (authLoading) return;
@@ -77,11 +90,11 @@ export default function CheckoutPage() {
         hasUser: Boolean(user),
       });
       const redirectPath = isBuyNowProductFlow && buyNowProductId
-        ? `/checkout?productId=${encodeURIComponent(buyNowProductId)}`
+        ? `/checkout?productId=${buyNowProductId}`
         : isBuyNowFlow && buyNowOrderId
-          ? `/checkout?orderId=${encodeURIComponent(buyNowOrderId)}`
+          ? `/checkout?orderId=${buyNowOrderId}`
           : '/checkout';
-      router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
+      router.push(`/login?redirect=${redirectPath}`);
       return;
     }
 
@@ -293,6 +306,7 @@ export default function CheckoutPage() {
       const productId = String(buyNowOrder?.productId || buyNowProductId).trim();
       const quantity = Number(buyNowOrder?.quantity || 1);
       const unitPrice = Number(buyNowOrder?.product?.price || 0);
+      const computedTotalAmount = Number((unitPrice * quantity).toFixed(2));
 
       if (!productId || !user?.email) {
         throw new Error('Unable to finalize order. Please try again.');
@@ -301,28 +315,9 @@ export default function CheckoutPage() {
       const orderData = {
         productId,
         quantity,
-        totalAmount: Number(total.toFixed(2)),
-        user: {
-          name: String(user?.name || formData.fullName || 'Customer').trim(),
-          email: String(user?.email || formData.email || '').trim(),
-        },
-        product: {
-          productId,
-          name: buyNowOrder?.product?.name || 'Product',
-          price: Number(unitPrice.toFixed(2)),
-          image: buyNowOrder?.product?.image || '',
-        },
+        totalAmount: computedTotalAmount,
         address: {
           fullName: formData.fullName,
-          phone: formData.phone,
-          email: formData.email,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-        },
-        deliveryDetails: {
-          name: formData.fullName,
           phone: formData.phone,
           email: formData.email,
           address: formData.address,
@@ -335,30 +330,45 @@ export default function CheckoutPage() {
       console.log('Sending address:', formData);
       console.log('Sending order:', orderData);
 
-      const createRes = await fetch(buildApiUrl('/api/orders/buy-now'), {
+      const createRes = await fetch(buildApiUrl('/api/orders'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
       });
 
-      if (!createRes.ok) {
-        const createError = await parseResponseBody<any>(createRes);
-        console.error('API ERROR:', createError);
-        showError(createError?.message || 'Order failed. Please try again.');
+      const createResClone = createRes.clone();
+      const data = await parseResponseBody<any>(createRes);
+      const responseText = !data || Object.keys(data).length === 0
+        ? await createResClone.text().catch(() => '')
+        : '';
+      const contentType = (createRes.headers.get('content-type') || '').toLowerCase();
+      console.log('Response:', data);
+
+      if (!createRes.ok || !data?.success) {
+        const normalizedMessage =
+          data?.message ||
+          data?.error ||
+          (createRes.status === 401 ? 'Please login to place order' : '') ||
+          (createRes.status === 403 ? 'You are not allowed to place an order' : '') ||
+          (createRes.status === 404 ? 'Order API route not found' : '') ||
+          (responseText && contentType.includes('text/html')
+            ? `Server returned HTML instead of JSON (status ${createRes.status})`
+            : '') ||
+          `Order failed (status ${createRes.status})`;
+
+        console.error('ORDER ERROR:', {
+          status: createRes.status,
+          ok: createRes.ok,
+          contentType,
+          data,
+          responsePreview: responseText.slice(0, 200),
+        });
+        showError(normalizedMessage);
         return;
       }
 
-      const createPayload = await parseResponseBody<any>(createRes);
-      console.log('RESPONSE:', createPayload);
-
-      if (!createPayload?.success || !createPayload?.order?._id) {
-        console.error('Invalid response:', createPayload);
-        showError('Order not created properly');
-        return;
-      }
-
-      const createdOrderId = String(createPayload?.order?._id || '').trim();
+      const createdOrderId = String(data?.order?._id || '').trim();
       if (!createdOrderId) {
         showError('Order not created properly');
         return;

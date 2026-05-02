@@ -57,6 +57,7 @@ interface DeliveryDetails {
 
 interface Order {
   _id: string;
+  id?: string;
   orderId?: string;
   orderNumber: string;
   status?: string;
@@ -306,13 +307,25 @@ export default function OrderDetailsPage() {
   const handleConfirmCancelOrder = async () => {
     if (!order) return;
 
+    const cancelOrderId = String(order._id || order.id || '').trim();
+    if (!cancelOrderId || ['undefined', 'null'].includes(cancelOrderId.toLowerCase())) {
+      const message = 'Unable to cancel order: invalid order identifier.';
+      console.error('❌', message, order);
+      setError(message);
+      setToast({ type: 'error', message });
+      setShowCancelModal(false);
+      return;
+    }
+
     setCancelling(true);
     setError('');
 
     try {
-      const res = await fetch(buildApiUrl(`/api/orders/${order._id}/cancel`), {
+      const res = await fetch(buildApiUrl(`/api/orders/${encodeURIComponent(cancelOrderId)}/cancel`), {
         method: 'PATCH',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: cancelOrderId }),
       });
       const data = await parseResponseBody<any>(res);
 

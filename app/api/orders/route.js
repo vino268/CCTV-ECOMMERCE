@@ -3,9 +3,46 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import Notification from "@/models/Notification";
 import User from "@/models/User";
+import Product from "@/models/Product";
+import { authError, verifyUser } from "@/app/api/address/_helpers";
 
 function buildUniqueOrderId() {
   return `#TN-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+function toTrimmed(value) {
+  return String(value || "").trim();
+}
+
+function normalizePaymentMethod(value) {
+  const method = toTrimmed(value || "COD");
+  const normalized = method.toLowerCase();
+  if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) {
+    return "COD";
+  }
+  return method || "COD";
+}
+
+function normalizePaymentStatus(value, paymentMethod = "COD") {
+  const raw = toTrimmed(value);
+  const validStatuses = ["Paid", "Unpaid", "Pending", "Refunded"];
+  const matched = validStatuses.find((status) => status.toLowerCase() === raw.toLowerCase());
+  if (matched) {
+    return matched;
+  }
+  return paymentMethod === "COD" ? "Pending" : "Paid";
+}
+
+function toPositiveNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, parsed);
+}
+
+function toPositiveInteger(value, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.floor(parsed));
 }
 
 // GET /api/orders — return all orders or user-specific orders
@@ -72,60 +109,99 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     await connectDB();
+    const auth = await verifyUser(req);
+    if (!auth.ok) return authError(auth);
+
     const body = await req.json();
 
-    const user = {
-      name: String(body?.user?.name || '').trim(),
-      email: String(body?.user?.email || '').trim().toLowerCase(),
-    };
-    const product = {
-      productId: String(body?.product?.productId || '').trim(),
-      name: String(body?.product?.name || '').trim(),
-      price: Number(body?.product?.price || 0),
-      image: String(body?.product?.image || '').trim(),
-    };
+    const productId = toTrimmed(body?.productId || body?.product?.productId);
+    const quantity = toPositiveInteger(body?.quantity, 1);
+    const totalAmountFromBody = toPositiveNumber(body?.totalAmount, toPositiveNumber(body?.total, 0));
+
+    const payloadAddress = body?.address && typeof body.address === "object" ? body.address : null;
+    if (!productId || !payloadAddress || totalAmountFromBody <= 0) {
+      return NextResponse.json(
+        { success: false, message: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
     const address = {
-      fullName: String(body?.address?.fullName || '').trim(),
-      phone: String(body?.address?.phone || '').trim(),
-      email: String(body?.address?.email || user.email || '').trim(),
-      address: String(body?.address?.address || '').trim(),
-      city: String(body?.address?.city || '').trim(),
-      state: String(body?.address?.state || '').trim(),
-      pincode: String(body?.address?.pincode || '').trim(),
+      fullName: toTrimmed(payloadAddress?.fullName || payloadAddress?.name),
+      phone: toTrimmed(payloadAddress?.phone),
+      email: toTrimmed(payloadAddress?.email || auth.email),
+      address: toTrimmed(payloadAddress?.address),
+      city: toTrimmed(payloadAddress?.city),
+      state: toTrimmed(payloadAddress?.state),
+      pincode: toTrimmed(payloadAddress?.pincode),
     };
 
-    if (!user.email || !product.productId || !product.name || !address.fullName || !address.phone || !address.address) {
-      return NextResponse.json({ success: false, message: 'user, product and address are required' }, { status: 400 });
+    if (!address.fullName || !address.phone || !address.address) {
+      return NextResponse.json(
+        { success: false, message: "Missing required fields" },
+        { status: 400 }
+      );
     }
+
+    const productDoc = await Product.findById(productId).lean().catch(() => null);
+    if (!productDoc) {
+      return NextResponse.json(
+        { success: false, message: "Product not found" },
+        { status: 404 }
+      );
+    }
+
+    const userDoc = await User.findById(auth.userId).select("name email").lean();
+    const user = {
+      name: toTrimmed(body?.user?.name || userDoc?.name || address.fullName || "Customer"),
+      email: toTrimmed(body?.user?.email || userDoc?.email || auth.email).toLowerCase(),
+    };
+
+    const paymentMethod = normalizePaymentMethod(body?.paymentMethod || body?.payment?.method || body?.payment?.paymentMethod);
+    const paymentStatus = normalizePaymentStatus(body?.paymentStatus || body?.payment?.status, paymentMethod);
+
+    const product = {
+      productId,
+      name: toTrimmed(body?.product?.name || productDoc?.name || "Product"),
+      price: toPositiveNumber(body?.product?.price, toPositiveNumber(productDoc?.price, 0)),
+      image: toTrimmed(body?.product?.image || productDoc?.image),
+    };
 
     const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
     const existingOrder = await Order.findOne({
       isDeleted: false,
       createdAt: { $gte: duplicateWindowStart },
       email: user.email,
+      userId: toTrimmed(auth.userId),
       productId: product.productId,
-      'address.fullName': address.fullName,
-      'address.phone': address.phone,
-      'address.address': address.address,
+      "address.fullName": address.fullName,
+      "address.phone": address.phone,
+      "address.address": address.address,
     });
 
     if (existingOrder) {
-      return NextResponse.json({ success: true, duplicate: true, order: existingOrder });
+      return NextResponse.json({
+        success: true,
+        message: "Order created successfully",
+        duplicate: true,
+        order: existingOrder,
+      }, { status: 201 });
     }
 
     const orderCode = buildUniqueOrderId();
     const newOrder = await Order.create({
       orderId: orderCode,
       orderNumber: orderCode,
-      user,
-      product,
       address,
-      status: 'Ordered',
-      paymentStatus: 'Unpaid',
+      status: "Ordered",
+      paymentMethod,
+      paymentStatus,
 
       // Compatibility fields
-      userId: '',
+      userId: toTrimmed(auth.userId),
       productId: product.productId,
+      quantity,
+      total: Number((product.price * quantity).toFixed(2)),
       customerName: user.name || address.fullName,
       email: user.email,
       phone: address.phone,
@@ -133,7 +209,7 @@ export async function POST(req) {
         {
           name: product.name,
           price: product.price,
-          quantity: 1,
+          quantity,
           image: product.image,
         },
       ],
@@ -143,15 +219,15 @@ export async function POST(req) {
           productName: product.name,
           productImage: product.image,
           productPrice: product.price,
-          quantity: 1,
+          quantity,
         },
       ],
-      totalAmount: Number(product.price || 0),
-      orderStatus: 'Ordered',
-      trackingStatus: 'Ordered',
+      totalAmount: Number(totalAmountFromBody.toFixed(2)),
+      orderStatus: "Ordered",
+      trackingStatus: "Ordered",
       deliveryInfo: {
         firstName: address.fullName,
-        lastName: '',
+        lastName: "",
         email: address.email,
         phone: address.phone,
         street: address.address,
@@ -171,14 +247,21 @@ export async function POST(req) {
     });
 
     await Notification.create({
-      type: 'ORDER_CREATED',
+      type: "ORDER_CREATED",
       message: `New order placed: ${newOrder.orderId}`,
-      orderId: newOrder.orderId,
+      title: "New Order",
     });
 
-    return NextResponse.json({ success: true, order: newOrder });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Order created successfully",
+        order: newOrder,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error('POST /api/orders error:', error);
-    return NextResponse.json({ success: false, message: 'Failed to create order' }, { status: 500 });
+    console.error("ORDER ERROR:", error?.message || error);
+    return NextResponse.json({ success: false, message: error?.message || "Server error" }, { status: 500 });
   }
 }

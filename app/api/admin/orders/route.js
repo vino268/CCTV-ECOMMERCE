@@ -1,0 +1,30 @@
+import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import Order from "@/models/Order";
+import { verifyAdmin, adminAuthError } from "@/app/api/admin/_helpers";
+
+export async function GET(req) {
+  try {
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) return adminAuthError(auth);
+
+    await connectDB();
+
+    const orders = await Order.find({ isDeleted: false })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log("Admin Orders Fetched:", orders.length);
+
+    return NextResponse.json({
+      success: true,
+      orders,
+    });
+  } catch (error) {
+    console.error("GET /api/admin/orders error:", error);
+    return NextResponse.json(
+      { success: false, message: "Failed to fetch orders" },
+      { status: 500 }
+    );
+  }
+}

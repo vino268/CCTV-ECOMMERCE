@@ -33,12 +33,11 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('');
 
   const getSafeRedirectPath = () => {
-    const redirectParam = searchParams.get('redirect');
-    if (!redirectParam) return '/';
+    const redirect = searchParams.get('redirect') || '/';
 
     // Allow only same-origin absolute paths.
-    if (redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
-      return redirectParam;
+    if (redirect.startsWith('/') && !redirect.startsWith('//')) {
+      return redirect;
     }
 
     return '/';

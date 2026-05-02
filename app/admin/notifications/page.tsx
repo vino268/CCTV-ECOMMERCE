@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Bell, ShoppingCart, UserPlus, Loader2, CheckCheck, User, Trash2, X } from 'lucide-react';
+import ConfirmModal from '@/components/confirm-modal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 import { fetchWithAuth } from '@/utils/api';
@@ -43,6 +44,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState('');
+  const [showClearNotificationsModal, setShowClearNotificationsModal] = useState(false);
   const [error, setError] = useState('');
 
   const fetchNotifications = async (skipLoader = false) => {
@@ -125,9 +127,11 @@ export default function NotificationsPage() {
   };
 
   const clearAllNotifications = async () => {
-    const confirmed = window.confirm('Delete all notifications permanently?');
-    if (!confirmed) return;
+    setShowClearNotificationsModal(true);
+  };
 
+  const confirmClearAllNotifications = async () => {
+    setShowClearNotificationsModal(false);
     setActionId('all');
     setError('');
 
@@ -259,6 +263,19 @@ export default function NotificationsPage() {
           })}
         </div>
       )}
+
+      <ConfirmModal
+        open={showClearNotificationsModal}
+        title="Delete All Notifications"
+        description="This will permanently remove all notifications. Are you sure you want to continue?"
+        confirmLabel="Clear All"
+        cancelLabel="Keep Notifications"
+        isLoading={actionId === 'all'}
+        onOpenChange={(open) => {
+          if (!open && !actionId) setShowClearNotificationsModal(false);
+        }}
+        onConfirm={confirmClearAllNotifications}
+      />
     </div>
   );
 }

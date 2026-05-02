@@ -118,12 +118,16 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const identifier = String(req.params.id || "").trim();
-    const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
     const projection = "name sku slug price description image images features category inStock createdAt updatedAt";
 
-    const product = isObjectId
-      ? await Product.findById(identifier).select(projection).lean()
-      : await Product.findOne({ slug: identifier }).select(projection).lean();
+    if (!identifier || !mongoose.Types.ObjectId.isValid(identifier)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    const product = await Product.findById(identifier).select(projection).lean();
 
     if (!product) {
       return res.status(404).json({
@@ -161,7 +165,7 @@ router.post("/", upload.array("images", 5), async (req, res) => {
     console.log("POST /api/products body:", req.body);
     console.log("POST /api/products files:", req.files);
 
-    const { name, price, description, sku, category, inStock, features } = req.body || {};
+    const { name, price, description, sku, category, inStock, features, image } = req.body || {};
 
     const trimmedName = String(name || "").trim();
     if (!trimmedName) {
@@ -174,8 +178,31 @@ router.post("/", upload.array("images", 5), async (req, res) => {
     }
 
     const imagePaths = Array.isArray(req.files)
-      ? req.files.map((file) => `/uploads/${file.filename}`)
+      ? req.files.map((file) => {
+          const filename = String(file?.filename || "").trim();
+          if (!filename) return "";
+
+          // Mirror to Next public folder so frontend can load it via same-origin `/uploads/...`.
+          try {
+            const sourcePath = path.join(process.cwd(), "uploads", filename);
+            const publicDir = path.join(process.cwd(), "public", "uploads");
+            const targetPath = path.join(publicDir, filename);
+            fs.mkdirSync(publicDir, { recursive: true });
+            fs.copyFileSync(sourcePath, targetPath);
+          } catch (copyError) {
+            console.error("Failed to mirror upload to public/uploads:", copyError);
+          }
+
+          return `/uploads/${filename}`;
+        }).filter(Boolean)
       : [];
+
+    const trimmedImageUrl = String(image || "").trim();
+    if (trimmedImageUrl) {
+      if (!/^https?:\/\//i.test(trimmedImageUrl)) {
+        return res.status(400).json({ error: "Invalid image URL" });
+      }
+    }
 
     let normalizedFeatures = [];
     if (Array.isArray(features)) {
@@ -202,8 +229,8 @@ router.post("/", upload.array("images", 5), async (req, res) => {
       sku: String(sku || "").trim().toUpperCase(),
       category: String(category || "").trim(),
       inStock: String(inStock || "").toLowerCase() !== "false",
-      images: imagePaths,
-      image: imagePaths[0] || "",
+      images: imagePaths.length > 0 ? imagePaths : trimmedImageUrl ? [trimmedImageUrl] : [],
+      image: imagePaths[0] || trimmedImageUrl || "",
       features: normalizedFeatures,
     });
 

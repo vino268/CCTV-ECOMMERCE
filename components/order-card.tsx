@@ -102,7 +102,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const showSupportActions = !isOrderPlaced;
 
   const activeTimelineIndex = getTimelineActiveStep(normalizedStatus);
-  const orderId = order._id || order.id;
+  const orderId = order._id || order.id || '';
   const displayOrderId = order.orderId || order.orderNumber || order._id;
 
   const firstProduct = order.products?.[0];
@@ -223,8 +223,8 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
                 variant="destructive"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => onCancel(order._id)}
-                disabled={isCancelling}
+                onClick={() => onCancel(orderId)}
+                disabled={!orderId || isCancelling}
               >
                 {isCancelling ? (
                   <>
@@ -244,8 +244,8 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
               <Button
                 size="sm"
                 className="gap-1.5 bg-yellow-500 text-white hover:bg-yellow-600"
-                onClick={() => onCancel(order._id)}
-                disabled={isCancelling}
+                onClick={() => onCancel(orderId)}
+                disabled={!orderId || isCancelling}
               >
                 {isCancelling ? (
                   <>

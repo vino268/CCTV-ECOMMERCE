@@ -41,7 +41,7 @@ export function Footer() {
   };
 
   useEffect(() => {
-    fetch(buildApiUrl('/api/settings'))
+    fetch(buildApiUrl('/api/settings'), { credentials: 'include' })
       .then((r) => parseResponseBody(r))
      .then((data: any) => {
 const payload = data?.data || data;

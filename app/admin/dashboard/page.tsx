@@ -27,8 +27,13 @@ const OrdersStatusChart = dynamic(() => import('@/components/admin/OrdersStatusC
 });
 
 interface RevenuePoint {
-  date: string;
-  revenue: number;
+  label: string;
+  amount: number;
+}
+
+interface RevenueState {
+  total: number;
+  data: RevenuePoint[];
 }
 
 interface OrderStatusDistribution {
@@ -119,7 +124,7 @@ export default function AdminDashboard() {
     totalCustomers: 0,
     totalRevenue: 0,
   });
-  const [revenueData, setRevenueData] = useState<RevenuePoint[]>([]);
+  const [revenue, setRevenue] = useState<RevenueState>({ total: 0, data: [] });
   const [statusData, setStatusData] = useState<OrderStatusDistribution>({
     ordered: 0,
     packed: 0,
@@ -166,11 +171,12 @@ export default function AdminDashboard() {
 
       const rangeQuery = `?range=${selectedRange === 1 ? 'today' : selectedRange === 30 ? '30days' : '7days'}`;
 
-      console.log('Fetching revenue...');
+      console.log('Selected Range:', selectedRange, 'query:', rangeQuery);
+      console.log('Fetching dashboard data...');
 
       const [dashboardResult, revenueResult, orderStatusResult, latestOrdersResult, latestCustomersResult] = await Promise.all([
         fetchJsonSafe<{ data?: { totalProducts?: number; totalOrders?: number; totalCustomers?: number; totalRevenue?: number } }>(`/api/admin/dashboard${rangeQuery}`),
-        fetchJsonSafe<{ total?: number; data?: Array<{ date?: unknown; revenue?: unknown }> }>(`/api/admin/revenue${rangeQuery}`),
+        fetchJsonSafe<{ total?: unknown; totalRevenue?: unknown; data?: Array<{ label?: unknown; amount?: unknown }>; daily?: Array<{ label?: unknown; amount?: unknown }>; revenueData?: Array<{ date?: unknown; amount?: unknown; revenue?: unknown }> }>(`/api/admin/revenue${rangeQuery}`),
         fetchJsonSafe<OrderStatusDistribution>(`/api/admin/order-status${rangeQuery}`),
         fetchJsonSafe<{ success?: boolean; orders?: Array<Record<string, unknown>> }>('/api/admin/latest-orders'),
         fetchJsonSafe<{ success?: boolean; users?: Array<Record<string, unknown>> }>('/api/admin/latest-customers'),
@@ -187,14 +193,37 @@ export default function AdminDashboard() {
           ? (dashboardPayload.data || {})
           : {};
 
-      const normalizedRevenue = Array.isArray(revenuePayload?.data)
-        ? revenuePayload.data
-            .map((entry) => ({
-              date: String(entry?.date || ''),
-              revenue: Number(entry?.revenue || 0),
-            }))
-            .filter((entry) => Boolean(entry.date))
+      console.log('Dashboard Data:', dashboardPayload);
+      console.log('Revenue Data:', revenuePayload);
+
+      const rawRevenueArray = Array.isArray((revenuePayload as any)?.data)
+        ? (revenuePayload as any).data
+        : Array.isArray((revenuePayload as any)?.daily)
+        ? (revenuePayload as any).daily
+        : Array.isArray((revenuePayload as any)?.revenueData)
+        ? (revenuePayload as any).revenueData
+        : Array.isArray((revenuePayload as any)?.data)
+        ? (revenuePayload as any).data
         : [];
+
+      const normalizedRevenue = Array.isArray(rawRevenueArray)
+        ? rawRevenueArray
+            .map((entry: any) => ({
+              label: String(entry?.label || entry?.date || entry?._id || ''),
+              amount: Number(entry?.amount ?? entry?.revenue ?? entry?.totalRevenue ?? 0),
+            }))
+            .filter((entry) => Boolean(entry.label))
+        : [];
+
+      const revenueValue = Number(
+        revenuePayload?.total ||
+          (revenuePayload as any)?.totalRevenue ||
+          (revenuePayload && (revenuePayload as any).data && (revenuePayload as any).data.totalRevenue) ||
+          dashboardData.totalRevenue ||
+          0
+      );
+
+      setRevenue({ total: revenueValue, data: normalizedRevenue });
 
       const statusSource = (orderStatusPayload || {}) as Partial<OrderStatusDistribution>;
       const latestOrdersSource =
@@ -228,15 +257,18 @@ export default function AdminDashboard() {
           }))
         : [];
 
+      console.log('Dashboard Data:', dashboardPayload);
+      console.log('Revenue Data:', revenuePayload);
+
       setOverview((prev) => ({
         ...prev,
         totalProducts: Number(dashboardData.totalProducts || 0),
         totalOrders: Number(dashboardData.totalOrders || 0),
         totalCustomers: Number(dashboardData.totalCustomers || 0),
-        totalRevenue: Number(revenuePayload?.total || dashboardData.totalRevenue || 0),
+        totalRevenue: revenueValue,
       }));
 
-      setRevenueData(normalizedRevenue);
+      console.log('Chart Data:', normalizedRevenue);
       setStatusData({
         ordered: Number(statusSource.ordered || 0),
         packed: Number(statusSource.packed || 0),
@@ -376,9 +408,10 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <RevenueChart
-          data={revenueData}
+          data={revenue.data}
           loading={loading}
-          subtitle={range === 1 ? 'Today' : range === 30 ? 'Last 30 days' : 'Last 7 days'}
+          total={revenue.total}
+          range={range === 1 ? 'Today' : range === 30 ? 'Last 30 Days' : 'Last 7 Days'}
         />
         <OrdersStatusChart
           data={statusData}
