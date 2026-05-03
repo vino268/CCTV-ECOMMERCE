@@ -4,7 +4,7 @@ import path from "path";
 
 export const runtime = "nodejs";
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function extensionFromType(type) {
@@ -30,7 +30,7 @@ export async function POST(req) {
     }
 
     if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json({ error: "Image size must be 5MB or less" }, { status: 400 });
+      return NextResponse.json({ error: "Image size must be 10MB or less" }, { status: 400 });
     }
 
     const ext = extensionFromType(file.type);

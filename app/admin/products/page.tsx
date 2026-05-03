@@ -12,6 +12,7 @@ import { getSafeImageSrc } from '@/lib/product-image';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import { useToast } from '@/hooks/use-toast';
 import { buildApiUrl } from '@/lib/http-response';
+import imageCompression from 'browser-image-compression';
 
 interface AddFormData {
   sku: string;
@@ -224,18 +225,37 @@ export default function AdminProductsPage() {
 
   const uploadImageFile = async (file: File): Promise<string> => {
     const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-    const maxSizeBytes = 5 * 1024 * 1024;
+    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
 
     if (!allowedTypes.has(file.type)) {
       throw new Error('Only JPG, PNG, and WEBP images are allowed.');
     }
 
-    if (file.size > maxSizeBytes) {
-      throw new Error('Each image must be 5MB or less.');
+    let fileToUpload = file;
+
+    // Compress image
+    if (file.type.startsWith('image/')) {
+      try {
+        const options = {
+          maxSizeMB: 5,
+          maxWidthOrHeight: 800,
+          useWebWorker: true,
+          initialQuality: 0.7,
+        };
+        console.log(`Compressing ${file.name}...`);
+        fileToUpload = await imageCompression(file, options);
+        console.log(`Compressed ${file.name} from ${file.size} to ${fileToUpload.size}`);
+      } catch (err) {
+        console.error('Compression failed, using original file', err);
+      }
+    }
+
+    if (fileToUpload.size > maxSizeBytes) {
+      throw new Error('Each image must be 10MB or less.');
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
 
     const res = await fetch(buildApiUrl('/api/products/upload-image'), {
       method: 'POST',

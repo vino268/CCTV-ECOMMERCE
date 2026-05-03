@@ -6,7 +6,7 @@ import Admin from "@/models/Admin";
 import User from "@/models/User";
 import { verifyAdmin } from "@/app/api/admin/_helpers";
 
-const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png"]);
 
 function extensionFromType(type) {
@@ -62,7 +62,7 @@ export async function POST(req) {
 
     if (file.size > MAX_SIZE_BYTES) {
       return NextResponse.json(
-        { success: false, message: "Image size must be 2MB or less" },
+        { success: false, message: "Image size must be 10MB or less" },
         { status: 400 }
       );
     }

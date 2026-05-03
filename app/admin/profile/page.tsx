@@ -21,6 +21,7 @@ import { fetchWithAuth } from '@/utils/api';
 import { toProfileImageUrl } from '@/lib/profile-image-url';
 import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 import { useRouter } from 'next/navigation';
+import imageCompression from 'browser-image-compression';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
@@ -183,8 +184,8 @@ export default function AdminProfilePage() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setProfileMessage({ type: 'error', text: 'Image size must be 2MB or less' });
+    if (file.size > 10 * 1024 * 1024) {
+      setProfileMessage({ type: 'error', text: 'Image size must be 10MB or less' });
       return;
     }
 
@@ -235,8 +236,29 @@ export default function AdminProfilePage() {
       let nextProfileImage = admin?.profileImage || '';
 
       if (selectedAvatarFile) {
+        let fileToUpload = selectedAvatarFile;
+
+        // Compress image
+        try {
+          const options = {
+            maxSizeMB: 2,
+            maxWidthOrHeight: 500,
+            useWebWorker: true,
+            initialQuality: 0.7,
+          };
+          console.log(`Compressing profile image...`);
+          fileToUpload = await imageCompression(selectedAvatarFile, options);
+          console.log(`Compressed from ${selectedAvatarFile.size} to ${fileToUpload.size}`);
+        } catch (err) {
+          console.error('Compression failed', err);
+        }
+
+        if (fileToUpload.size > 10 * 1024 * 1024) {
+          throw new Error('Image size must be 10MB or less after compression');
+        }
+
         const formData = new FormData();
-        formData.append('avatar', selectedAvatarFile);
+        formData.append('avatar', fileToUpload);
 
         const uploadRes = await fetchWithAuth('/api/admin/profile/image', {
           method: 'POST',
