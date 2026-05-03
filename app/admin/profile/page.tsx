@@ -32,6 +32,8 @@ interface AdminProfile {
   phone: string;
   role: string;
   profileImage?: string | null;
+  avatar?: string | null;
+  avatarVersion?: number;
   createdAt: string;
 }
 
