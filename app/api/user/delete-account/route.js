@@ -38,8 +38,8 @@ export async function DELETE(req) {
         { status: 200 }
       );
 
-      await revokeAuthSession(req, "user").catch(() => null);
-      alreadyDeletedResponse.cookies.set("user_session", "", getClearSessionCookieOptions("user"));
+      await revokeAuthSession("user").catch(() => null);
+      alreadyDeletedResponse.cookies.set("user_session", "", getClearSessionCookieOptions());
 
       return alreadyDeletedResponse;
     }
@@ -64,8 +64,8 @@ export async function DELETE(req) {
       message: "Your account has been successfully deleted",
     });
 
-    await revokeAuthSession(req, "user").catch(() => null);
-    response.cookies.set("user_session", "", getClearSessionCookieOptions("user"));
+    await revokeAuthSession("user").catch(() => null);
+    response.cookies.set("user_session", "", getClearSessionCookieOptions());
 
     return response;
   } catch (error) {

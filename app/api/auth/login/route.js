@@ -67,7 +67,7 @@ export async function POST(req) {
     });
 
     const cookieStore = await cookies();
-    cookieStore.set(getSessionCookieName("user"), token, getSessionCookieOptions("user"));
+    cookieStore.set(getSessionCookieName("user"), token, getSessionCookieOptions());
 
     return response;
   } catch (error) {
