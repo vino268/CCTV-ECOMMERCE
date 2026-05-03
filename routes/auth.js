@@ -1,68 +1,36 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const createNotification = require("../utils/createNotification");
 
 const router = express.Router();
 
-function parseCookieValue(cookieHeader, name) {
-  if (!cookieHeader) return "";
-  const segments = String(cookieHeader).split(";");
-  for (const segment of segments) {
-    const [rawKey, ...rest] = segment.split("=");
-    if (String(rawKey || "").trim() === name) {
-      return decodeURIComponent(rest.join("=").trim());
-    }
-  }
-  return "";
+async function loadSessionAuth() {
+  return import("../lib/auth-session.js");
 }
 
-function getTokenFromRequest(req) {
-  // Prefer parsed cookies from cookie-parser when available (req.cookies)
+async function authenticate(req, res, next) {
   try {
-    const cookieToken = String(req.cookies?.token || req.cookies?.userToken || req.cookies?.adminToken || "").trim();
-    if (cookieToken) return cookieToken;
-  } catch (e) {
-    // ignore and fallback to header parsing
-  }
+    const { verifyAuthSession } = await loadSessionAuth();
+    const auth = await verifyAuthSession(req, "user");
 
-  const authHeader = String(req.headers.authorization || "").trim();
-  if (authHeader.toLowerCase().startsWith("bearer ")) {
-    return authHeader.slice(7).trim();
-  }
-
-  const cookieHeader = req.headers.cookie || "";
-  return (
-    parseCookieValue(cookieHeader, "token") ||
-    parseCookieValue(cookieHeader, "userToken") ||
-    parseCookieValue(cookieHeader, "adminToken")
-  );
-}
-
-function authenticate(req, res, next) {
-  if (!process.env.JWT_SECRET) {
-    return res.status(500).json({ success: false, message: "Server configuration error" });
-  }
-
-  const token = getTokenFromRequest(req);
-  if (!token) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
-  }
-
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = {
-      id: String(payload?.id || payload?.userId || ""),
-      email: String(payload?.email || ""),
-      role: String(payload?.role || "user"),
-    };
-
-    if (!req.user.id) {
+    if (!auth.ok) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
+    const userId = String(auth.payload?.id || auth.payload?.userId || "");
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    req.user = {
+      id: userId,
+      email: String(auth.payload?.email || ""),
+      role: String(auth.payload?.role || "user"),
+    };
+
     return next();
-  } catch {
+  } catch (error) {
+    console.error("authenticate error:", error);
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 }
@@ -73,17 +41,6 @@ function requireAdmin(req, res, next) {
   }
 
   return next();
-}
-
-function getCookieOptions() {
-  const isProduction = process.env.NODE_ENV === "production";
-  return {
-    httpOnly: true,
-    sameSite: isProduction ? "none" : "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  };
 }
 
 // POST /api/auth/register
@@ -183,10 +140,6 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ success: false, message: "Admins must login from admin panel" });
     }
 
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ success: false, message: "Server configuration error" });
-    }
-
     const userData = {
       _id: user._id,
       name: user.name,
@@ -197,26 +150,14 @@ router.post("/login", async (req, res) => {
       role: user.role,
     };
 
-    const token = jwt.sign(
-      {
-        id: String(user._id),
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const { createAuthSession, getSessionCookieName, getSessionCookieOptions } = await loadSessionAuth();
+    const { token } = await createAuthSession({
+      userId: user._id,
+      role: "user",
+      email: user.email,
+    });
 
-    const cookieOptions = getCookieOptions();
-    res.cookie("token", token, cookieOptions);
-    res.cookie("userToken", token, cookieOptions);
-    // Clear any admin token to avoid cross-role cookie collisions
-    try {
-        // Do not clear adminToken to preserve admin sessions
-        // res.clearCookie("adminToken", clearOptions);
-    } catch (e) {
-      // ignore if clear fails
-    }
+    res.cookie(getSessionCookieName("user"), token, getSessionCookieOptions("user"));
 
     return res.json({
       success: true,
@@ -262,13 +203,16 @@ router.get("/me", authenticate, async (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post("/logout", (_req, res) => {
-  const { maxAge: _ignored, ...clearOptions } = getCookieOptions();
-  res.clearCookie("token", clearOptions);
-  res.clearCookie("userToken", clearOptions);
-    // Do not clear adminToken to preserve admin sessions
-    // res.clearCookie("adminToken", clearOptions);
-  return res.json({ success: true });
+router.post("/logout", async (req, res) => {
+  try {
+    const { revokeAuthSession, getClearSessionCookieOptions, getSessionCookieName } = await loadSessionAuth();
+    await revokeAuthSession(req, "user").catch(() => null);
+    res.cookie(getSessionCookieName("user"), "", getClearSessionCookieOptions("user"));
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("POST /api/auth/logout error:", error);
+    return res.status(500).json({ success: false, message: "Logout failed" });
+  }
 });
 
 module.exports = router;

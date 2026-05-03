@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { verifyUser, authError } from "@/app/api/address/_helpers";
+import { getClearSessionCookieOptions, revokeAuthSession } from "@/lib/auth-session";
 
 export async function DELETE(req) {
   try {
@@ -37,14 +38,8 @@ export async function DELETE(req) {
         { status: 200 }
       );
 
-      alreadyDeletedResponse.cookies.set("userToken", "", {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 0,
-        expires: new Date(0),
-      });
+      await revokeAuthSession(req, "user").catch(() => null);
+      alreadyDeletedResponse.cookies.set("user_session", "", getClearSessionCookieOptions("user"));
 
       return alreadyDeletedResponse;
     }
@@ -69,14 +64,8 @@ export async function DELETE(req) {
       message: "Your account has been successfully deleted",
     });
 
-    response.cookies.set("userToken", "", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
-    });
+    await revokeAuthSession(req, "user").catch(() => null);
+    response.cookies.set("user_session", "", getClearSessionCookieOptions("user"));
 
     return response;
   } catch (error) {

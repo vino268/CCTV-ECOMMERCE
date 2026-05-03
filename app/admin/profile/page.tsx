@@ -20,6 +20,7 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { toProfileImageUrl } from '@/lib/profile-image-url';
 import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
+import { useRouter } from 'next/navigation';
 
 const inputClass =
   'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors';
@@ -38,8 +39,9 @@ function getInitial(name?: string, email?: string) {
   return (name || email || 'A').charAt(0).toUpperCase();
 }
 
+
 export default function AdminProfilePage() {
-  const { admin, loading: adminLoading, refreshAdmin, updateAdmin } = useAdminAuth();
+  const { setAdmin: setGlobalAdmin } = useAdminAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -64,28 +66,72 @@ export default function AdminProfilePage() {
     confirmPassword?: string;
   }>({});
 
-  useEffect(() => {
-    if (!adminLoading && !admin?._id) {
-      void refreshAdmin();
+  const [profile, setProfile] = useState<AdminProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch("/api/admin/profile", {
+        method: "GET",
+        credentials: "include"
+      });
+
+      const data = await res.json();
+      console.log("Profile API response:", data);
+
+      if (data.success) {
+        setProfile(data.data);
+        setGlobalAdmin(data.data);
+      } else {
+        window.location.href = "/admin/login";
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }, [admin?._id, adminLoading, refreshAdmin]);
+  };
 
   useEffect(() => {
-    if (!admin) return;
-    setName(admin.name || '');
-    setEmail(admin.email || '');
-    setPhone(admin.phone || '');
-    setAvatarPreview(admin.profileImage || admin.avatar || '');
-  }, [admin?._id]);
+    fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    setName(profile.name || '');
+    setEmail(profile.email || '');
+    setPhone(profile.phone || '');
+    setAvatarPreview(profile.profileImage || '');
+  }, [profile]);
 
   const joinedDate = useMemo(() => {
-    if (!admin?.createdAt) return 'N/A';
-    return new Date(admin.createdAt).toLocaleDateString('en-IN', {
+    if (!profile?.createdAt) return 'N/A';
+    return new Date(profile.createdAt).toLocaleDateString('en-IN', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
     });
-  }, [admin?.createdAt]);
+  }, [profile?.createdAt]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary mr-2" />
+        <p className="text-muted-foreground">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Unable to load admin profile.</p>
+      </div>
+    );
+  }
+
+  const admin = profile; // Alias for backward compatibility in the rest of the file
 
   const validateProfile = () => {
     const nextErrors: { email?: string; phone?: string } = {};
@@ -162,7 +208,7 @@ export default function AdminProfilePage() {
       setAvatarPreview('');
       setRemoveAvatarOnSave(false);
       
-      updateAdmin({
+      setGlobalAdmin({
         ...admin,
         profileImage: '',
         avatar: '',
@@ -205,7 +251,7 @@ export default function AdminProfilePage() {
 
         nextProfileImage = String(uploadData?.avatar || '');
 
-        updateAdmin({
+        setGlobalAdmin({
           ...admin,
           profileImage: nextProfileImage,
           avatar: nextProfileImage,
@@ -233,7 +279,7 @@ export default function AdminProfilePage() {
         avatar: String(nextProfileImage || ''),
         avatarVersion: selectedAvatarFile || removeAvatarOnSave ? Date.now() : admin?.avatarVersion,
       };
-      updateAdmin(mergedAdmin);
+      setGlobalAdmin(mergedAdmin);
       setSelectedAvatarFile(null);
       setRemoveAvatarOnSave(false);
       setAvatarPreview('');
@@ -282,21 +328,6 @@ export default function AdminProfilePage() {
     }
   };
 
-  if (adminLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
-      </div>
-    );
-  }
-
-  if (!admin) {
-    return (
-      <div className="flex items-center justify-center py-20 text-gray-500">
-        Unable to load admin profile.
-      </div>
-    );
-  }
 
   const displayAvatar = removeAvatarOnSave ? '' : avatarPreview || admin?.profileImage || '';
   const displayAvatarSrc = toProfileImageUrl(displayAvatar, admin?.avatarVersion);

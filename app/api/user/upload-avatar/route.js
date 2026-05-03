@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { jwtVerify } from "jose";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import { verifyAuthSession } from "@/lib/auth-session";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png"]);
@@ -16,15 +16,15 @@ function extensionFromType(type) {
 // POST /api/user/upload-avatar
 export async function POST(req) {
   try {
+    const auth = await verifyAuthSession(req, "user");
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
+    }
+
     await connectDB();
 
     const formData = await req.formData();
     const file = formData.get("file");
-    const email = String(formData.get("email") || "").toLowerCase().trim();
-
-    if (!email) {
-      return NextResponse.json({ success: false, message: "Email is required" }, { status: 400 });
-    }
 
     if (!file || typeof file === "string") {
       return NextResponse.json({ success: false, message: "Image file is required" }, { status: 400 });
@@ -44,7 +44,8 @@ export async function POST(req) {
       );
     }
 
-    const user = await User.findOne({ email }).select("_id");
+    const userId = String(auth.payload?.userId || auth.payload?.id || "");
+    const user = await User.findById(userId).select("_id");
     if (!user) {
       return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
     }
@@ -81,18 +82,12 @@ export async function POST(req) {
 // DELETE /api/user/upload-avatar
 export async function DELETE(req) {
   try {
-    const token = req.cookies.get("userToken")?.value;
-    if (!token) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const auth = await verifyAuthSession(req, "user");
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const userId = String(payload.userId || payload.id || "");
-
-    if (!userId) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-    }
+    const userId = String(auth.payload?.userId || auth.payload?.id || "");
 
     await connectDB();
     const user = await User.findByIdAndUpdate(

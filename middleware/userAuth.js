@@ -1,33 +1,43 @@
-const jwt = require("jsonwebtoken");
-
-function getUserToken(req) {
-  try {
-    const cookieToken = String(req.cookies?.userToken || req.cookies?.token || "").trim();
-    if (cookieToken) return cookieToken;
-  } catch (e) {
-    // ignore
-  }
-
-  const authHeader = String(req.headers.authorization || "").trim();
-  if (authHeader.toLowerCase().startsWith("bearer ")) return authHeader.slice(7).trim();
-
-  const cookieHeader = req.headers.cookie || "";
-  const match = cookieHeader.match(/(?:^|; )userToken=([^;]+)/);
-  if (match) return decodeURIComponent(match[1]);
-  return "";
+async function loadSessionAuth() {
+  return import("../lib/auth-session.js");
 }
 
-module.exports = (req, res, next) => {
-  const token = getUserToken(req);
-  if (!token) return res.status(401).json({ message: "User not logged in" });
+async function loadUserModel() {
+  const { default: User } = await import("../models/User.js");
+  return User;
+}
 
+module.exports = async (req, res, next) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { verifyAuthSession } = await loadSessionAuth();
+    const auth = await verifyAuthSession(req, "user");
+
+    if (!auth.ok) {
+      return res.status(401).json({ message: "User not logged in" });
+    }
+
+    const userId = String(auth.payload?.id || auth.payload?.userId || "");
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid session" });
+    }
+
+    const User = await loadUserModel();
+    const user = await User.findById(userId).select("-password");
+
+    if (!user || user.isDeleted) {
+      return res.status(401).json({ message: "Invalid session" });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({ message: "User blocked" });
+    }
+
     req.user = {
-      id: String(decoded?.id || decoded?.userId || ""),
-      email: String(decoded?.email || ""),
-      role: String(decoded?.role || "user"),
+      id: String(user._id),
+      email: String(user.email || ""),
+      role: String(user.role || "user"),
     };
+
     return next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });

@@ -2,14 +2,13 @@ export const BASE_URL = (() => {
   const envBase = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
   if (envBase) return envBase;
 
-  // Localhost dev fallback: if frontend runs on :3000 and backend on :5000.
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '3000') {
-    return 'http://localhost:5000';
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
   }
 
-  // Default: same-origin
-  return '';
+  return 'http://localhost:3000';
 })();
+
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, '/');

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import SiteSettings from "@/models/SiteSettings";
 import AdminLog from "@/models/AdminLog";
-import { jwtVerify } from "jose";
+import { verifyAuthSession } from "@/lib/auth-session";
 
 const ALLOWED_ORIGINS = ["http://localhost:3000", "https://tnautomation.in", "https://www.tnautomation.in"];
 
@@ -47,21 +47,7 @@ function isValidHttpsUrl(value) {
 }
 
 async function verifyAdmin(request) {
-  const token = request.cookies.get("token")?.value || request.cookies.get("adminToken")?.value;
-  if (!token) {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
-
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    if (payload.role !== "admin") {
-      return { ok: false, status: 403, message: "Forbidden" };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, status: 401, message: "Unauthorized" };
-  }
+  return verifyAuthSession(request, "admin");
 }
 
 // GET /api/settings — return the single site-settings document (create default if missing)

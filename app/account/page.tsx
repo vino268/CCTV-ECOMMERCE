@@ -222,8 +222,10 @@ export default function AccountPage() {
       setAuthChecking(false);
       return;
     }
-
     setAuthChecking(false);
+    // Guard to prevent double execution in StrictMode or when deps change rapidly
+    if ((loadDashboard as any)._called) return;
+    (loadDashboard as any)._called = true;
     loadDashboard();
   }, [loadDashboard, router, authLoading, isAuthenticated, authUser?.email]);
 

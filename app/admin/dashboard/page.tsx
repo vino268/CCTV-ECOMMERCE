@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -310,7 +310,11 @@ export default function AdminDashboard() {
     }
   }, [fetchJsonSafe]);
 
+  const analyticsCalledRef = useRef(false);
+
   useEffect(() => {
+    if (analyticsCalledRef.current) return;
+    analyticsCalledRef.current = true;
     fetchAnalytics(range, true);
   }, [fetchAnalytics, range]);
 

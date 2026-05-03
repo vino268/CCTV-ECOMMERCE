@@ -7,6 +7,7 @@ import { User, KeyRound, HelpCircle, Settings, LogOut, ChevronDown } from 'lucid
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
 import { parseResponseBody } from '@/lib/http-response';
 import { fetchWithAuth } from '@/utils/api';
+import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 
 export default function AdminAccountMenu() {
   const [open, setOpen] = useState(false);
@@ -17,27 +18,12 @@ export default function AdminAccountMenu() {
 
   // Get admin info from backend
   const [adminName, setAdminName] = useState('A');
+  const { admin } = useAdminAuth();
+
   useEffect(() => {
-    const loadAdmin = async () => {
-      try {
-        const res = await fetchWithAuth('/api/admin/profile', {
-          method: 'GET',
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const data = await parseResponseBody<{ admin?: { name?: string; email?: string } }>(res);
-        const admin = data?.admin;
-        if (admin) {
-          setAdminName(admin.name || admin.email?.charAt(0)?.toUpperCase() || 'A');
-        }
-      } catch {
-        // Ignore profile fetch issues here.
-      }
-
-    };
-
-    loadAdmin();
-  }, []);
+    if (!admin) return;
+    setAdminName(admin.name || admin.email?.charAt(0)?.toUpperCase() || 'A');
+  }, [admin?.name, admin?.email]);
 
   // Close on outside click
   useEffect(() => {

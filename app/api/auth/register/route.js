@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Notification from "@/models/Notification";
@@ -13,14 +14,14 @@ export async function POST(req) {
     const password = String(data?.password || "");
 
     if (!name || !email || !password) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, error: "Name, email, and password are required" },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, error: "Password must be at least 6 characters" },
         { status: 400 }
       );
@@ -32,7 +33,7 @@ export async function POST(req) {
     console.log("User found:", existingUser ? existingUser.email : null);
 
     if (existingUser) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, error: "Email already registered" },
         { status: 409 }
       );
@@ -57,7 +58,7 @@ export async function POST(req) {
       isRead: false,
     });
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: true,
         message: "Account created successfully",
@@ -72,7 +73,7 @@ export async function POST(req) {
     );
   } catch (error) {
     console.error("Register API error:", error);
-    return Response.json(
+    return NextResponse.json(
       { success: false, error: "Failed to create account" },
       { status: 500 }
     );

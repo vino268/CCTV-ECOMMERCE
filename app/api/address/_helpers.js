@@ -1,57 +1,48 @@
-import { jwtVerify } from "jose";
 import { NextResponse } from "next/server";
 import User from "@/models/User";
+import { verifyAuthSession } from "@/lib/auth-session";
 
 export async function verifyUser(request) {
-  const cookieToken = request.cookies.get("userToken")?.value;
-  const authHeader = request.headers.get("authorization") || "";
-  const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const token = cookieToken || bearerToken;
-  if (!token) {
+  const auth = await verifyAuthSession(request, "user");
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const tokenUserId = String(auth.payload?.id || auth.payload?.userId || "").trim();
+  if (!tokenUserId) {
     return { ok: false, status: 401, message: "Unauthorized" };
   }
 
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "");
-    const { payload } = await jwtVerify(token, secret);
-    const tokenUserId = String(payload?.userId || payload?.id || "").trim();
-    const tokenRole = String(payload?.role || "").trim().toLowerCase();
+  const user = await User.findById(tokenUserId).select("_id email isBlocked isDeleted role");
+  if (!user) {
+    return { ok: false, status: 401, message: "Unauthorized" };
+  }
 
-    if (!tokenUserId || (tokenRole && tokenRole !== "user")) {
-      return { ok: false, status: 403, message: "Forbidden" };
-    }
-
-    const user = await User.findById(tokenUserId).select("_id email isBlocked isDeleted");
-    if (!user) {
-      return { ok: false, status: 401, message: "Unauthorized" };
-    }
-
-    if (user.isDeleted) {
-      return {
-        ok: false,
-        status: 403,
-        message: "Your account has been deleted",
-      };
-    }
-
-    if (user.isBlocked) {
-      return {
-        ok: false,
-        status: 403,
-        message: "Your account has been blocked. Please contact support.",
-      };
-    }
-
+  if (user.isDeleted) {
     return {
-      ok: true,
-      userId: String(user._id),
-      email: String(user.email || payload?.email || "").toLowerCase(),
+      ok: false,
+      status: 403,
+      message: "Your account has been deleted",
     };
-  } catch {
-    return { ok: false, status: 401, message: "Unauthorized" };
   }
+
+  if (user.isBlocked) {
+    return {
+      ok: false,
+      status: 403,
+      message: "Your account has been blocked. Please contact support.",
+    };
+  }
+
+  if (String(user.role || "").toLowerCase() !== "user") {
+    return { ok: false, status: 403, message: "Forbidden" };
+  }
+
+  return {
+    ok: true,
+    userId: String(user._id),
+    email: String(user.email || auth.payload?.email || "").toLowerCase(),
+  };
 }
 
 export function validateAddressPayload(payload) {

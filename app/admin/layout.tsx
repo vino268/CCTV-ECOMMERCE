@@ -48,7 +48,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { admin, loading: adminLoading, clearAdmin, refreshAdmin } = useAdminAuth();
+  const { admin, loading: adminLoading, setAdmin, clearAdmin } = useAdminAuth();
 
   const isLoginPage = pathname === '/admin/login';
   const isPublicPage =
@@ -60,53 +60,20 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (adminLoading) {
-      return;
-    }
-
-    if (admin?._id) {
-      setAuthChecked(true);
-      return;
-    }
-
-    let cancelled = false;
-
-    const validateAdminSession = async () => {
-      try {
-        const refreshedAdmin = await refreshAdmin();
-        if (cancelled) return;
-
-        if (refreshedAdmin?._id) {
-          setAuthChecked(true);
-          return;
+    fetch("/api/admin/profile", {
+      credentials: "include"
+    }).then(async res => {
+      if (!res.ok) {
+        router.replace("/admin/login");
+      } else {
+        const data = await res.json();
+        if (data.success) {
+          setAdmin(data.data);
         }
-
-        // If we get here, no valid admin session
-        if (!cancelled) {
-          setAuthChecked(false);
-          // Only redirect if not already on login page
-          if (pathname !== '/admin/login') {
-            router.replace('/admin/login');
-            router.refresh();
-          }
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setAuthChecked(false);
-          if (pathname !== '/admin/login') {
-            router.replace('/admin/login');
-            router.refresh();
-          }
-        }
+        setAuthChecked(true);
       }
-    };
-
-    validateAdminSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [admin?._id, adminLoading, isPublicPage, pathname, refreshAdmin, router]);
+    });
+  }, [isPublicPage, router]);
 
   const handleLogout = async () => {
     try {

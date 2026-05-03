@@ -1,38 +1,40 @@
-const jwt = require("jsonwebtoken");
-
-function getTokenFromRequest(req) {
-  const cookieToken = String(req.cookies?.token || req.cookies?.adminToken || "").trim();
-  if (cookieToken) return cookieToken;
-
-  const authHeader = String(req.headers.authorization || "").trim();
-  if (authHeader.toLowerCase().startsWith("bearer ")) {
-    return authHeader.slice(7).trim();
-  }
-
-  return "";
+async function loadSessionAuth() {
+  return import("../lib/auth-session.js");
 }
 
-const verifyAdmin = (req, res, next) => {
+async function loadAdminModel() {
+  const { default: Admin } = await import("../models/Admin.js");
+  return Admin;
+}
+
+const verifyAdmin = async (req, res, next) => {
   try {
-    const token = getTokenFromRequest(req);
+    const { verifyAuthSession } = await loadSessionAuth();
+    const auth = await verifyAuthSession(req, "admin");
 
-    if (!token) {
-      return res.status(401).json({ message: "No token" });
+    if (!auth.ok) {
+      return res.status(401).json({ message: "Invalid session" });
     }
 
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ message: "Server configuration error" });
+    const adminId = String(auth.payload?.id || auth.payload?.userId || "");
+    if (!adminId) {
+      return res.status(401).json({ message: "Invalid session" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const Admin = await loadAdminModel();
+    const admin = await Admin.findById(adminId).select("-password");
 
-    if (String(decoded?.role || "").toLowerCase() !== "admin") {
+    if (!admin) {
+      return res.status(401).json({ message: "Invalid session" });
+    }
+
+    if (String(admin.role || "").toLowerCase() !== "admin") {
       return res.status(403).json({ message: "Access denied" });
     }
 
     req.admin = {
-      id: decoded.id,
-      role: decoded.role,
+      id: String(admin._id),
+      role: String(admin.role || "admin"),
     };
     return next();
   } catch (err) {

@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAdminAuth } from '@/lib/contexts/admin-auth-context';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 
@@ -11,6 +12,7 @@ const inputClass =
 export default function AdminLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { admin, loading: adminLoading } = useAdminAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +30,17 @@ export default function AdminLoginPage() {
     setError('');
   }, [router, searchParams]);
 
+  // Auto-redirect if already logged in (Optional speed boost)
+  useEffect(() => {
+    fetch("/api/admin/profile", {
+      credentials: "include",
+    }).then(res => {
+      if (res.ok) {
+        window.location.href = "/admin/dashboard";
+      }
+    });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -37,25 +50,21 @@ export default function AdminLoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password
-        })
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
+      if (res.ok) {
+        console.log("Login success");
+        // 🔥 FORCE redirect (no router issues)
+        window.location.href = "/admin/dashboard";
+      } else {
+        const data = await res.json().catch(() => ({}));
         setError(data.message || 'Login failed');
-        return;
       }
-
-      router.replace('/admin/dashboard');
-      router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {

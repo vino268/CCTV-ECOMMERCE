@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
-import User from "@/models/User";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import {
+  createAuthSession,
+  getSessionCookieName,
+  getSessionCookieOptions,
+} from "@/lib/auth-session";
 
 export async function POST(req) {
   try {
@@ -18,37 +22,16 @@ export async function POST(req) {
     }
 
     const normalizedEmail = email.toLowerCase();
-
-    // Support admin accounts in User collection while enforcing role-based access.
-    const userAccount = await User.findOne({ email: normalizedEmail });
-    if (userAccount && String(userAccount.role || "").toLowerCase() !== "admin") {
-      return NextResponse.json(
-        { success: false, message: "Access denied. Admin only" },
-        { status: 403 }
-      );
-    }
-
-    const admin =
-      userAccount && String(userAccount.role || "").toLowerCase() === "admin"
-        ? userAccount
-        : await Admin.findOne({ email: normalizedEmail });
+    const admin = await Admin.findOne({ email: normalizedEmail }).lean();
 
     if (!admin) {
       return NextResponse.json(
-        { success: false, message: "Access denied. Admin only" },
-        { status: 403 }
+        { success: false, message: "Invalid credentials" },
+        { status: 401 }
       );
     }
 
-    // Support both bcrypt-hashed and plain-text passwords for legacy admin accounts.
-    const isBcryptHash = admin.password.startsWith("$2a$") || admin.password.startsWith("$2b$");
-    let isMatch = false;
-
-    if (isBcryptHash) {
-      isMatch = await bcrypt.compare(password, admin.password);
-    } else {
-      isMatch = password === admin.password;
-    }
+    const isMatch = await bcrypt.compare(password, admin.password);
 
     if (!isMatch) {
       return NextResponse.json(
@@ -57,25 +40,18 @@ export async function POST(req) {
       );
     }
 
-    // Auto-upgrade plain-text password to bcrypt hash on successful login
-    if (!isBcryptHash) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await Admin.findByIdAndUpdate(admin._id, { $set: { password: hashedPassword } });
-    }
-
     const adminData = {
       _id: admin._id,
       name: admin.name,
       email: admin.email,
-      profileImage: admin.profileImage || admin.avatar || "",
-      role: admin.role,
+      role: admin.role || "admin",
     };
 
-    const token = jwt.sign(
-      { id: String(admin._id), role: admin.role || "admin" },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const { token } = await createAuthSession({
+      userId: admin._id,
+      role: "admin",
+      email: admin.email,
+    });
 
     const response = NextResponse.json({
       success: true,
@@ -83,35 +59,18 @@ export async function POST(req) {
       admin: adminData,
     });
     
-    const isProduction = process.env.NODE_ENV === "production";
-
-    // Set cache control headers
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
 
-    // Store the admin session in an HTTP-only cookie.
-    response.cookies.set("adminToken", token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-
-    // Keep user session cookies intact so admin and customer sessions can coexist.
+    const cookieStore = await cookies();
+    cookieStore.set(getSessionCookieName("admin"), token, getSessionCookieOptions("admin"));
 
     return response;
   } catch (error) {
     console.error("ADMIN LOGIN ERROR:", error);
-
     return NextResponse.json(
-      {
-        success: false,
-        message: error?.message || "Login failed",
-        error: String(error),
-        stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
-      },
+      { success: false, message: "Login failed" },
       { status: 500 }
     );
   }

@@ -78,13 +78,25 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    void fetchNotifications();
+    const intervalKey = '__adminNotificationsInterval';
+    if (!(window as any)[intervalKey]) {
+      void fetchNotifications();
+      const id = setInterval(() => {
+        void fetchNotifications(true);
+      }, 5000);
+      (window as any)[intervalKey] = id;
+    } else {
+      // Ensure we at least fetch once when effect runs
+      void fetchNotifications();
+    }
 
-    const intervalId = setInterval(() => {
-      void fetchNotifications(true);
-    }, 5000);
-
-    return () => clearInterval(intervalId);
+    return () => {
+      const id = (window as any)[intervalKey];
+      if (id) {
+        clearInterval(id);
+        delete (window as any)[intervalKey];
+      }
+    };
   }, []);
 
   const markAsRead = async (id: string) => {

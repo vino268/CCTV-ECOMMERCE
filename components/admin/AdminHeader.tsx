@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import LogoutConfirmModal from '@/components/logout-confirm-modal'
 import {
@@ -87,7 +87,12 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   const getInitial = (name?: string, email?: string) => (name || email || 'A').charAt(0).toUpperCase()
 
   // Fetch notifications on mount and every 30 seconds
+  const notifIntervalRef = useRef<number | null>(null);
+  const notifCalledRef = useRef(false);
+
   useEffect(() => {
+    if (notifCalledRef.current) return;
+    notifCalledRef.current = true;
     const load = () =>
       fetchWithAuth(buildApiUrl('/api/notifications'), {
         headers: getAdminAuthHeaders(),
@@ -110,7 +115,13 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
 
     load()
     const id = setInterval(load, 30_000)
-    return () => clearInterval(id)
+    notifIntervalRef.current = id as unknown as number
+    return () => {
+      if (notifIntervalRef.current) {
+        clearInterval(notifIntervalRef.current)
+        notifIntervalRef.current = null
+      }
+    }
   }, [])
 
   // Close dropdowns when clicking outside

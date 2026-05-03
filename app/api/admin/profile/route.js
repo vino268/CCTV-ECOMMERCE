@@ -12,62 +12,34 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-// GET /api/admin/profile
-export async function GET(req) {
+export async function GET() {
   try {
-    const auth = await verifyAdmin(req);
+    const auth = await verifyAdmin();
     if (!auth.ok) {
-      return NextResponse.json(
-        { success: false, message: auth.message },
-        { status: auth.status }
-      );
+      return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
     }
 
     await connectDB();
-    const adminFromAdminModel = await Admin.findById(auth.adminId).select(
-      "-password -resetToken -resetTokenExpiry"
-    );
-
-    const adminFromUserModel =
-      adminFromAdminModel ||
-      (await User.findOne({ _id: auth.adminId, role: "admin" }).select("-password"));
-
-    const admin = adminFromUserModel;
+    const admin = await Admin.findById(auth.adminId).select("-password").lean();
 
     if (!admin) {
-      return NextResponse.json(
-        { success: false, message: "Admin not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, message: "Admin not found" }, { status: 404 });
     }
 
-    const adminPayload = {
-      _id: admin._id,
-      name: admin.name || "",
-      email: admin.email || "",
-      phone: admin.phone || "",
-      role: admin.role || "admin",
-      profileImage: admin.profileImage || admin.avatar || "",
-      createdAt: admin.createdAt,
-    };
-    const response = NextResponse.json({ success: true, admin: adminPayload });
-    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    response.headers.set("Pragma", "no-cache");
-    response.headers.set("Expires", "0");
-    return response;
+    return NextResponse.json({
+      success: true,
+      data: admin
+    });
   } catch (error) {
     console.error("Get admin profile error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to fetch profile" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Failed to fetch profile" }, { status: 500 });
   }
 }
 
 // PUT /api/admin/profile — update name/email
 export async function PUT(req) {
   try {
-    const auth = await verifyAdmin(req);
+    const auth = await verifyAdmin();
     if (!auth.ok) {
       return NextResponse.json(
         { success: false, message: auth.message },

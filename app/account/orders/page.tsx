@@ -141,16 +141,27 @@ export default function AccountOrdersPage() {
       safeReplace('/login?redirect=/account/orders');
       return;
     }
+
     const uid = String(user?._id || '');
     const email = String(user?.email || '');
 
     fetchOrders(uid, email);
 
-    const intervalId = window.setInterval(() => {
-      fetchOrders(uid, email, { silent: true });
-    }, 5000);
+    const intervalRef = (window as any).__accountOrdersIntervalRef as number | undefined;
+    if (!intervalRef) {
+      const id = window.setInterval(() => {
+        fetchOrders(uid, email, { silent: true });
+      }, 5000);
+      (window as any).__accountOrdersIntervalRef = id;
+    }
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      const id = (window as any).__accountOrdersIntervalRef;
+      if (id) {
+        window.clearInterval(id);
+        delete (window as any).__accountOrdersIntervalRef;
+      }
+    };
   }, [router, authLoading, isAuthenticated, user?._id, user?.email]);
 
   const handleCancelOrder = (orderId: string) => {

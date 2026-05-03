@@ -1,21 +1,13 @@
-import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
-
-function getCookieOptions() {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  return {
-    httpOnly: true,
-    // When deployed to a production domain over HTTPS, use cross-site cookie settings
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  };
-}
+import {
+  createAuthSession,
+  getSessionCookieName,
+  getSessionCookieOptions,
+} from "@/lib/auth-session";
 
 export async function POST(req) {
   try {
@@ -25,17 +17,9 @@ export async function POST(req) {
     const password = String(data?.password || "");
 
     if (!email || !password) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, error: "Email and password are required" },
         { status: 400 }
-      );
-    }
-
-    if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is missing in environment variables");
-      return Response.json(
-        { success: false, error: "Server configuration error" },
-        { status: 500 }
       );
     }
 
@@ -44,7 +28,7 @@ export async function POST(req) {
     const user = await User.findOne({ email, isDeleted: { $ne: true } });
 
     if (!user) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, message: "User not found" },
         { status: 401 }
       );
@@ -52,35 +36,24 @@ export async function POST(req) {
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, message: "Invalid password" },
         { status: 401 }
       );
     }
 
     if (user.isBlocked) {
-      return Response.json(
+      return NextResponse.json(
         { success: false, error: "Your account has been blocked. Please contact support." },
         { status: 403 }
       );
     }
 
-    if (String(user.role || "").toLowerCase() === "admin") {
-      return Response.json(
-        { success: false, message: "Admins must login from admin panel" },
-        { status: 401 }
-      );
-    }
-
-    const token = jwt.sign(
-      {
-        id: String(user._id),
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const { token } = await createAuthSession({
+      userId: user._id,
+      role: "user",
+      email: user.email,
+    });
 
     const response = NextResponse.json({
       success: true,
@@ -93,14 +66,13 @@ export async function POST(req) {
       },
     });
 
-    const cookieOptions = getCookieOptions();
-    response.cookies.set("token", token, cookieOptions);
-    response.cookies.set("userToken", token, cookieOptions);
+    const cookieStore = await cookies();
+    cookieStore.set(getSessionCookieName("user"), token, getSessionCookieOptions("user"));
 
     return response;
   } catch (error) {
     console.error("Login API error:", error);
-    return Response.json(
+    return NextResponse.json(
       { success: false, error: "Login failed" },
       { status: 500 }
     );

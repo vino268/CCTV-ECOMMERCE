@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { parseResponseBody } from '@/lib/http-response';
 
 export interface AuthUser {
@@ -83,7 +84,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new Event('user-auth-change'));
   };
 
+  const pathname = usePathname();
+  const initCalledRef = useRef(false);
+
   useEffect(() => {
+    if (pathname.startsWith('/admin')) {
+      setLoading(false);
+      return;
+    }
+
+    if (initCalledRef.current) return;
+    initCalledRef.current = true;
+
     let mounted = true;
 
     const init = async () => {
@@ -99,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pathname]);
 
   const value = useMemo(
     () => ({

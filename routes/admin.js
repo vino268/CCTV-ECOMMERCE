@@ -1,6 +1,5 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
@@ -37,9 +36,8 @@ function getAdminCookieOptions(req) {
   };
 }
 
-function getAdminClearCookieOptions(req) {
-  const { maxAge: _maxAge, ...options } = getAdminCookieOptions(req);
-  return options;
+async function loadSessionAuth() {
+  return import("../lib/auth-session.js");
 }
 
 async function loadAdminModel() {
@@ -64,10 +62,6 @@ router.post("/login", async (req, res) => {
 
     if (!normalizedEmail || !password) {
       return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ message: "Server configuration error" });
     }
 
     const Admin = await loadAdminModel();
@@ -97,16 +91,14 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid password" });
     }
 
-    const token = jwt.sign(
-      { id: String(admin._id), role: "admin" },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const { createAuthSession, getSessionCookieName, getSessionCookieOptions } = await loadSessionAuth();
+    const { token } = await createAuthSession({
+      userId: admin._id,
+      role: "admin",
+      email: admin.email,
+    });
 
-    const cookieOptions = getAdminCookieOptions(req);
-    const clearOptions = getAdminClearCookieOptions(req);
-    // Set explicit adminToken cookie for admin sessions without disturbing user sessions
-    res.cookie("adminToken", token, cookieOptions);
+    res.cookie(getSessionCookieName("admin"), token, getSessionCookieOptions("admin"));
 
     return res.json({
       success: true,
@@ -313,13 +305,19 @@ router.put("/profile", protectAdmin, async (req, res) => {
   }
 });
 
-router.post("/logout", (req, res) => {
-  const clearOptions = getAdminClearCookieOptions(req);
-  res.clearCookie("adminToken", clearOptions);
-  return res.json({
-    success: true,
-    message: "Logged out successfully",
-  });
+router.post("/logout", async (req, res) => {
+  try {
+    const { revokeAuthSession, getClearSessionCookieOptions, getSessionCookieName } = await loadSessionAuth();
+    await revokeAuthSession(req, "admin").catch(() => null);
+    res.cookie(getSessionCookieName("admin"), "", getClearSessionCookieOptions("admin"));
+    return res.json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("POST /api/admin/logout error:", error);
+    return res.status(500).json({ success: false, message: "Logout failed" });
+  }
 });
 
 router.post("/profile/image", protectAdmin, upload.single("avatar"), async (req, res) => {
@@ -467,12 +465,14 @@ router.get("/revenue", protectAdmin, async (req, res) => {
       rawRange === "today" || parsedDays === 1
         ? 1
         : rawRange === "30days" || parsedDays === 30
-          ? 30
-          : 7;
+        ? 30
+        : 7;
 
     const startDate = new Date();
     startDate.setUTCHours(0, 0, 0, 0);
-    startDate.setDate(startDate.getDate() - (days - 1));
+    if (days !== 1) {
+      startDate.setDate(startDate.getDate() - (days - 1));
+    }
 
     const filter = {
       isDeleted: false,
@@ -496,7 +496,6 @@ router.get("/revenue", protectAdmin, async (req, res) => {
         },
       },
     ]).allowDiskUse(true);
-
     const totalRevenue = revenueData.length > 0
       ? revenueData[0].totalRevenue
       : 0;
@@ -505,7 +504,6 @@ router.get("/revenue", protectAdmin, async (req, res) => {
       : 0;
 
     console.log("Revenue: Aggregation returned", revenueData.length, "rows");
-
     return res.status(200).json({
       total: totalRevenue,
       totalOrders,
@@ -639,42 +637,47 @@ router.get("/dashboard", protectAdmin, async (_req, res) => {
     const range = String(_req.query?.range || "").trim().toLowerCase();
     const now = new Date();
     let startDate = null;
-    let endDate = null;
     const filter = { isDeleted: false };
 
     if (range === "today") {
       startDate = new Date(now);
       startDate.setUTCHours(0, 0, 0, 0);
-      endDate = new Date(now);
+      const endDate = new Date(now);
       endDate.setUTCHours(23, 59, 59, 999);
       filter.createdAt = { $gte: startDate, $lte: endDate };
-    } else if (range === "30days") {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 30);
-      startDate.setUTCHours(0, 0, 0, 0);
-      filter.createdAt = { $gte: startDate };
     } else if (range === "7days") {
       startDate = new Date(now);
       startDate.setDate(startDate.getDate() - 6);
       startDate.setUTCHours(0, 0, 0, 0);
       filter.createdAt = { $gte: startDate };
+    } else if (range === "30days") {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30);
+      startDate.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: startDate };
     }
 
-    console.log("FILTER USED:", filter);
-
     const orders = await Order.find(filter).select("status paymentStatus totalAmount createdAt");
-    const ordersCount = orders.length;
-    const revenue = orders
-      .filter((o) => o.paymentStatus === "Paid" || o.status === "Delivered")
-      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+    const ordersCount = Array.isArray(orders) ? orders.length : 0;
+    const revenue = (Array.isArray(orders) ? orders : []).reduce((sum, order) => {
+      const paymentStatus = String(order?.paymentStatus || "").toLowerCase();
+      const orderStatus = String(order?.status || "").toLowerCase();
+      if (paymentStatus === "paid" || orderStatus === "delivered") {
+        return sum + Number(order?.totalAmount || 0);
+      }
+      return sum;
+    }, 0);
 
-    console.log("ORDERS COUNT:", ordersCount);
-    console.log("REVENUE:", revenue);
+    const productFilter = { isDeleted: { $ne: true } };
+    const customerFilter = { role: "user", isDeleted: { $ne: true } };
+    if (startDate) {
+      productFilter.createdAt = { $gte: startDate };
+      customerFilter.createdAt = { $gte: startDate };
+    }
 
-    const [totalProducts, , totalCustomers] = await Promise.all([
-      Product.countDocuments({ createdAt: { $gte: startDate || new Date(0) } }),
-      Promise.resolve(0),
-      User.countDocuments({ isDeleted: { $ne: true }, createdAt: { $gte: startDate || new Date(0) } }),
+    const [totalProducts, totalCustomers] = await Promise.all([
+      Product.countDocuments(productFilter),
+      User.countDocuments(customerFilter),
     ]);
 
     return res.json({
@@ -706,8 +709,7 @@ router.get("/latest-orders", protectAdmin, async (_req, res) => {
     const orders = await Order.find({ isDeleted: false })
       .sort({ createdAt: -1 })
       .limit(5)
-      .populate("userRef", "name email createdAt")
-      .select("orderId orderNumber customerName email totalAmount total orderStatus status trackingStatus createdAt user userRef")
+      .select("orderId orderNumber customerName email totalAmount orderStatus status trackingStatus createdAt user userRef")
       .lean();
 
     const latestOrders = (Array.isArray(orders) ? orders : []).map((order) => {

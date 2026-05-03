@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
+import { revokeAuthSession } from "@/lib/auth-session";
 
 export async function POST() {
   try {
-    const response = NextResponse.json({ success: true });
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      path: "/",
-      maxAge: 0,
-    };
-
-    response.cookies.set("token", "", cookieOptions);
-    response.cookies.set("userToken", "", cookieOptions); // Limit logout to user cookies only
-
-    return response;
+    await revokeAuthSession("user").catch(() => null);
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Auth logout API error", error);
     return NextResponse.json({ success: false, error: "Failed to logout" }, { status: 500 });

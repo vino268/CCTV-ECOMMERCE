@@ -1,27 +1,16 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import { verifyAuthSession } from "@/lib/auth-session";
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("token")?.value || cookieStore.get("userToken")?.value;
-    if (!token) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const auth = await verifyAuthSession("user");
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
     }
 
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      console.error("Auth me API error", new Error("JWT_SECRET is not configured"));
-      return NextResponse.json({ success: false, message: "Server misconfiguration" }, { status: 500 });
-    }
-
-    const secret = new TextEncoder().encode(jwtSecret);
-    const { payload } = await jwtVerify(token, secret);
-    const userId = String(payload.id || payload.userId || "");
-
+    const userId = String(auth.payload?.id || auth.payload?.userId || "");
     if (!userId) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
