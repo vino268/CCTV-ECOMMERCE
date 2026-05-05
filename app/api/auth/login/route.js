@@ -44,7 +44,7 @@ export async function POST(req) {
 
     if (user.isBlocked) {
       return NextResponse.json(
-        { success: false, error: "Your account has been blocked. Please contact support." },
+        { success: false, error: "Your account has been blocked by admin" },
         { status: 403 }
       );
     }

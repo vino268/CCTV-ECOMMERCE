@@ -12,19 +12,34 @@ export async function DELETE(req, { params }) {
     await connectDB();
     const { id } = await params;
 
-    const order = await Order.findOneAndDelete({ _id: id, isDeleted: true });
+    // Permanent delete: remove completely from DB
+    const order = await Order.findByIdAndDelete(id);
+
     if (!order) {
-      return NextResponse.json({ error: "Deleted order not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, message: "Order not found" },
+        { status: 404 }
+      );
     }
 
+    // Log the permanent deletion
     await AdminLog.create({
       adminName: "Admin",
       action: "Permanently deleted order",
       details: order.orderNumber || String(order._id),
     });
 
-    return NextResponse.json({ success: true, message: "Order permanently deleted" });
+    console.log(`[admin/order-permanent] Order ${order.orderNumber || id} deleted forever.`);
+
+    return NextResponse.json({
+      success: true,
+      message: "Order permanently deleted"
+    });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to permanently delete order" }, { status: 500 });
+    console.error("PERMANENT DELETE ERROR:", error);
+    return NextResponse.json(
+      { success: false, message: "Permanent delete failed" },
+      { status: 500 }
+    );
   }
 }

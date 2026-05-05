@@ -9,7 +9,7 @@ const router = express.Router();
 router.get("/latest", async (req, res) => {
   try {
     const limit = Math.max(1, Number(req.query.limit || 8));
-    const products = await Product.find({})
+    const products = await Product.find({ isDeleted: false })
       .sort({ createdAt: -1 })
       .limit(limit)
       .select("name sku slug price image images category inStock createdAt updatedAt")
@@ -38,7 +38,7 @@ router.get("/", async (req, res) => {
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.max(1, Number(req.query.limit || 50));
 
-    const query = {};
+    const query = { isDeleted: false };
     if (category && category !== "All Categories") {
       query.category = category;
     }
@@ -105,7 +105,7 @@ router.get("/:id", async (req, res) => {
       });
     }
 
-    const product = await Product.findById(identifier).select(projection).lean();
+    const product = await Product.findOne({ _id: identifier, isDeleted: false }).select(projection).lean();
 
     if (!product) {
       return res.status(404).json({
@@ -115,6 +115,7 @@ router.get("/:id", async (req, res) => {
     }
 
     const relatedProducts = await Product.find({
+      isDeleted: false,
       category: product.category,
       _id: { $ne: product._id },
     })

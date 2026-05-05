@@ -35,7 +35,7 @@ interface CustomerOrder {
 
 const ITEMS_PER_PAGE = 10;
 
-type CustomerFilter = 'all' | 'active' | 'deleted';
+type CustomerFilter = 'all' | 'active' | 'deleted' | 'blocked';
 
 function normalizeStatus(status: string) {
   if (status === 'Confirmed') return 'Packed';
@@ -141,11 +141,15 @@ export default function AdminCustomersPage() {
 
   const filteredCustomers = useMemo(() => {
     if (filter === 'active') {
-      return customers.filter((customer) => !customer.isDeleted);
+      return customers.filter((customer) => !customer.isDeleted && !customer.isBlocked);
     }
 
     if (filter === 'deleted') {
       return customers.filter((customer) => !!customer.isDeleted);
+    }
+
+    if (filter === 'blocked') {
+      return customers.filter((customer) => !!customer.isBlocked && !customer.isDeleted);
     }
 
     return customers;
@@ -193,10 +197,12 @@ export default function AdminCustomersPage() {
 
     try {
       setActionLoadingId(customerId);
-      const res = await fetch(buildApiUrl(`/api/admin/customers/${customerId}`), {
-        method: 'DELETE',
+      const res = await fetch(`/api/admin/users/${customerId}/delete`, {
+        method: 'PATCH',
         credentials: 'include',
-        headers: getAdminAuthHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       const data = await res.json().catch(() => ({}));
 
@@ -206,8 +212,7 @@ export default function AdminCustomersPage() {
       }
 
       if (selectedCustomer?._id === customerId) {
-        setSelectedCustomer(null);
-        setSelectedCustomerOrders([]);
+        setSelectedCustomer((prev) => prev ? { ...prev, isDeleted: true } : null);
       }
 
       setDeleteItem(null);
@@ -225,15 +230,13 @@ export default function AdminCustomersPage() {
   const handleToggleBlockCustomer = async (customer: Customer) => {
     try {
       setActionLoadingId(customer._id);
-      const res = await fetch(buildApiUrl(`/api/admin/customers/${customer._id}`), {
+      const res = await fetch(`/api/admin/users/${customer._id}/block`, {
         method: 'PATCH',
         credentials: 'include',
-        headers: (() => {
-          const headers = getAdminAuthHeaders();
-          headers.set('Content-Type', 'application/json');
-          return headers;
-        })(),
-        body: JSON.stringify({ isBlocked: !customer.isBlocked }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: customer.isBlocked ? 'unblock' : 'block' }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -295,6 +298,7 @@ export default function AdminCustomersPage() {
         >
           <option value="all">All Users</option>
           <option value="active">Active Users</option>
+          <option value="blocked">Blocked Users</option>
           <option value="deleted">Deleted Users</option>
         </select>
 

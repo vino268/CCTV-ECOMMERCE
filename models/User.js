@@ -14,7 +14,6 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    index: true,
     trim: true,
     lowercase: true,
   },
@@ -53,6 +52,14 @@ const UserSchema = new mongoose.Schema({
     index: true,
   },
   deletedAt: {
+    type: Date,
+    default: null,
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
+  blockedAt: {
     type: Date,
     default: null,
   },

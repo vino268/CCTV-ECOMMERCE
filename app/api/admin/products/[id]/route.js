@@ -33,9 +33,12 @@ export async function DELETE(req, { params }) {
       );
     }
 
-    await Product.deleteOne({ _id: id });
+    // Soft delete instead of hard delete
+    product.isDeleted = true;
+    product.deletedAt = new Date();
+    await product.save();
 
-    console.log("Admin product deleted successfully:", id);
+    console.log("Admin product soft-deleted successfully:", id);
 
     await AdminLog.create({
       adminName: "Admin",

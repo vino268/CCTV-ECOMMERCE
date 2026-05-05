@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { verifyAuthSession } from "@/lib/auth-session";
 
-export async function verifyAdmin() {
+export async function verifyAdmin(req) {
   console.log("[verifyAdmin] Checking admin session...");
 
-  const auth = await verifyAuthSession("admin");
+  const auth = await verifyAuthSession(req, "admin");
 
   console.log("[verifyAdmin] Auth result:", { ok: auth.ok, status: auth.status, message: auth.message });
 

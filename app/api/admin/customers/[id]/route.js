@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Order from "@/models/Order";
+import Session from "@/models/Session";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
 async function getUserById(id) {
@@ -72,8 +73,19 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ message: isBlocked ? "Customer blocked" : "Customer unblocked", customer: user });
+    if (isBlocked) {
+      // kill all sessions for this user
+      await Session.deleteMany({ userId: user._id, role: "user" });
+      console.log(`[admin/customers] Sessions cleared for blocked user: ${user.email}`);
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: isBlocked ? "Customer blocked" : "Customer unblocked", 
+      customer: user 
+    });
   } catch (error) {
+    console.error("Update customer status error:", error);
     return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
   }
 }

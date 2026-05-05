@@ -25,27 +25,36 @@ export async function GET(req) {
         { role: "" },
       ],
     };
-    const query = {
-      $and: [roleFilter],
-    };
+    
+    let query = { ...roleFilter };
 
     if (status === "active") {
-      query.$and.push({ isDeleted: false });
+      query.isDeleted = { $ne: true };
+      query.isBlocked = { $ne: true };
     } else if (status === "deleted") {
-      query.$and.push({ isDeleted: true });
+      query.isDeleted = true;
+    } else if (status === "blocked") {
+      query.isBlocked = true;
+      query.isDeleted = { $ne: true };
     }
+    // if status === "all", we don't add isDeleted/isBlocked filters to fetch everyone
 
     if (search) {
       // Escape special regex characters to prevent injection
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      query.$and.push({
-        $or: [
-          { name:    { $regex: escaped, $options: "i" } },
-          { email:   { $regex: escaped, $options: "i" } },
-          { phone:   { $regex: escaped, $options: "i" } },
-          { address: { $regex: escaped, $options: "i" } },
-        ],
-      });
+      query = {
+        $and: [
+          query,
+          {
+            $or: [
+              { name:    { $regex: escaped, $options: "i" } },
+              { email:   { $regex: escaped, $options: "i" } },
+              { phone:   { $regex: escaped, $options: "i" } },
+              { address: { $regex: escaped, $options: "i" } },
+            ],
+          }
+        ]
+      };
     }
 
     const users = await User.find(query)

@@ -24,6 +24,7 @@ import { getAdminAuthHeaders } from '@/lib/admin-auth'
 import { fetchWithAuth } from '@/utils/api'
 import { toProfileImageUrl } from '@/lib/profile-image-url'
 import { useAdminAuth } from '@/lib/contexts/admin-auth-context'
+import useNotifications from '@/hooks/useNotifications'
 
 type Notification = {
   _id: string
@@ -77,7 +78,7 @@ function toDisplayText(value: unknown) {
 }
 
 export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const { notifications, refetch } = useNotifications();
   const [bellOpen, setBellOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
@@ -85,36 +86,6 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
   const { admin } = useAdminAuth()
 
   const getInitial = (name?: string, email?: string) => (name || email || 'A').charAt(0).toUpperCase()
-
-  // Fetch notifications on mount and every 30 seconds
-  const notifIntervalRef = useRef<number | null>(null);
-  const notifCalledRef = useRef(false);
-
-  useEffect(() => {
-    if (notifCalledRef.current) return;
-    notifCalledRef.current = true;
-    const load = () =>
-      fetchWithAuth(buildApiUrl('/api/notifications'), {
-        headers: getAdminAuthHeaders(),
-      })
-        .then((r) => {
-          if (!r.ok) {
-            return [] as Notification[];
-          }
-          return parseResponseBody<Notification[] | { notifications?: Notification[] }>(r);
-        })
-        .then((data) => {
-          const list = Array.isArray(data) ? data : Array.isArray(data?.notifications) ? data.notifications : []
-          setNotifications(
-            [...list].sort(
-              (a, b) => +new Date(b.createdAt || 0) - +new Date(a.createdAt || 0)
-            )
-          )
-        })
-        .catch(() => {})
-
-    load()
-  }, [])
 
   // Close dropdowns when clicking outside
   useEffect(() => {

@@ -693,7 +693,7 @@ router.get("/analytics/overview", protectAdmin, async (_req, res) => {
     const User = await loadUserModel();
 
     const [totalProducts, totalOrders, totalCustomers, revenueResult] = await Promise.all([
-      Product.countDocuments({}),
+      Product.countDocuments({ isDeleted: { $ne: true } }),
       Order.countDocuments({ isDeleted: false }),
       User.countDocuments({ role: "user", isDeleted: { $ne: true } }),
       Order.aggregate([

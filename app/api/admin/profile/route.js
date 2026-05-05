@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 import User from "@/models/User";
 import { verifyAdmin } from "@/app/api/admin/_helpers";
+import cloudinary from "@/lib/cloudinary";
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -12,9 +13,9 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const auth = await verifyAdmin();
+    const auth = await verifyAdmin(req);
     if (!auth.ok) {
       return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
     }
@@ -28,7 +29,12 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: admin
+      data: {
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        profileImage: admin.profileImage || admin.avatar || ""
+      }
     });
   } catch (error) {
     console.error("Get admin profile error:", error);
@@ -36,10 +42,10 @@ export async function GET() {
   }
 }
 
-// PUT /api/admin/profile — update name/email
+// PUT /api/admin/profile — update name/email/image
 export async function PUT(req) {
   try {
-    const auth = await verifyAdmin();
+    const auth = await verifyAdmin(req);
     if (!auth.ok) {
       return NextResponse.json(
         { success: false, message: auth.message },
@@ -47,8 +53,11 @@ export async function PUT(req) {
       );
     }
 
-    await connectDB();
-    const { name, email, phone } = await req.json();
+    const formData = await req.formData();
+    const name = formData.get("name");
+    const email = formData.get("email");
+    const phone = formData.get("phone");
+    const file = formData.get("image");
 
     const normalizedName = normalizeString(name);
     const normalizedEmail = normalizeString(email).toLowerCase();
@@ -68,10 +77,34 @@ export async function PUT(req) {
       );
     }
 
+    let imageUrl = "";
+    if (file && file instanceof File && file.size > 0) {
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          { folder: "tn-automation" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(buffer);
+      });
+
+      imageUrl = uploadResult.secure_url;
+    }
+
+    await connectDB();
+
     const updateData = {};
-    if (name !== undefined) updateData.name = normalizedName;
-    if (email !== undefined) updateData.email = normalizedEmail;
-    if (phone !== undefined) updateData.phone = normalizedPhone;
+    if (name !== null && name !== undefined) updateData.name = normalizedName;
+    if (email !== null && email !== undefined) updateData.email = normalizedEmail;
+    if (phone !== null && phone !== undefined) updateData.phone = normalizedPhone;
+    if (imageUrl) {
+      updateData.profileImage = imageUrl;
+      updateData.avatar = imageUrl;
+    }
 
     if (normalizedEmail) {
       const existing = await Admin.findOne({
@@ -103,7 +136,7 @@ export async function PUT(req) {
   } catch (error) {
     console.error("Update admin profile error:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to update profile" },
+      { success: false, message: error.message || "Failed to update profile" },
       { status: 500 }
     );
   }

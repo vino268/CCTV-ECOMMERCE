@@ -5,7 +5,7 @@ import { verifyAuthSession } from "@/lib/auth-session";
 
 export async function GET(req) {
   try {
-    const auth = await verifyAuthSession("user");
+    const auth = await verifyAuthSession(req, "user");
     if (!auth.ok) {
       return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
     }
@@ -54,8 +54,7 @@ export async function GET(req) {
       email: user.email,
       phone: user.phone,
       address: user.address,
-      avatar: user.avatar || "",
-      profileImage: user.avatar || "",
+      profileImage: user.profileImage || user.avatar || "",
       role: user.role,
       createdAt: user.createdAt,
     };

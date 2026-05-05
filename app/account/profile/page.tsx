@@ -109,67 +109,48 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      let avatarUrl = profile.profileImage || profile.avatar || '';
+      const uploadData = new FormData();
+      uploadData.append('name', formData.name);
+      uploadData.append('phone', formData.phone);
+      uploadData.append('dob', formData.dob || '');
+      uploadData.append('address', formData.address);
 
       if (avatarFile) {
-        const uploadData = new FormData();
-        uploadData.append('file', avatarFile);
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: uploadData,
-        });
-
-        const uploadJson = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          console.error("Upload Error Details:", uploadJson);
-          throw new Error(uploadJson.error || "Failed to upload profile image");
-        }
-
-        avatarUrl = uploadJson.url || '';
-        setAvatarPreview(avatarUrl);
-        setAvatarCacheKey(Date.now());
-        setProfile((prev) => (prev ? { ...prev, avatar: avatarUrl, profileImage: avatarUrl } : prev));
+        uploadData.append('image', avatarFile);
       }
 
       const res = await fetch('/api/user/profile', {
         method: 'PUT',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: profile.email,
-          name: formData.name,
-          phone: formData.phone,
-          dob: formData.dob || null,
-          address: formData.address,
-          avatar: avatarUrl,
-          profileImage: avatarUrl,
-        }),
+        body: uploadData,
       });
 
       if (res.ok) {
         const updated = await parseResponseBody<any>(res);
+        const nextAvatarUrl = updated.profileImage || updated.avatar || '';
+        
         setProfile(updated);
-        setAvatarPreview(updated.profileImage || updated.avatar || avatarUrl || '');
+        setAvatarPreview(nextAvatarUrl);
         setAvatarFile(null);
+        setAvatarCacheKey(Date.now());
+        
         updateUser({
           name: updated.name || formData.name,
-          avatar: updated.profileImage || updated.avatar || avatarUrl || '',
-          profileImage: updated.profileImage || updated.avatar || avatarUrl || '',
+          avatar: nextAvatarUrl,
+          profileImage: nextAvatarUrl,
         });
         await refreshUser();
 
         if (avatarFile) {
-          setMessage('Profile image updated');
+          setMessage('Profile and image updated successfully');
           setMessageType('success');
         } else {
           setMessage('Profile updated successfully');
           setMessageType('success');
         }
       } else {
-        setMessage('Failed to update profile');
+        const errorData = await res.json().catch(() => ({}));
+        setMessage(errorData.message || 'Failed to update profile');
         setMessageType('error');
       }
     } catch (err) {

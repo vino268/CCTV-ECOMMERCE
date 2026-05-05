@@ -233,7 +233,10 @@ export default function AdminProfilePage() {
 
     setSavingProfile(true);
     try {
-      let nextProfileImage = admin?.profileImage || '';
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('email', email);
+      formData.append('phone', phone);
 
       if (selectedAvatarFile) {
         let fileToUpload = selectedAvatarFile;
@@ -257,33 +260,12 @@ export default function AdminProfilePage() {
           throw new Error('Image size must be 10MB or less after compression');
         }
 
-        const formData = new FormData();
-        formData.append('file', fileToUpload);
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const uploadData = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          console.error("Upload Error Details:", uploadData);
-          throw new Error(uploadData?.error || "Failed to upload profile image");
-        }
-
-        nextProfileImage = String(uploadData?.url || '');
-
-        setGlobalAdmin({
-          ...admin,
-          profileImage: nextProfileImage,
-          avatar: nextProfileImage,
-          avatarVersion: Date.now(),
-        });
+        formData.append('image', fileToUpload);
       }
 
       const res = await fetchWithAuth('/api/admin/profile', {
         method: 'PUT',
-        body: JSON.stringify({ name, email, phone }),
+        body: formData,
       });
 
       const data = await res.json().catch(() => ({}));
@@ -294,14 +276,18 @@ export default function AdminProfilePage() {
         throw new Error(data.message || 'Failed to update profile');
       }
 
+      const updatedAdmin = data.admin;
+      const nextProfileImage = updatedAdmin.profileImage || updatedAdmin.avatar || '';
+
       const mergedAdmin = {
         ...admin,
-        ...data.admin,
+        ...updatedAdmin,
         profileImage: String(nextProfileImage || ''),
         avatar: String(nextProfileImage || ''),
         avatarVersion: selectedAvatarFile || removeAvatarOnSave ? Date.now() : admin?.avatarVersion,
       };
       setGlobalAdmin(mergedAdmin);
+      setProfile(mergedAdmin); // Also update local profile state
       setSelectedAvatarFile(null);
       setRemoveAvatarOnSave(false);
       setAvatarPreview('');

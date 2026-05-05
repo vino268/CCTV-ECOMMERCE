@@ -23,7 +23,16 @@ interface DeletedCustomer {
   deletedAt?: string;
 }
 
-type TrashTab = 'orders' | 'customers';
+interface DeletedProduct {
+  _id: string;
+  name?: string;
+  sku?: string;
+  price?: number;
+  image?: string;
+  deletedAt?: string;
+}
+
+type TrashTab = 'orders' | 'customers' | 'products';
 
 type PendingDelete = {
   id: string;
@@ -49,6 +58,7 @@ export default function AdminTrashPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<DeletedOrder[]>([]);
   const [customers, setCustomers] = useState<DeletedCustomer[]>([]);
+  const [products, setProducts] = useState<DeletedProduct[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [actionKey, setActionKey] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -59,7 +69,7 @@ export default function AdminTrashPage() {
   const fetchDeletedData = async () => {
     try {
       setLoading(true);
-      const [ordersRes, customersRes] = await Promise.all([
+      const [ordersRes, customersRes, productsRes] = await Promise.all([
         fetch(buildApiUrl('/api/admin/orders/deleted'), {
           cache: 'no-store',
           credentials: 'include',
@@ -70,19 +80,27 @@ export default function AdminTrashPage() {
           credentials: 'include',
           headers: getAdminAuthHeaders(),
         }),
+        fetch(buildApiUrl('/api/admin/products/deleted'), {
+          cache: 'no-store',
+          credentials: 'include',
+          headers: getAdminAuthHeaders(),
+        }),
       ]);
 
-      const [ordersData, customersData] = await Promise.all([
+      const [ordersData, customersData, productsData] = await Promise.all([
         ordersRes.json().catch(() => ([])),
         customersRes.json().catch(() => ([])),
+        productsRes.json().catch(() => ([])),
       ]);
 
       setOrders(ordersRes.ok && Array.isArray(ordersData) ? ordersData : []);
       setCustomers(customersRes.ok && Array.isArray(customersData) ? customersData : []);
+      setProducts(productsRes.ok && Array.isArray(productsData) ? productsData : []);
     } catch (error) {
       console.error('Error fetching trash data:', error);
       setOrders([]);
       setCustomers([]);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -96,7 +114,11 @@ export default function AdminTrashPage() {
     setSelectedIds([]);
   }, [tab]);
 
-  const currentRows = useMemo(() => (tab === 'orders' ? orders : customers), [tab, orders, customers]);
+  const currentRows = useMemo(() => {
+    if (tab === 'orders') return orders;
+    if (tab === 'customers') return customers;
+    return products;
+  }, [tab, orders, customers, products]);
   const currentIds = useMemo(() => currentRows.map((row) => row._id), [currentRows]);
   const allSelected = currentRows.length > 0 && selectedIds.length === currentRows.length;
   const anySelected = selectedIds.length > 0;
@@ -121,10 +143,14 @@ export default function AdminTrashPage() {
       const key = `${currentTab}-restore-${id}`;
       setActionKey(key);
 
-      const endpoint =
-        currentTab === 'orders'
-          ? buildApiUrl(`/api/admin/orders/${id}/restore`)
-          : buildApiUrl(`/api/admin/customers/${id}/restore`);
+      let endpoint;
+      if (currentTab === 'orders') {
+        endpoint = buildApiUrl(`/api/admin/orders/${id}/restore`);
+      } else if (currentTab === 'customers') {
+        endpoint = buildApiUrl(`/api/admin/customers/${id}/restore`);
+      } else {
+        endpoint = buildApiUrl(`/api/admin/products/${id}/restore`);
+      }
 
       const res = await fetch(endpoint, {
         method: 'PATCH',
@@ -155,10 +181,14 @@ export default function AdminTrashPage() {
       const key = `${pendingDelete.tab}-permanent-${pendingDelete.id}`;
       setActionKey(key);
 
-      const endpoint =
-        pendingDelete.tab === 'orders'
-          ? buildApiUrl(`/api/admin/orders/${pendingDelete.id}/permanent`)
-          : buildApiUrl(`/api/admin/customers/${pendingDelete.id}/permanent`);
+      let endpoint;
+      if (pendingDelete.tab === 'orders') {
+        endpoint = `/api/admin/orders/${pendingDelete.id}/permanent`;
+      } else if (pendingDelete.tab === 'customers') {
+        endpoint = `/api/admin/customers/${pendingDelete.id}/permanent`;
+      } else {
+        endpoint = `/api/admin/products/${pendingDelete.id}/permanent`;
+      }
 
       const res = await fetch(endpoint, {
         method: 'DELETE',
@@ -167,8 +197,8 @@ export default function AdminTrashPage() {
       });
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setError(data.error || 'Failed to permanently delete item');
+      if (!data.success) {
+        alert(data.message || 'Permanent delete failed');
         return;
       }
 
@@ -176,7 +206,7 @@ export default function AdminTrashPage() {
       await fetchDeletedData();
     } catch (error) {
       console.error('Permanent delete error:', error);
-      setError('Failed to permanently delete item');
+      alert('Permanent delete failed');
     } finally {
       setActionKey(null);
     }
@@ -296,6 +326,15 @@ export default function AdminTrashPage() {
         >
           Deleted Customers ({customers.length})
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('products')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            tab === 'products' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Deleted Products ({products.length})
+        </button>
       </div>
 
       <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-wrap items-center gap-2">
@@ -392,7 +431,7 @@ export default function AdminTrashPage() {
               })}
             </tbody>
           </table>
-        ) : (
+        ) : tab === 'customers' ? (
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -446,6 +485,76 @@ export default function AdminTrashPage() {
                               id: customer._id,
                               tab: 'customers',
                               label: customer.name || customer.email || customer._id,
+                            })
+                          }
+                          disabled={busy}
+                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
+                        >
+                          Permanent Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700 w-12">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    aria-label="Select all deleted products"
+                  />
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">Product Name</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">SKU</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">Price</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-700">Deleted Date</th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((product) => {
+                const restoreKey = `products-restore-${product._id}`;
+                const permanentKey = `products-permanent-${product._id}`;
+                const busy = actionKey === restoreKey || actionKey === permanentKey;
+
+                return (
+                  <tr key={product._id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(product._id)}
+                        onChange={() => toggleSingleSelection(product._id)}
+                        aria-label={`Select product ${product.name || product._id}`}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">{product.name || 'Product'}</td>
+                    <td className="px-4 py-3 text-gray-700">{product.sku || '-'}</td>
+                    <td className="px-4 py-3 text-gray-700">₹{Number(product.price || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatDeletedDate(product.deletedAt)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(product._id, 'products')}
+                          disabled={busy}
+                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingDelete({
+                              id: product._id,
+                              tab: 'products',
+                              label: product.name || product._id,
                             })
                           }
                           disabled={busy}

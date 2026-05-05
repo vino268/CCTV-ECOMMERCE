@@ -21,6 +21,8 @@ const productSchema = new mongoose.Schema(
     features: { type: [String], default: [] },
     category: { type: String, default: "", trim: true },
     inStock: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,
@@ -28,7 +30,7 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-productSchema.index({ slug: 1 }, { unique: true, sparse: true });
+
 productSchema.index({ category: 1, createdAt: -1 });
 productSchema.index({ createdAt: -1 });
 

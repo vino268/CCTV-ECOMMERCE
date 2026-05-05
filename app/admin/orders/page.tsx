@@ -311,17 +311,29 @@ export default function AdminOrdersPage() {
 
     try {
       setDeletingId(selectedId);
-      const res = await fetch(buildApiUrl(`/api/admin/orders/${selectedId}`), { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${selectedId}`), { 
+        method: 'PATCH', 
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
       const data = await parseResponseBody<any>(res);
-      if (!res.ok) {
-        alert(data.error || data.message || 'Failed to delete order');
+      
+      // ❌ DO NOT assume success
+      if (!res.ok || !data.success) {
+        setMessage({ type: 'error', text: data.error || data.message || 'Failed to delete order' });
         return;
       }
+
+      // ✅ Success logic
       setShowDeleteModal(false);
       setSelectedId(null);
+      setMessage({ type: 'success', text: 'Order moved to trash' });
+      
+      // Refresh list from server
       await fetchOrders();
     } catch (error) {
       console.error('Error deleting order:', error);
+      setMessage({ type: 'error', text: 'Failed to delete order' });
     } finally {
       setDeletingId(null);
     }
