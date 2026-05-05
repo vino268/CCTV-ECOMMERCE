@@ -10,7 +10,7 @@ export type Notification = {
   isRead: boolean;
   orderId?: any;
   userId?: any;
-  createdAt?: string;
+  createdAt: string;
 };
 
 export default function useNotifications() {
