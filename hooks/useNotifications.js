@@ -1,35 +1,28 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 
 export default function useNotifications() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = async () => {
     try {
-      const res = await fetch("/api/admin/notifications", {
-        cache: 'no-store',
-        credentials: 'include'
-      });
+      const res = await fetch("/api/admin/notifications");
       const data = await res.json();
 
       if (data.success) {
-        setNotifications(data.notifications || []);
+        setNotifications(data.data || []);
       }
     } catch (err) {
-      console.error("Polling error:", err);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
-  }, []);
+  };
 
   useEffect(() => {
     fetchNotifications();
 
-    // Poll every 10 seconds (5 might be too frequent for some servers, 10 is safer)
-    const interval = setInterval(fetchNotifications, 10000);
-
+    const interval = setInterval(fetchNotifications, 5000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, []);
 
-  return { notifications, loading, refetch: fetchNotifications };
+  // ✅ RETURN BOTH
+  return { notifications, setNotifications };
 }

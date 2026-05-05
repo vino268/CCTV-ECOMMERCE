@@ -78,7 +78,7 @@ function toDisplayText(value: unknown) {
 }
 
 export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) {
-  const { notifications, refetch } = useNotifications();
+  const { notifications, setNotifications } = useNotifications();
   const [bellOpen, setBellOpen] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
