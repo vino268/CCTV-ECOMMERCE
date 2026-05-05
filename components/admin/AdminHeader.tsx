@@ -242,8 +242,9 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                       </div>
                     ) : (
                       notifications.map((n) => {
-                        const Icon = notifIcon[n.type] || Bell
-                        const href = notifLink[n.type] || '/admin/dashboard'
+                        const type = n.type ?? 'system'
+                        const Icon = notifIcon[type] || Bell
+                        const href = notifLink[type] || '/admin/dashboard'
                         const orderLabel = getOrderLabel(n.orderId)
                         return (
                           <div
@@ -426,8 +427,9 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
                     </div>
                   ) : (
                     notifications.map((n, index) => {
-                      const Icon = notifIcon[n.type] || Bell
-                      const href = notifLink[n.type] || '/admin/dashboard'
+                      const type = n.type ?? 'system'
+                      const Icon = notifIcon[type] || Bell
+                      const href = notifLink[type] || '/admin/dashboard'
                       const orderLabel = getOrderLabel(n.orderId)
                       return (
                         <div

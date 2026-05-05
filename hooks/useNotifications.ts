@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
+export type NotificationType = "order" | "ORDER_CANCELLED" | "order_cancelled" | "user" | "address" | "system";
+
 export type Notification = {
   _id: string;
   title: string;
   message: string;
-  type?: string;
+  type?: NotificationType;
   isRead: boolean;
   orderId?: any;
   userId?: any;
