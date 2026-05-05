@@ -1,27 +1,10 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const fs = require("fs");
-const path = require("path");
-const multer = require("multer");
 const { protectAdmin } = require("../middleware/auth");
 const Product = require("../models/Product");
 const Order = require("../models/OrderModel");
 
 const router = express.Router();
-
-// Multer storage for admin profile images
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const uploadDir = path.join(process.cwd(), "uploads", "avatars");
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({ storage });
 
 function getAdminCookieOptions(req) {
   const forwardedProto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
@@ -320,49 +303,6 @@ router.post("/logout", async (req, res) => {
   }
 });
 
-router.post("/profile/image", protectAdmin, upload.single("avatar"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image uploaded" });
-    }
-
-    const Admin = await loadAdminModel();
-    const admin = await Admin.findById(req.admin.id);
-
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-
-    const normalizeStoredPath = (value) => {
-      return String(value || "")
-        .replace(/\\/g, "/")
-        .replace(/^\/+/, "")
-        .trim();
-    };
-
-    // Remove old file if it exists
-    if (admin.avatar) {
-      const oldPath = path.join(process.cwd(), normalizeStoredPath(admin.avatar));
-      if (fs.existsSync(oldPath)) {
-        try { fs.unlinkSync(oldPath); } catch (_) { /* ignore */ }
-      }
-    }
-
-    // Store relative path like "uploads/avatars/123456.jpg"
-    const avatarPath = "uploads/avatars/" + req.file.filename;
-    admin.avatar = avatarPath;
-    admin.profileImage = avatarPath;
-    await admin.save();
-
-    return res.json({
-      message: "Image uploaded",
-      avatar: avatarPath,
-    });
-  } catch (error) {
-    console.error("POST /api/admin/profile/image error:", error);
-    return res.status(500).json({ message: error.message });
-  }
-});
 
 router.delete("/profile/avatar", protectAdmin, async (req, res) => {
   try {
@@ -371,20 +311,6 @@ router.delete("/profile/avatar", protectAdmin, async (req, res) => {
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
-    }
-
-    const normalizeStoredPath = (value) => {
-      return String(value || "")
-        .replace(/\\/g, "/")
-        .replace(/^\/+/, "")
-        .trim();
-    };
-
-    if (admin.avatar) {
-      const filePath = path.join(process.cwd(), normalizeStoredPath(admin.avatar));
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (_) { /* ignore */ }
-      }
     }
 
     admin.avatar = "";

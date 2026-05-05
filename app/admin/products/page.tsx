@@ -164,18 +164,21 @@ export default function AdminProductsPage() {
     if (!categoryModalType) return;
 
     const name = categoryName.trim();
+    const isAdd = categoryModalType === 'add';
+    const isEdit = categoryModalType === 'edit';
+    const isDelete = categoryModalType === 'delete';
 
-    if ((categoryModalType === 'add' || categoryModalType === 'edit') && !name) {
+    if ((isAdd || isEdit) && !name) {
       setCategoryError('Category name is required.');
       return;
     }
 
-    if ((categoryModalType === 'edit' || categoryModalType === 'delete') && !selectedCategory) {
+    if ((isEdit || isDelete) && !selectedCategory) {
       setCategoryError('No category selected.');
       return;
     }
 
-    if (categoryModalType === 'edit' && selectedCategory && name === selectedCategory.name) {
+    if (isEdit && selectedCategory && name === selectedCategory.name) {
       closeCategoryModal();
       return;
     }
@@ -184,92 +187,55 @@ export default function AdminProductsPage() {
       setIsCategorySubmitting(true);
       setCategoryError('');
 
-      let res: Response;
+      const method = isAdd ? 'POST' : isEdit ? 'PUT' : 'DELETE';
+      const url = isAdd 
+        ? buildApiUrl('/api/admin/categories') 
+        : buildApiUrl(`/api/admin/categories/${selectedCategory?._id}`);
 
-      if (categoryModalType === 'add') {
-        res = await fetch(buildApiUrl('/api/categories'), {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-      } else if (categoryModalType === 'edit') {
-        res = await fetch(buildApiUrl(`/api/categories/${selectedCategory?._id}`), {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-        });
-      } else {
-        res = await fetch(buildApiUrl(`/api/categories/${selectedCategory?._id}`), {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: isDelete ? undefined : JSON.stringify({ name }),
+      });
 
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(payload.message || payload.error || 'Failed to update category');
+        const fallbackError = isEdit 
+          ? 'Failed to update category' 
+          : isAdd 
+            ? 'Failed to create category' 
+            : 'Failed to delete category';
+        throw new Error(payload.message || payload.error || fallbackError);
       }
 
       closeCategoryModal();
       await fetchCategories();
     } catch (err: any) {
-      setCategoryError(err.message || 'Failed to update category');
+      setCategoryError(err.message || (isEdit ? 'Failed to update category' : 'Failed to create category'));
     } finally {
       setIsCategorySubmitting(false);
     }
   };
 
   const uploadImageFile = async (file: File): Promise<string> => {
-    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
-
-    if (!allowedTypes.has(file.type)) {
-      throw new Error('Only JPG, PNG, and WEBP images are allowed.');
-    }
-
-    let fileToUpload = file;
-
-    // Compress image
-    if (file.type.startsWith('image/')) {
-      try {
-        const options = {
-          maxSizeMB: 5,
-          maxWidthOrHeight: 800,
-          useWebWorker: true,
-          initialQuality: 0.7,
-        };
-        console.log(`Compressing ${file.name}...`);
-        fileToUpload = await imageCompression(file, options);
-        console.log(`Compressed ${file.name} from ${file.size} to ${fileToUpload.size}`);
-      } catch (err) {
-        console.error('Compression failed, using original file', err);
-      }
-    }
-
-    if (fileToUpload.size > maxSizeBytes) {
-      throw new Error('Each image must be 10MB or less.');
-    }
-
     const formData = new FormData();
-    formData.append('file', fileToUpload);
+    formData.append("file", file);
 
-    const res = await fetch(buildApiUrl('/api/products/upload-image'), {
-      method: 'POST',
-      credentials: 'include',
+    const res = await fetch("/api/upload", {
+      method: "POST",
       body: formData,
     });
 
     const data = await res.json().catch(() => ({}));
 
-    if (!res.ok || !data.imageUrl) {
-      throw new Error(data.error || 'Failed to upload image');
+    if (!res.ok) {
+      console.error("Upload Error Details:", data);
+      throw new Error(data.error || "Upload failed");
     }
 
-    return data.imageUrl as string;
+    return data.url;
   };
 
   const generateSku = (category: string) => {

@@ -35,6 +35,8 @@ export const metadata: Metadata = {
   },
 }
 
+import Toast from '@/components/Toast'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,6 +53,7 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <Analytics />
+        <Toast />
       </body>
     </html>
   )

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+import cloudinary from "@/lib/cloudinary";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
 import User from "@/models/User";
@@ -8,11 +7,6 @@ import { verifyAdmin } from "@/app/api/admin/_helpers";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png"]);
-
-function extensionFromType(type) {
-  if (type === "image/png") return "png";
-  return "jpg";
-}
 
 async function updateAdminImage(adminId, profileImage) {
   const updatedAdmin = await Admin.findByIdAndUpdate(
@@ -52,74 +46,12 @@ async function updateAdminImage(adminId, profileImage) {
   };
 }
 
-// POST /api/admin/upload-avatar
+// POST /api/admin/upload-avatar (DEPRECATED)
 export async function POST(req) {
-  try {
-    const auth = await verifyAdmin(req);
-    if (!auth.ok) {
-      return NextResponse.json(
-        { success: false, message: auth.message },
-        { status: auth.status }
-      );
-    }
-
-    await connectDB();
-
-    const formData = await req.formData();
-    const file = formData.get("file");
-
-    if (!file || typeof file === "string") {
-      return NextResponse.json({ success: false, message: "Image file is required" }, { status: 400 });
-    }
-
-    if (!ALLOWED_TYPES.has(file.type)) {
-      return NextResponse.json(
-        { success: false, message: "Only JPG and PNG images are allowed" },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json(
-        { success: false, message: "Image size must be 2MB or less" },
-        { status: 400 }
-      );
-    }
-
-    const ext = extensionFromType(file.type);
-    const fileName = `admin-avatar-${auth.adminId}-${Date.now()}.${ext}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "avatars");
-    const filePath = path.join(uploadDir, fileName);
-
-    await mkdir(uploadDir, { recursive: true });
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    const profileImage = `/uploads/avatars/${fileName}`;
-    const admin = await updateAdminImage(auth.adminId, profileImage);
-
-    if (!admin) {
-      return NextResponse.json(
-        { success: false, message: "Admin not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      profileImage,
-      admin,
-      message: "Profile image updated",
-    });
-  } catch (error) {
-    console.error("Admin upload avatar error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to upload profile image" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    { success: false, message: "This endpoint is deprecated. Use direct unsigned upload to Cloudinary from the frontend." },
+    { status: 410 }
+  );
 }
 
 // DELETE /api/admin/upload-avatar

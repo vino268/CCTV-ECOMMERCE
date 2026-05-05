@@ -8,6 +8,8 @@ import { ArrowLeft, CheckCircle2, Plus, RefreshCw, Upload, X } from 'lucide-reac
 import { formatPrice } from '@/lib/currency';
 import { buildApiUrl } from '@/lib/http-response';
 import imageCompression from 'browser-image-compression';
+import ImageUploader from '@/components/ImageUploader';
+import { showToast } from '@/utils/toast';
 
 type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'imageUrl' | 'features', string>>;
 
@@ -58,64 +60,11 @@ export default function AddProductPage() {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [categoryMessage, setCategoryMessage] = useState('');
 
-  const [images, setImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [imageNames, setImageNames] = useState<string[]>([]);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState('');
-  const [isDragging, setIsDragging] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
 
-  const uploadImageFile = async (file: File): Promise<string> => {
-    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
-
-    if (!allowedTypes.has(file.type)) {
-      throw new Error('Only JPG, PNG, and WEBP images are allowed.');
-    }
-
-    let fileToUpload = file;
-
-    // Compress image if it's an image and not already compressed
-    if (file.type.startsWith('image/')) {
-      try {
-        const options = {
-          maxSizeMB: 5,
-          maxWidthOrHeight: 800,
-          useWebWorker: true,
-          initialQuality: 0.7,
-        };
-        console.log(`Compressing ${file.name}...`);
-        fileToUpload = await imageCompression(file, options);
-        console.log(`Compressed ${file.name} from ${file.size} to ${fileToUpload.size}`);
-      } catch (err) {
-        console.error('Compression failed, using original file', err);
-      }
-    }
-
-    if (fileToUpload.size > maxSizeBytes) {
-      throw new Error('Each image must be 10MB or less.');
-    }
-
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-
-    const res = await fetch(buildApiUrl('/api/products/upload-image'), {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.imageUrl) {
-      throw new Error(data.error || 'Failed to upload image');
-    }
-
-    return data.imageUrl as string;
-  };
 
   const isFormSubmittable = useMemo(() => {
     return (
@@ -161,9 +110,10 @@ export default function AddProductPage() {
     try {
       setIsAddingCategory(true);
       setCategoryMessage('');
-      const res = await fetch(buildApiUrl('/api/categories'), {
+      const res = await fetch(buildApiUrl('/api/admin/categories'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ name }),
       });
 
@@ -191,31 +141,6 @@ export default function AddProductPage() {
     fetchCategories();
   }, []);
 
-  const handleImageFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const validFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
-    if (validFiles.length === 0) return;
-
-    try {
-      setIsUploadingImages(true);
-
-      const merged = [...images, ...validFiles].slice(0, 5);
-      setImages(merged);
-      setImageNames(merged.map((file) => file.name));
-      setImagePreviews(merged.map((file) => URL.createObjectURL(file)));
-
-      // Mandatory debug log to verify selected files before upload.
-      console.log(merged);
-
-      if (errors.images) {
-        setErrors((prev) => ({ ...prev, images: undefined }));
-      }
-    } finally {
-      setIsUploadingImages(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
 
   const addFeature = () => {
     const value = featureInput.trim();
@@ -230,11 +155,6 @@ export default function AddProductPage() {
     setFeatures((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    setImageNames((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const validate = (): FormErrors => {
     const nextErrors: FormErrors = {};
@@ -260,20 +180,23 @@ export default function AddProductPage() {
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
+    if (previewImages.length === 0 && !imageUrl.trim()) {
+      showToast("Please add at least one valid image", "error");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
-      const uploadedImageUrls = images.length > 0
-        ? await Promise.all(images.map((file) => uploadImageFile(file)))
-        : [];
-
       const trimmedImageUrl = imageUrl.trim();
-      const finalImage = uploadedImageUrls[0] || trimmedImageUrl;
-      const finalImages = uploadedImageUrls.length > 0
-        ? uploadedImageUrls
-        : trimmedImageUrl
-          ? [trimmedImageUrl]
-          : [];
+      const finalImages = [...previewImages];
+      if (trimmedImageUrl && !finalImages.includes(trimmedImageUrl)) {
+        finalImages.push(trimmedImageUrl);
+      }
+      
+      const finalImage = finalImages[0] || '';
+      
+      console.log("Images sending:", finalImages);
 
       const res = await fetch(buildApiUrl('/api/products'), {
         method: 'POST',
@@ -295,7 +218,7 @@ export default function AddProductPage() {
       const result = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(result?.message || result?.error || 'Upload failed');
+        showToast(result?.message || result?.error || 'Upload failed', 'error');
         setErrors((prev) => ({
           ...prev,
           name: result?.fieldErrors?.name || prev.name,
@@ -308,12 +231,12 @@ export default function AddProductPage() {
         return;
       }
 
-      alert('Product created successfully');
+      showToast('Product added successfully', 'success');
 
       router.push('/admin/products');
     } catch (error) {
       console.error('Error creating product:', error);
-      alert('Upload failed');
+      showToast('Something went wrong', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -510,98 +433,89 @@ export default function AddProductPage() {
         </Card>
 
         <Card className="p-6 border border-border">
-          <h2 className="text-lg font-semibold mb-4">Image Upload</h2>
+          <h2 className="text-lg font-semibold mb-4">Image Gallery</h2>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1.5">Image URL</label>
-            <input
-              type="text"
-              placeholder="Enter image URL"
-              value={imageUrl}
-              onChange={(e) => {
-                setImageUrl(e.target.value);
-                if (errors.imageUrl) setErrors((prev) => ({ ...prev, imageUrl: undefined }));
+          <div className="mb-8 flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-1.5">External Image URL</label>
+              <input
+                type="text"
+                placeholder="https://example.com/image.jpg"
+                value={imageUrl}
+                onChange={(e) => {
+                  setImageUrl(e.target.value);
+                  if (errors.imageUrl) setErrors((prev) => ({ ...prev, imageUrl: undefined }));
+                }}
+                className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                const trimmed = imageUrl.trim();
+                const isValidImage = (url: string) => {
+                  if (/^https?:\/\//i.test(url)) return true; // Accept any valid URL structure for now, but fallback to onError
+                  return false;
+                };
+
+                if (trimmed && isValidImage(trimmed)) {
+                  setPreviewImages(prev => [...prev, trimmed]);
+                  setImageUrl('');
+                  if (errors.imageUrl) setErrors(prev => ({ ...prev, imageUrl: undefined }));
+                } else if (trimmed) {
+                  setErrors(prev => ({ ...prev, imageUrl: 'Invalid URL. Must be a full HTTP/HTTPS link.' }));
+                }
               }}
-              className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-            {errors.imageUrl && <p className="mt-1 text-xs text-red-600">{errors.imageUrl}</p>}
-          </div>
-
-          <div
-            className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-              isDragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/20'
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              handleImageFiles(e.dataTransfer.files);
-            }}
-          >
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => handleImageFiles(e.target.files)}
-            />
-            <p className="text-sm text-muted-foreground mb-3">Upload or drag & drop product images</p>
-            <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={isUploadingImages}>
-              <Upload className="w-4 h-4 mr-2" /> {isUploadingImages ? 'Uploading...' : 'Choose Images'}
+            >
+              Add URL
             </Button>
           </div>
+          {errors.imageUrl && <p className="mt-1 mb-4 text-xs text-red-600">{errors.imageUrl}</p>}
 
-          <p className="mt-3 text-xs text-muted-foreground">
-            You can upload images and/or paste an Image URL.
-          </p>
+          <div className="space-y-4">
+            <label className="block text-sm font-medium">Upload Product Images</label>
+            <ImageUploader onUploadComplete={(urls) => setPreviewImages(prev => [...prev, ...urls])} />
+          </div>
 
-          {imageNames.length > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">Selected: {imageNames.join(', ')}</p>
-          )}
-
-          {images.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-              {imagePreviews.map((image, index) => (
-                <div key={`${imageNames[index] || 'image'}-${index}`} className="relative">
-                  <img
-                    src={image}
-                    alt={`Product preview ${index + 1}`}
-                    className="w-full h-28 object-cover rounded-md border border-border"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+          {previewImages.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-sm font-semibold mb-3">Image Gallery Preview</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {previewImages.map((url, index) => (
+                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-border shadow-sm group">
+                    <img
+                      src={url}
+                      alt={`Preview ${index}`}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      onError={() => {
+                        showToast("Broken image link removed", "error");
+                        setPreviewImages(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImages(prev => prev.filter((_, i) => i !== index))}
+                      className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur-md rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-destructive hover:text-destructive-foreground z-20 shadow-sm"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {errors.images && <p className="mt-2 text-xs text-red-600">{errors.images}</p>}
+          {errors.images && <p className="mt-4 text-xs text-red-600 font-medium">{errors.images}</p>}
         </Card>
 
         <Card className="p-6 border border-border">
           <h2 className="text-lg font-semibold mb-4">Actions</h2>
           <div className="flex gap-3">
-            <Button type="submit" disabled={!isFormSubmittable || isSubmitting || isUploadingImages}>
+            <Button type="submit" disabled={!isFormSubmittable || isSubmitting}>
               {isSubmitting ? (
                 <span className="inline-flex items-center gap-2">
                   <RefreshCw className="h-4 w-4 animate-spin" /> Creating Product...
-                </span>
-              ) : isUploadingImages ? (
-                <span className="inline-flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin" /> Uploading Images...
                 </span>
               ) : (
                 'Save Product'

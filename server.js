@@ -1,11 +1,11 @@
+const dotenv = require("dotenv");
+dotenv.config();
+
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
-const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
-const path = require("path");
-const fs = require("fs");
 
 const productRoutes = require("./routes/product");
 const categoryRoutes = require("./routes/categories");
@@ -20,7 +20,6 @@ const userRoutes = require("./routes/userRoutes");
 const addressRoutes = require("./routes/address");
 const profileRoutes = require("./routes/profile");
 
-dotenv.config();
 console.log("Mongo URI Exists:", !!process.env.MONGODB_URI);
 console.log("JWT Exists:", !!process.env.JWT_SECRET);
 
@@ -59,15 +58,6 @@ app.use(
 app.use(express.json());
 app.use(compression());
 app.use(cookieParser());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
-
-try {
-  fs.mkdirSync(path.join(__dirname, "uploads", "profile"), { recursive: true });
-  fs.mkdirSync(path.join(__dirname, "uploads", "avatars"), { recursive: true });
-} catch (error) {
-  console.error("Failed to ensure uploads directories:", error);
-}
 
 app.get("/", (_req, res) => {
   res.status(200).json({ success: true, message: "Backend is running" });

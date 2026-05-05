@@ -114,14 +114,6 @@ export default function AdminHeader({ onLogout, onMenuOpen }: AdminHeaderProps) 
         .catch(() => {})
 
     load()
-    const id = setInterval(load, 30_000)
-    notifIntervalRef.current = id as unknown as number
-    return () => {
-      if (notifIntervalRef.current) {
-        clearInterval(notifIntervalRef.current)
-        notifIntervalRef.current = null
-      }
-    }
   }, [])
 
   // Close dropdowns when clicking outside

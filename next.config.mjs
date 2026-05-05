@@ -3,15 +3,6 @@ const nextConfig = {
   devIndicators: false,
   reactStrictMode: false,
   compress: true,
-  async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-    return [
-      {
-        source: '/uploads/:path*',
-        destination: `${backendUrl}/uploads/:path*`,
-      },
-    ];
-  },
   images: {
     remotePatterns: [
       {

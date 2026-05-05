@@ -63,8 +63,7 @@ export async function POST(req) {
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
 
-    const cookieStore = await cookies();
-    cookieStore.set(getSessionCookieName("admin"), token, getSessionCookieOptions());
+    response.cookies.set(getSessionCookieName("admin"), token, getSessionCookieOptions());
 
     return response;
   } catch (error) {

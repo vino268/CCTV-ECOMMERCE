@@ -112,29 +112,21 @@ export default function ProfilePage() {
       let avatarUrl = profile.profileImage || profile.avatar || '';
 
       if (avatarFile) {
-        setUploadingAvatar(true);
-
         const uploadData = new FormData();
-        uploadData.append('profileImage', avatarFile);
-
-        const uploadRes = await fetch('/api/profile/image', {
-          method: 'PUT',
+        uploadData.append('file', avatarFile);
+        const response = await fetch("/api/upload", {
+          method: "POST",
           body: uploadData,
-          credentials: 'include',
         });
 
-        const uploadJson = await parseResponseBody<{
-          success?: boolean;
-          message?: string;
-          profileImage?: string;
-          avatar?: string;
-        }>(uploadRes);
+        const uploadJson = await response.json().catch(() => ({}));
 
-        if (!uploadRes.ok || !uploadJson.success) {
-          throw new Error(uploadJson.message || 'Failed to upload profile image');
+        if (!response.ok) {
+          console.error("Upload Error Details:", uploadJson);
+          throw new Error(uploadJson.error || "Failed to upload profile image");
         }
 
-        avatarUrl = uploadJson.profileImage || uploadJson.avatar || '';
+        avatarUrl = uploadJson.url || '';
         setAvatarPreview(avatarUrl);
         setAvatarCacheKey(Date.now());
         setProfile((prev) => (prev ? { ...prev, avatar: avatarUrl, profileImage: avatarUrl } : prev));

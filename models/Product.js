@@ -13,7 +13,7 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     sku: { type: String, default: "", trim: true, uppercase: true },
-    slug: { type: String, default: "", trim: true, index: true, unique: true, sparse: true },
+    slug: { type: String, default: "", trim: true, unique: true, sparse: true },
     price: { type: Number, required: true },
     description: { type: String, default: "", trim: true },
     image: { type: String, default: "", trim: true },

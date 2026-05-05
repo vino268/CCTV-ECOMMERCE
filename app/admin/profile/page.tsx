@@ -258,22 +258,20 @@ export default function AdminProfilePage() {
         }
 
         const formData = new FormData();
-        formData.append('avatar', fileToUpload);
-
-        const uploadRes = await fetchWithAuth('/api/admin/profile/image', {
-          method: 'POST',
+        formData.append('file', fileToUpload);
+        const response = await fetch("/api/upload", {
+          method: "POST",
           body: formData,
         });
 
-        const uploadData = await uploadRes.json().catch(() => ({}));
-        if (!uploadRes.ok) {
-          if (uploadRes.status === 401) {
-            throw new Error('Session expired. Please login again.');
-          }
-          throw new Error(uploadData?.message || 'Failed to upload profile image');
+        const uploadData = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          console.error("Upload Error Details:", uploadData);
+          throw new Error(uploadData?.error || "Failed to upload profile image");
         }
 
-        nextProfileImage = String(uploadData?.avatar || '');
+        nextProfileImage = String(uploadData?.url || '');
 
         setGlobalAdmin({
           ...admin,

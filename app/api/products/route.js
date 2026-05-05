@@ -178,6 +178,8 @@ export async function POST(req) {
 
     const requestBody = await req.json();
 
+    console.log("Images received:", requestBody.images);
+
     if (hasDisallowedImageInputs(requestBody)) {
       return validationErrorResponse({
         images:
