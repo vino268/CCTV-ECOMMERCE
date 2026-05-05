@@ -1,18 +1,32 @@
 import { useEffect, useState } from "react";
 
+export type Notification = {
+  _id: string;
+  title: string;
+  message: string;
+  type?: string;
+  isRead: boolean;
+  orderId?: any;
+  userId?: any;
+  createdAt?: string;
+};
+
 export default function useNotifications() {
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch("/api/admin/notifications");
+      const res = await fetch("/api/admin/notifications", {
+        cache: "no-store",
+        credentials: "include",
+      });
       const data = await res.json();
 
       if (data.success) {
         setNotifications(data.data || []);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Polling error:", err);
     }
   };
 
@@ -23,6 +37,5 @@ export default function useNotifications() {
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ RETURN BOTH
   return { notifications, setNotifications };
 }

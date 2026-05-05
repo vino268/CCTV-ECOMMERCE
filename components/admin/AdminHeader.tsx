@@ -24,17 +24,7 @@ import { getAdminAuthHeaders } from '@/lib/admin-auth'
 import { fetchWithAuth } from '@/utils/api'
 import { toProfileImageUrl } from '@/lib/profile-image-url'
 import { useAdminAuth } from '@/lib/contexts/admin-auth-context'
-import useNotifications from '@/hooks/useNotifications'
-
-type Notification = {
-  _id: string
-  title?: string
-  type: string
-  message: string
-  orderId?: string | { _id?: string; orderId?: string; orderNumber?: string }
-  isRead: boolean
-  createdAt: string
-}
+import useNotifications, { Notification } from '@/hooks/useNotifications'
 
 type AdminHeaderProps = {
   onLogout: () => void
