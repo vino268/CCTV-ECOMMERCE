@@ -64,6 +64,14 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
     });
   };
 
+  const toBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+
   const uploadImages = async () => {
     if (previews.length === 0) return;
     
@@ -80,12 +88,16 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
           return next;
         });
 
-        const formData = new FormData();
-        formData.append("file", previews[i].file);
+        const base64 = await toBase64(previews[i].file);
 
         const res = await fetch("/api/upload", {
           method: "POST",
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image: base64,
+          }),
         });
 
         const data = await res.json();

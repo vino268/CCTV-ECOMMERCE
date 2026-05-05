@@ -219,23 +219,40 @@ export default function AdminProductsPage() {
     }
   };
 
-  const uploadImageFile = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
+  const toBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
     });
 
-    const data = await res.json().catch(() => ({}));
+  const uploadImageFile = async (file: File): Promise<string> => {
+    try {
+      const base64 = await toBase64(file);
 
-    if (!res.ok) {
-      console.error("Upload Error Details:", data);
-      throw new Error(data.error || "Upload failed");
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: base64,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.error("Upload Error Details:", data);
+        throw new Error(data.error || "Upload failed");
+      }
+
+      return data.url;
+    } catch (error) {
+      console.error("toBase64 or Fetch Error:", error);
+      throw error;
     }
-
-    return data.url;
   };
 
   const generateSku = (category: string) => {
