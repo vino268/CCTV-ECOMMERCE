@@ -27,6 +27,8 @@ export default function ProductDetailPage({
   const [currentImage, setCurrentImage] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentModalIndex, setCurrentModalIndex] = useState(0);
+  const [brokenImageIndexes, setBrokenImageIndexes] = useState<number[]>([]);
+  const [isModalImageBroken, setIsModalImageBroken] = useState(false);
   const [isCartBtnAnimating, setIsCartBtnAnimating] = useState(false);
   const { toggleCartItem, isInCart, isCartActionPending } = useCart();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -51,6 +53,9 @@ export default function ProductDetailPage({
 
         setProduct(productData);
         setCurrentImage(0);
+        setCurrentModalIndex(0);
+        setBrokenImageIndexes([]);
+        setIsModalImageBroken(false);
 
         // Try to get related products from API response
         let related = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
@@ -209,13 +214,18 @@ export default function ProductDetailPage({
             <div className="group relative w-full h-96 lg:h-[28rem] bg-white rounded-xl p-6 flex items-center justify-center overflow-hidden shadow-md border border-border">
               {productImages[currentImage] ? (
                 <Image
-                  src={productImages[currentImage]}
+                  src={brokenImageIndexes.includes(currentImage) ? '/placeholder.jpg' : productImages[currentImage]}
                   alt={product.name}
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
+                  unoptimized
                   className="cursor-zoom-in rounded-lg object-contain p-6 transition-transform duration-500 group-hover:scale-110"
+                  onError={() => {
+                    setBrokenImageIndexes((prev) => (prev.includes(currentImage) ? prev : [...prev, currentImage]));
+                  }}
                   onClick={() => {
                     setCurrentModalIndex(currentImage);
+                    setIsModalImageBroken(false);
                     setShowImageModal(true);
                   }}
                 />
@@ -239,7 +249,17 @@ export default function ProductDetailPage({
                         : 'border-border hover:border-blue-300'
                     }`}
                   >
-                    <Image src={img} alt={`Thumbnail ${i + 1}`} width={240} height={128} className="w-full h-16 object-cover" />
+                    <Image
+                      src={brokenImageIndexes.includes(i) ? '/placeholder.jpg' : img}
+                      alt={`Thumbnail ${i + 1}`}
+                      width={240}
+                      height={128}
+                      unoptimized
+                      className="w-full h-16 object-cover"
+                      onError={() => {
+                        setBrokenImageIndexes((prev) => (prev.includes(i) ? prev : [...prev, i]));
+                      }}
+                    />
                   </button>
                 ))}
               </div>
@@ -515,11 +535,16 @@ export default function ProductDetailPage({
               )}
 
               <Image
-                src={productImages[currentModalIndex]}
+                src={isModalImageBroken ? '/placeholder.jpg' : productImages[currentModalIndex]}
                 alt={`${product.name} preview`}
                 fill
                 sizes="100vw"
+                unoptimized
                 className="max-h-[85vh] max-w-[90%] rounded-lg object-contain transition-all duration-300"
+                onError={() => {
+                  setIsModalImageBroken(true);
+                  setBrokenImageIndexes((prev) => (prev.includes(currentModalIndex) ? prev : [...prev, currentModalIndex]));
+                }}
               />
 
               {productImages.length > 1 && (
@@ -542,14 +567,27 @@ export default function ProductDetailPage({
                     <button
                       key={`${img}-modal-${index}`}
                       type="button"
-                      onClick={() => setCurrentModalIndex(index)}
+                      onClick={() => {
+                        setCurrentModalIndex(index);
+                        setIsModalImageBroken(false);
+                      }}
                       className={`overflow-hidden rounded-md border transition ${
                         active
                           ? 'border-blue-500 ring-2 ring-blue-200'
                           : 'border-gray-300 hover:border-blue-300'
                       }`}
                     >
-                        <Image src={img} alt={`Preview ${index + 1}`} width={160} height={128} className="h-16 w-20 object-cover md:h-16 md:w-full" />
+                        <Image
+                          src={brokenImageIndexes.includes(index) ? '/placeholder.jpg' : img}
+                          alt={`Preview ${index + 1}`}
+                          width={160}
+                          height={128}
+                          unoptimized
+                          className="h-16 w-20 object-cover md:h-16 md:w-full"
+                          onError={() => {
+                            setBrokenImageIndexes((prev) => (prev.includes(index) ? prev : [...prev, index]));
+                          }}
+                        />
                     </button>
                   );
                 })}
