@@ -41,6 +41,7 @@ export default function OrdersStatusChart({
   subtitle = 'Orders by status',
 }: OrdersStatusChartProps) {
   const chartData = STATUS_ROWS.map((row) => ({
+    id: row.key,
     name: row.label,
     value: Number(data[row.key] || 0),
     color: row.color,
@@ -115,10 +116,10 @@ export default function OrdersStatusChart({
                 radius={[10, 10, 0, 0]}
                 maxBarSize={52}
                 animationDuration={900}
-                isAnimationActive
+                isAnimationActive={false}
               >
-                {chartData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
+                {chartData.map((entry, index) => (
+                  <Cell key={`${entry.id}-${index}`} fill={entry.color} />
                 ))}
               </Bar>
             </BarChart>

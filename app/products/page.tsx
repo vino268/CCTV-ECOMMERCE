@@ -160,9 +160,10 @@ export default function ProductsPage() {
       if (page !== 1) {
         setPage(1);
       }
-      return;
+      // Don't return - still call fetchProducts below
     }
 
+    // Always call fetchProducts to load the data
     fetchProducts();
   }, [page, searchTerm, selectedCategory]);
 
@@ -202,17 +203,6 @@ export default function ProductsPage() {
     }
   };
 
-  // Initialize category filter from URL
-  useEffect(() => {
-    const categoryParam = searchParams.get('category');
-
-    if (categoryParam) {
-      setSelectedCategory(decodeURIComponent(categoryParam));
-    } else {
-      setSelectedCategory('All Categories');
-    }
-  }, [searchParams]);
-
   // Filter + Sort
   const filteredProducts = useMemo(() => {
     const next =
@@ -227,14 +217,21 @@ export default function ProductsPage() {
                 : product.category;
 
             // NORMALIZE BOTH
-            return (
-              String(categoryName)
-                .toLowerCase()
-                .trim() ===
-              String(selectedCategory)
-                .toLowerCase()
-                .trim()
-            );
+            const productCat = String(categoryName)
+              .toLowerCase()
+              .trim();
+            const selectedCat = String(selectedCategory)
+              .toLowerCase()
+              .trim();
+            
+            const matches = productCat === selectedCat;
+            
+            // Debug individual products
+            if (!matches && process.env.NODE_ENV === 'development') {
+              console.log(`❌ NO MATCH: "${productCat}" !== "${selectedCat}" | Product: ${product.name}`);
+            }
+            
+            return matches;
           });
 
     if (sortBy === 'price-low') {
@@ -250,10 +247,18 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts;
 
+  // DEBUG: Log filtering details
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const product of products) {
-      counts.set(product.category, (counts.get(product.category) || 0) + 1);
+      const categoryName =
+        typeof product.category === "object"
+          ? (product.category as any)?.name
+          : product.category;
+      
+      if (categoryName) {
+        counts.set(categoryName, (counts.get(categoryName) || 0) + 1);
+      }
     }
     return counts;
   }, [products]);
@@ -281,14 +286,6 @@ export default function ProductsPage() {
     : visibleProducts.length >= totalMatchingProducts
       ? `${totalMatchingProducts} products`
       : `Showing ${visibleProducts.length} of ${totalMatchingProducts} products`;
-
-  console.log("Selected:", selectedCategory);
-  console.log(
-    products.map((p) => ({
-      name: p.name,
-      category: p.category,
-    }))
-  );
 
   return (
     <div className="bg-gray-50">
@@ -349,7 +346,9 @@ export default function ProductsPage() {
                     return (
                       <button
                         key={cat}
-                        onClick={() => setSelectedCategory(catObj.name || cat)}
+                        onClick={() =>
+                          setSelectedCategory(cat)
+                        }
                         className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                           selectedCategory === cat
                             ? 'bg-blue-600 text-white shadow-sm'

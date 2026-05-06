@@ -122,7 +122,7 @@ export async function GET(req) {
       : {};
 
     if (category && category !== "All Categories") {
-      query.category = category;
+      query.category = { $regex: `^${category}$`, $options: "i" };
     }
 
     if (exclude) {

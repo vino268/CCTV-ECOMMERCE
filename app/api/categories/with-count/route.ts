@@ -30,7 +30,10 @@ export async function GET(req: Request) {
         const categoryName = String(category?.name || "").trim();
 
         const productCount = await Product.countDocuments({
-          $or: [{ category: categoryId }, { category: categoryName }],
+          $or: [
+            { category: categoryId },
+            { category: { $regex: `^${categoryName}$`, $options: "i" } },
+          ],
         });
 
         return {
