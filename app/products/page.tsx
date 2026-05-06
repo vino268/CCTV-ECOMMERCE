@@ -219,14 +219,21 @@ export default function ProductsPage() {
       selectedCategory === "All Categories"
         ? products
         : products.filter((product) => {
-            const productCategory =
+
+            // CATEGORY NAME FROM PRODUCT
+            const categoryName =
               typeof product.category === "object"
                 ? (product.category as any)?.name
                 : product.category;
 
+            // NORMALIZE BOTH
             return (
-              String(productCategory || "").toLowerCase().trim() ===
-              String(selectedCategory || "").toLowerCase().trim()
+              String(categoryName)
+                .toLowerCase()
+                .trim() ===
+              String(selectedCategory)
+                .toLowerCase()
+                .trim()
             );
           });
 
@@ -274,6 +281,14 @@ export default function ProductsPage() {
     : visibleProducts.length >= totalMatchingProducts
       ? `${totalMatchingProducts} products`
       : `Showing ${visibleProducts.length} of ${totalMatchingProducts} products`;
+
+  console.log("Selected:", selectedCategory);
+  console.log(
+    products.map((p) => ({
+      name: p.name,
+      category: p.category,
+    }))
+  );
 
   return (
     <div className="bg-gray-50">
@@ -334,7 +349,7 @@ export default function ProductsPage() {
                     return (
                       <button
                         key={cat}
-                        onClick={() => setSelectedCategory(cat)}
+                        onClick={() => setSelectedCategory(catObj.name || cat)}
                         className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                           selectedCategory === cat
                             ? 'bg-blue-600 text-white shadow-sm'
