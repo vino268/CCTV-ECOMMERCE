@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { User } from 'lucide-react';
 import LogoutConfirmModal from '@/components/logout-confirm-modal';
@@ -87,11 +88,13 @@ export function AccountMenu() {
         className="flex items-center gap-2 p-1.5 hover:bg-muted rounded-lg transition-colors"
       >
         {!!avatarSrc && !avatarError ? (
-          <img
-            src={avatarSrc}
-            alt={user.name}
-            className="w-10 h-10 rounded-full object-cover border"
-            onError={() => setAvatarError(true)}
+          <Image
+            src={user?.image || "/default-avatar.png"}
+            alt="profile"
+            width={40}
+            height={40}
+            priority
+            className="rounded-full object-cover"
           />
         ) : (
           <div className="w-10 h-10 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold uppercase">
@@ -114,6 +117,7 @@ export function AccountMenu() {
           <div className="flex flex-col">
             <Link
               href="/account"
+              prefetch={true}
               onClick={() => setOpen(false)}
               className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >
@@ -122,6 +126,7 @@ export function AccountMenu() {
 
             <Link
               href="/account/orders"
+              prefetch={true}
               onClick={() => setOpen(false)}
               className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >
@@ -130,6 +135,7 @@ export function AccountMenu() {
 
             <Link
               href="/account/address"
+              prefetch={true}
               onClick={() => setOpen(false)}
               className="hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer text-left text-sm text-gray-700"
             >

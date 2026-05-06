@@ -295,19 +295,40 @@ export default function ContactPage() {
 
               <div className="border-t border-gray-100" />
 
-              <div className="group flex items-start gap-3 text-gray-700 p-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all duration-300">
-                <Clock className="w-5 h-5 mt-0.5 text-blue-600 group-hover:text-blue-800 transition-colors duration-300" />
-                <div>
-                  <p className="font-semibold text-gray-900">Business Hours</p>
-                  {loadingContact ? (
-                    <p className="text-gray-500">Loading...</p>
-                  ) : businessHoursLines.length > 0 ? (
-                    businessHoursLines.map((line, idx) => (
-                      <p key={idx} className="text-gray-700">{line}</p>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">Not available</p>
-                  )}
+              <div className="border-t pt-6 mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-5 h-5 text-blue-500" />
+                  <h3 className="font-semibold text-lg">Business Hours</h3>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span>Monday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tuesday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Wednesday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Thursday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Friday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Saturday</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                  <div className="flex justify-between text-red-500 font-medium">
+                    <span>Sunday</span>
+                    <span>Closed</span>
+                  </div>
                 </div>
               </div>
             </div>

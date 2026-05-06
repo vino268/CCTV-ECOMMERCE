@@ -111,7 +111,7 @@ export function Navbar() {
           <Link
             href="/"
             onClick={handleLogoSecretClick}
-            prefetch
+            prefetch={true}
             className="flex items-center gap-2 flex-shrink-0 min-w-0"
           >
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
@@ -133,7 +133,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                prefetch
+                prefetch={true}
                 className="relative text-sm font-medium text-gray-700 hover:text-blue-700 transition-colors after:absolute after:left-0 after:-bottom-1 after:h-0.5 after:w-0 after:bg-blue-600 after:transition-all after:duration-300 hover:after:w-full"
               >
                 {link.label}
@@ -196,7 +196,7 @@ export function Navbar() {
             {/* Wishlist Icon with Badge */}
             <Link
               href="/wishlist"
-              prefetch
+              prefetch={true}
               className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <Heart className="w-5 h-5 text-foreground" />
@@ -210,7 +210,7 @@ export function Navbar() {
             {/* Cart Icon with Badge */}
             <Link
               href="/cart"
-              prefetch
+              prefetch={true}
               className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
             >
               <ShoppingCart className="w-5 h-5 text-foreground" />
@@ -256,7 +256,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                prefetch
+                prefetch={true}
                 className="block px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
