@@ -78,13 +78,12 @@ export default function AdminProductsPage() {
     description: '',
   });
   const [editInStock, setEditInStock] = useState(true);
-  const [editImagePreview, setEditImagePreview] = useState('');
+  const [editImages, setEditImages] = useState<string[]>([]);
   const [isEditImageUploading, setIsEditImageUploading] = useState(false);
   const [editImageError, setEditImageError] = useState('');
   const [deleteItem, setDeleteItem] = useState<Product | null>(null);
   const [deleteType, setDeleteType] = useState<'product' | ''>('');
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
-  const editFileRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = async (page = currentPage) => {
     try {
@@ -429,9 +428,35 @@ export default function AdminProductsPage() {
       description: product.description || '',
     });
     setEditInStock(product.inStock);
-    const mainImage = getSafeImageSrc(product.image || product.images?.[0], '');
-    setEditImagePreview(mainImage);
+    const imageList = Array.isArray(product.images) && product.images.length > 0
+      ? product.images.map((image) => getSafeImageSrc(image, '')).filter(Boolean)
+      : [];
+    const fallbackImage = getSafeImageSrc(product.image, '');
+    setEditImages(imageList.length > 0 ? imageList : fallbackImage ? [fallbackImage] : []);
     setEditImageError('');
+  };
+
+  const handleEditImageFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const validFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    if (validFiles.length === 0) return;
+
+    try {
+      setIsEditImageUploading(true);
+      setEditImageError('');
+
+      const uploadedUrls = await Promise.all(validFiles.map((file) => uploadImageFile(file)));
+      setEditImages((prev) => Array.from(new Set([...prev, ...uploadedUrls])).slice(0, 5));
+    } catch (err: any) {
+      setEditImageError(err.message || 'Failed to upload image(s).');
+    } finally {
+      setIsEditImageUploading(false);
+    }
+  };
+
+  const removeEditImage = (index: number) => {
+    setEditImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
@@ -444,7 +469,7 @@ export default function AdminProductsPage() {
       return;
     }
 
-    const imageList = editImagePreview ? [editImagePreview] : [];
+    const imageList = editImages.length > 0 ? editImages : [];
 
     try {
       const res = await fetch(buildApiUrl(`/api/products/${id}`), {
@@ -521,63 +546,39 @@ export default function AdminProductsPage() {
     }
   };
 
-  const ImageInput = ({
-    preview,
-    setPreview,
-    fileRef,
-  }: {
-    preview: string;
-    setPreview: (v: string) => void;
-    fileRef: React.RefObject<HTMLInputElement | null>;
-  }) => (
-    <div>
-      <label className="block text-sm font-medium text-foreground mb-1">Product Image</label>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Product Images</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => handleEditImageFiles(e.target.files)}
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                />
 
-          try {
-            setIsEditImageUploading(true);
-            setEditImageError('');
-            const uploadedUrl = await uploadImageFile(file);
-            setPreview(uploadedUrl);
-          } catch (err: any) {
-            setEditImageError(err.message || 'Failed to upload image.');
-          } finally {
-            setIsEditImageUploading(false);
-          }
-        }}
-        className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-      />
+                {isEditImageUploading && (
+                  <p className="mt-2 text-xs text-muted-foreground">Uploading image(s)...</p>
+                )}
+                {editImageError && <p className="mt-2 text-xs text-red-600">{editImageError}</p>}
 
-      {isEditImageUploading && <p className="mt-2 text-xs text-muted-foreground">Uploading image...</p>}
-      {editImageError && <p className="mt-2 text-xs text-red-600">{editImageError}</p>}
+                {editImages.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {editImages.map((img, index) => (
+                      <div key={`${img}-${index}`} className="relative w-24 h-24 border rounded-lg overflow-hidden">
+                        <img src={img} alt={`Edit preview ${index + 1}`} className="w-full h-full object-cover" />
 
-      {preview && (
-        <div className="mt-3 relative inline-block">
-          <img
-            src={preview}
-            alt="Preview"
-            className="w-24 h-24 object-cover rounded-md border border-border"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setPreview('');
-              if (fileRef.current) fileRef.current.value = '';
-            }}
-            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
+                        <button
+                          type="button"
+                          onClick={() => removeEditImage(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
   return (
     <div className="space-y-6">
@@ -885,11 +886,39 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              <ImageInput
-                preview={editImagePreview}
-                setPreview={setEditImagePreview}
-                fileRef={editFileRef}
-              />
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Product Images</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => handleEditImageFiles(e.target.files)}
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                />
+
+                {isEditImageUploading && (
+                  <p className="mt-2 text-xs text-muted-foreground">Uploading image(s)...</p>
+                )}
+                {editImageError && <p className="mt-2 text-xs text-red-600">{editImageError}</p>}
+
+                {editImages.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {editImages.map((img, index) => (
+                      <div key={`${img}-${index}`} className="relative w-24 h-24 border rounded-lg overflow-hidden">
+                        <img src={img} alt={`Edit preview ${index + 1}`} className="w-full h-full object-cover" />
+
+                        <button
+                          type="button"
+                          onClick={() => removeEditImage(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-3 pt-2">
                 <Button type="submit">Update Product</Button>
