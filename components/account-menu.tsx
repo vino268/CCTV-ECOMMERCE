@@ -89,7 +89,11 @@ export function AccountMenu() {
       >
         {!!avatarSrc && !avatarError ? (
           <Image
-            src={user?.image || "/default-avatar.png"}
+            src={
+              user?.image ||
+              user?.avatar ||
+              "/default-avatar.png"
+            }
             alt="profile"
             width={40}
             height={40}
