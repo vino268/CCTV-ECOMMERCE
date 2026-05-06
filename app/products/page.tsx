@@ -247,21 +247,25 @@ export default function ProductsPage() {
 
   const visibleProducts = filteredProducts;
 
-  // DEBUG: Log filtering details
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const product of products) {
-      const categoryName =
+  // Get accurate category count for all products
+  const getCategoryCount = (categoryName: string) => {
+    if (categoryName === "All Categories") {
+      return products.length;
+    }
+
+    return products.filter((product) => {
+      const productCategory =
         typeof product.category === "object"
           ? (product.category as any)?.name
           : product.category;
-      
-      if (categoryName) {
-        counts.set(categoryName, (counts.get(categoryName) || 0) + 1);
-      }
-    }
-    return counts;
-  }, [products]);
+
+      return (
+        String(productCategory)
+          ?.trim()
+          .toLowerCase() === categoryName?.trim().toLowerCase()
+      );
+    }).length;
+  };
 
   const getCategoryIcon = (category: string) => {
     const key = category.toLowerCase();
@@ -331,7 +335,7 @@ export default function ProductsPage() {
                         selectedCategory === 'All Categories' ? 'text-blue-100' : 'text-gray-500'
                       }`}
                     >
-                      {products.length}
+                      {getCategoryCount('All Categories')}
                     </span>
                   </button>
 
@@ -339,9 +343,7 @@ export default function ProductsPage() {
                     const cat = typeof catObj === 'string' ? catObj : (catObj.name || catObj._id);
                     if (cat === 'All Categories') return null;
                     const Icon = getCategoryIcon(cat);
-                    const count = typeof catObj === 'string'
-                      ? (categoryCounts.get(cat) || 0)
-                      : Number(catObj.productCount ?? catObj.count ?? 0);
+                    const count = getCategoryCount(cat);
 
                     return (
                       <button
