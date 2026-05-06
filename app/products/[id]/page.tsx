@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/contexts/cart-context';
 import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
-import { formatPrice } from '@/lib/currency';
 import { getSafeImageSrc } from '@/lib/product-image';
 
 export default function ProductDetailPage({
@@ -309,10 +308,10 @@ export default function ProductDetailPage({
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex flex-col gap-2">
                   <span className="text-4xl md:text-5xl font-extrabold text-blue-700 tracking-tight">
-                    {formatPrice(product.price * quantity)}
+                    ₹{Number(product.price * quantity).toLocaleString("en-IN")}
                   </span>
                   <p className="text-sm text-gray-500">
-                    {formatPrice(product.price)} × {quantity}
+                    ₹{Number(product.price).toLocaleString("en-IN")} × {quantity}
                   </p>
                 </div>
                 {!product.inStock && (
@@ -495,7 +494,7 @@ export default function ProductDetailPage({
                     </h3>
 
                     <p className="text-blue-600 font-bold text-lg mt-2">
-                      {formatPrice(item.price)}
+                      ₹{Number(item.price).toLocaleString("en-IN")}
                     </p>
                   </Link>
                 ))}

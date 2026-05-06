@@ -62,7 +62,7 @@ function normalizeProductPayload(data) {
     category: typeof data.category === "string" ? data.category.trim() : "",
     description:
       typeof data.description === "string" ? data.description.trim() : "",
-    price: Number(data.price),
+    price: Math.round(Number(data.price)),
     features,
   };
 }

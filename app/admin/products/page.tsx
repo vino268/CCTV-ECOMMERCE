@@ -8,7 +8,6 @@ import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Edit2, Trash2, Plus, X, RefreshCw, Upload } from 'lucide-react';
-import { formatPrice } from '@/lib/currency';
 import ProductDeleteConfirmModal from '@/components/admin/ProductDeleteConfirmModal';
 import ToastNotification from '@/components/ui/toast-notification';
 import { getSafeImageSrc } from '@/lib/product-image';
@@ -386,7 +385,7 @@ export default function AdminProductsPage() {
         body: JSON.stringify({
           sku: addFormData.sku.trim(),
           name: addFormData.name.trim(),
-          price: Number(addFormData.price),
+          price: Math.round(Number(addFormData.price)),
           category: addFormData.category,
           description: addFormData.description.trim(),
           inStock: true,
@@ -485,7 +484,7 @@ export default function AdminProductsPage() {
         body: JSON.stringify({
           sku: editFormData.sku,
           name: editFormData.name,
-          price: parseFloat(editFormData.price),
+          price: Math.round(Number(editFormData.price)),
           category: editFormData.category,
           description: editFormData.description,
           images: imageList,
@@ -713,7 +712,7 @@ export default function AdminProductsPage() {
                       </td>
                       <td className="p-4 font-medium text-foreground whitespace-nowrap">{product.name}</td>
                       <td className="p-4 text-muted-foreground whitespace-nowrap">{product.category}</td>
-                      <td className="p-4 font-medium text-foreground whitespace-nowrap">{formatPrice(product.price)}</td>
+                      <td className="p-4 font-medium text-foreground whitespace-nowrap">₹{Number(product.price).toLocaleString("en-IN")}</td>
                       <td className="p-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -1026,7 +1025,7 @@ export default function AdminProductsPage() {
                       />
                       {Number(addFormData.price) > 0 && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Preview: {formatPrice(Number(addFormData.price))}
+                          Preview: ₹{Number(addFormData.price).toLocaleString("en-IN")}
                         </p>
                       )}
                     </div>

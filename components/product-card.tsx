@@ -8,7 +8,6 @@ import { useCart } from '@/lib/contexts/cart-context';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWishlist } from '@/lib/contexts/wishlist-context';
-import { formatPrice } from '@/lib/currency';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { getSafeImageSrc } from '@/lib/product-image';
 
@@ -116,7 +115,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </Link>
 
         <div className="mt-2.5 flex items-center gap-2">
-          <p className="text-lg font-bold tracking-tight text-blue-700 md:text-xl">{formatPrice(product.price)}</p>
+          <p className="text-lg font-bold tracking-tight text-blue-700 md:text-xl">₹{Number(product.price).toLocaleString("en-IN")}</p>
         </div>
       </div>
 
