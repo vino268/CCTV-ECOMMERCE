@@ -44,7 +44,10 @@ export default function ProductsPage() {
   const fetchApi = async (path: string, init?: RequestInit) => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const res = await fetch(buildApiUrl(path), { cache: 'no-store', ...init });
+        const res = await fetch(buildApiUrl(path), {
+          cache: 'no-store',
+          ...init,
+        });
         if (res.ok) return res;
       } catch {
         // retry once

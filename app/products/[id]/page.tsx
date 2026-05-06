@@ -41,7 +41,9 @@ export default function ProductDetailPage({
     async function fetchProduct() {
       try {
         setError(false);
-        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { cache: 'no-store' });
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) {
           throw new Error('Product not found');
         }
@@ -65,7 +67,9 @@ export default function ProductDetailPage({
         // If no related products from API, fetch all products and filter by category
         if (related.length === 0 && productData.category) {
           try {
-            const allRes = await fetch('/api/products', { cache: 'no-store' });
+            const allRes = await fetch('/api/products', {
+              cache: 'no-store',
+            });
             if (allRes.ok) {
               const allData = await allRes.json().catch(() => ({}));
               const allProducts = Array.isArray(allData?.products) ? allData.products : [];
