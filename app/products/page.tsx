@@ -250,21 +250,19 @@ export default function ProductsPage() {
   // Get accurate category count for all products
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === "All Categories") {
-      return products.length;
+      return categories.reduce((sum, c) => sum + Number(c.productCount ?? c.count ?? 0), 0);
     }
 
-    return products.filter((product) => {
-      const productCategory =
-        typeof product.category === "object"
-          ? (product.category as any)?.name
-          : product.category;
+    const catObj = categories.find((c: any) => {
+      const name = typeof c === 'string' ? c : c.name;
+      return name?.trim().toLowerCase() === categoryName?.trim().toLowerCase();
+    });
 
-      return (
-        String(productCategory)
-          ?.trim()
-          .toLowerCase() === categoryName?.trim().toLowerCase()
-      );
-    }).length;
+    if (catObj) {
+      return Number(catObj.productCount ?? catObj.count ?? 0);
+    }
+
+    return 0;
   };
 
   const getCategoryIcon = (category: string) => {
