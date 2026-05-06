@@ -249,9 +249,14 @@ export default function ProductDetailPage({
               </div>
 
               <div className="flex flex-wrap items-center gap-4">
-                <span className="text-4xl md:text-5xl font-extrabold text-blue-700 tracking-tight">
-                  {formatPrice(product.price)}
-                </span>
+                <div className="flex flex-col gap-2">
+                  <span className="text-4xl md:text-5xl font-extrabold text-blue-700 tracking-tight">
+                    {formatPrice(product.price * quantity)}
+                  </span>
+                  <p className="text-sm text-gray-500">
+                    {formatPrice(product.price)} × {quantity}
+                  </p>
+                </div>
                 {!product.inStock && (
                   <span className="bg-destructive text-destructive-foreground px-4 py-1 rounded-full text-sm font-semibold">
                     Out of Stock
@@ -264,7 +269,7 @@ export default function ProductDetailPage({
             </div>
 
             {/* Description */}
-            <p className="mt-3 text-base md:text-lg text-muted-foreground leading-relaxed whitespace-normal break-words break-all">
+            <p className="mt-3 text-base md:text-lg text-muted-foreground leading-7 break-words whitespace-normal">
               {product.description}
             </p>
 
