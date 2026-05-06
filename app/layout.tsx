@@ -8,6 +8,7 @@ import { CartProvider } from '@/lib/contexts/cart-context'
 import { WishlistProvider } from '@/lib/contexts/wishlist-context'
 import { AuthProvider } from '@/lib/contexts/auth-context'
 import { ConditionalLayout } from '@/components/conditional-layout'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -38,8 +39,6 @@ export const metadata: Metadata = {
   },
 }
 
-import Toast from '@/components/Toast'
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,7 +55,7 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <Analytics />
-        <Toast />
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   )

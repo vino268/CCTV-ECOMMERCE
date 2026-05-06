@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, MapPin, MessageCircle, Phone, PhoneCall, Smartphone, Wrench, X } from 'lucide-react';
 import { formatPrice } from '@/lib/currency';
+import { toast } from 'sonner';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 /* ------------------------------------------------------------------ */
@@ -125,20 +126,20 @@ export default function ServicesPage() {
       if (!response.ok || !result.success) {
         setFormError(result.message || 'Failed to send request. Please try again.');
         setFormSuccess('');
-        window.alert(result.message || 'Failed to send request. Please try again.');
+        toast.error(result.message || 'Failed to send request. Please try again.');
         return;
       }
 
       const successMessage = result.message || 'Service request submitted';
       setFormSuccess(successMessage);
-      window.alert(successMessage);
+      toast.success(successMessage);
       setName('');
       setPhoneNumber('');
       setMessage('');
     } catch {
       setFormError('Failed to send request. Please try again.');
       setFormSuccess('');
-      window.alert('Failed to send request. Please try again.');
+      toast.error('Failed to send request. Please try again.');
     } finally {
       setSubmitting(false);
     }

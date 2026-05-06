@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Clock, Mail, MapPin, Phone } from 'lucide-react';
+import { toast } from 'sonner';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
 type BusinessHours = {
@@ -147,7 +148,7 @@ export default function ContactPage() {
 
       if (res.ok && data.success) {
         const successMessage = data.message || 'Message sent successfully';
-        window.alert(successMessage);
+        toast.success(successMessage);
         setStatus({ type: 'success', message: successMessage });
         setFormData({
           name: '',
@@ -158,11 +159,11 @@ export default function ContactPage() {
         });
       } else {
         const errorMessage = data.message || 'Failed to send message';
-        window.alert(errorMessage);
+        toast.error(errorMessage);
         setStatus({ type: 'error', message: errorMessage });
       }
     } catch {
-      window.alert('Failed to send message');
+      toast.error('Failed to send message');
       setStatus({ type: 'error', message: 'Failed to send message' });
     } finally {
       setSubmitting(false);
