@@ -106,7 +106,7 @@ export default function ServicesPage() {
     setFormError('');
 
     try {
-      const response = await fetch(buildApiUrl('/api/support'), {
+      const response = await fetch('/api/send-email', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -115,28 +115,30 @@ export default function ServicesPage() {
         body: JSON.stringify({
           name: name.trim(),
           phone: phoneNumber.trim(),
-          serviceType: selectedServiceType,
+          service: selectedServiceType,
           message: message.trim(),
         }),
       });
 
-      const result = await parseResponseBody<any>(response);
+      const result = await response.json();
 
       if (!response.ok || !result.success) {
         setFormError(result.message || 'Failed to send request. Please try again.');
         setFormSuccess('');
+        window.alert(result.message || 'Failed to send request. Please try again.');
         return;
       }
 
-      setFormSuccess(
-        result.message || `${selectedServiceType} request sent successfully!`
-      );
+      const successMessage = result.message || 'Service request submitted';
+      setFormSuccess(successMessage);
+      window.alert(successMessage);
       setName('');
       setPhoneNumber('');
       setMessage('');
     } catch {
       setFormError('Failed to send request. Please try again.');
       setFormSuccess('');
+      window.alert('Failed to send request. Please try again.');
     } finally {
       setSubmitting(false);
     }

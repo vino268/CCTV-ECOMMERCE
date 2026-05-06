@@ -135,7 +135,7 @@ export default function ContactPage() {
     setStatus(null);
 
     try {
-      const res = await fetch(buildApiUrl('/api/contact'), {
+      const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,10 +143,12 @@ export default function ContactPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await parseResponseBody<any>(res);
+      const data = await res.json();
 
       if (res.ok && data.success) {
-        setStatus({ type: 'success', message: data.message || 'Message sent successfully!' });
+        const successMessage = data.message || 'Message sent successfully';
+        window.alert(successMessage);
+        setStatus({ type: 'success', message: successMessage });
         setFormData({
           name: '',
           email: '',
@@ -155,9 +157,12 @@ export default function ContactPage() {
           message: '',
         });
       } else {
-        setStatus({ type: 'error', message: data.message || 'Failed to send message' });
+        const errorMessage = data.message || 'Failed to send message';
+        window.alert(errorMessage);
+        setStatus({ type: 'error', message: errorMessage });
       }
     } catch {
+      window.alert('Failed to send message');
       setStatus({ type: 'error', message: 'Failed to send message' });
     } finally {
       setSubmitting(false);
