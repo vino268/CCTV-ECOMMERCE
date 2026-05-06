@@ -215,12 +215,20 @@ export default function ProductsPage() {
 
   // Filter + Sort
   const filteredProducts = useMemo(() => {
-    const next = products.filter((product) => {
-      const matchesCategory =
-        selectedCategory === 'All Categories' || product.category === selectedCategory;
+    const next =
+      selectedCategory === "All Categories"
+        ? products
+        : products.filter((product) => {
+            const productCategory =
+              typeof product.category === "object"
+                ? (product.category as any)?.name
+                : product.category;
 
-      return matchesCategory;
-    });
+            return (
+              String(productCategory || "").toLowerCase().trim() ===
+              String(selectedCategory || "").toLowerCase().trim()
+            );
+          });
 
     if (sortBy === 'price-low') {
       return [...next].sort((a, b) => a.price - b.price);

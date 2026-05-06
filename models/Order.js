@@ -259,7 +259,7 @@ OrderSchema.pre("validate", function ensureOrderId() {
   }
 });
 
-OrderSchema.index({ orderId: 1 }, { unique: true });
+
 OrderSchema.index({ createdAt: -1 });
 
 export default mongoose.model("Order", OrderSchema);

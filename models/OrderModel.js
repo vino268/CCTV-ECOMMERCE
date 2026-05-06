@@ -289,6 +289,5 @@ orderModelSchema.pre("validate", function preValidate() {
   }
 });
 
-orderModelSchema.index({ orderId: 1 }, { unique: true });
 
 module.exports = mongoose.models.OrderModel || mongoose.model("OrderModel", orderModelSchema);
