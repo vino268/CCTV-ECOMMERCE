@@ -409,14 +409,38 @@ export default function ProductDetailPage({
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div>
+          <div className="mt-16">
             <h2 className="text-2xl font-bold text-foreground mb-6">
               Related Products
             </h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {relatedProducts.map((relatedProduct) => (
-                <ProductCard key={relatedProduct._id} product={relatedProduct} />
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {relatedProducts
+                .filter((item: any) => item._id && product._id && item._id.toString() !== product._id.toString())
+                .map((item: any) => (
+                  <Link
+                    key={item._id}
+                    href={`/products/${item._id}`}
+                    className="border rounded-2xl p-4 hover:shadow-lg transition"
+                  >
+                    <div className="aspect-square overflow-hidden rounded-xl bg-white">
+                      <Image
+                        src={getSafeImageSrc(item.image, '/placeholder.jpg')}
+                        alt={item.name}
+                        width={400}
+                        height={400}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+
+                    <h3 className="font-semibold mt-4 line-clamp-2">
+                      {item.name}
+                    </h3>
+
+                    <p className="text-blue-600 font-bold text-lg mt-2">
+                      {formatPrice(item.price)}
+                    </p>
+                  </Link>
+                ))}
             </div>
           </div>
         )}
