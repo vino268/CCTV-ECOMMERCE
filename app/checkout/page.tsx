@@ -306,7 +306,7 @@ export default function CheckoutPage() {
       const productId = String(buyNowOrder?.productId || buyNowProductId).trim();
       const quantity = Number(buyNowOrder?.quantity || 1);
       const unitPrice = Number(buyNowOrder?.product?.price || 0);
-      const computedTotalAmount = Number((unitPrice * quantity).toFixed(2));
+      const computedTotalAmount = unitPrice * quantity;
 
       if (!productId || !user?.email) {
         throw new Error('Unable to finalize order. Please try again.');

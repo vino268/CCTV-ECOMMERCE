@@ -201,7 +201,7 @@ export async function POST(req) {
       userId: toTrimmed(auth.userId),
       productId: product.productId,
       quantity,
-      total: Number((product.price * quantity).toFixed(2)),
+      total: product.price * quantity,
       customerName: user.name || address.fullName,
       email: user.email,
       phone: address.phone,
@@ -222,7 +222,7 @@ export async function POST(req) {
           quantity,
         },
       ],
-      totalAmount: Number(totalAmountFromBody.toFixed(2)),
+      totalAmount: totalAmountFromBody,
       orderStatus: "Ordered",
       trackingStatus: "Ordered",
       deliveryInfo: {

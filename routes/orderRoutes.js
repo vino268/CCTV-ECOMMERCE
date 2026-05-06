@@ -691,7 +691,7 @@ router.post("/", authenticate, async (req, res) => {
       productId: orderProduct.productId,
       orderNumber: generateOrderId(),
       quantity,
-      total: Number((orderProduct.price * quantity).toFixed(2)),
+      total: orderProduct.price * quantity,
       items: [
         {
           name: orderProduct.name,

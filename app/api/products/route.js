@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { connectDB } from "@/lib/mongodb";
 import mongoose from "mongoose";
 import Product from "@/models/Product";

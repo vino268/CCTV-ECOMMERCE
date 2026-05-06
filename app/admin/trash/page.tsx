@@ -536,7 +536,7 @@ export default function AdminTrashPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-900 font-medium">{product.name || 'Product'}</td>
                     <td className="px-4 py-3 text-gray-700">{product.sku || '-'}</td>
-                    <td className="px-4 py-3 text-gray-700">₹{Number(product.price || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-700">₹{product.price}</td>
                     <td className="px-4 py-3 text-gray-700">{formatDeletedDate(product.deletedAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
