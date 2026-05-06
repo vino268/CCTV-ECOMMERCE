@@ -1,6 +1,9 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -36,6 +39,7 @@ interface CategoryItem {
 }
 
 export default function AdminProductsPage() {
+  const router = useRouter();
   const { toast, showError, showSuccess } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,9 +93,11 @@ export default function AdminProductsPage() {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/products?page=${page}&limit=10`, {
+      const response = await fetch(buildApiUrl(`/api/admin/products?page=${page}&limit=10`), {
         method: 'GET',
         cache: 'no-store',
+        next: { revalidate: 0 },
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -491,6 +497,7 @@ export default function AdminProductsPage() {
       if (res.ok) {
         await fetchProducts();
         setEditProduct(null);
+        router.refresh();
       }
     } catch (err) {
       console.error('Error updating product:', err);
@@ -538,6 +545,8 @@ export default function AdminProductsPage() {
       setDeleteItem(null);
       setDeleteType('');
       showSuccess(data?.message || 'Product deleted successfully');
+      await fetchProducts(currentPage);
+      router.refresh();
     } catch (err) {
       console.error('Delete product error:', err);
       showError(err instanceof Error ? err.message : 'Failed to delete product');
