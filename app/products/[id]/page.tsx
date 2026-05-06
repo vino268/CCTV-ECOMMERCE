@@ -51,7 +51,39 @@ export default function ProductDetailPage({
 
         setProduct(productData);
         setCurrentImage(0);
-        const related = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
+
+        // Try to get related products from API response
+        let related = Array.isArray(data?.relatedProducts) ? data.relatedProducts : [];
+
+        // If no related products from API, fetch all products and filter by category
+        if (related.length === 0 && productData.category) {
+          try {
+            const allRes = await fetch('/api/products', { cache: 'no-store' });
+            if (allRes.ok) {
+              const allData = await allRes.json().catch(() => ({}));
+              const allProducts = Array.isArray(allData?.products) ? allData.products : [];
+              
+              // Filter by category and exclude current product
+              const categoryData = productData.category as any;
+              const categoryId = typeof categoryData === 'object' 
+                ? categoryData._id || categoryData.id 
+                : categoryData;
+              
+              related = allProducts
+                .filter((item: any) => {
+                  const itemCategoryData = item.category as any;
+                  const itemCategoryId = typeof itemCategoryData === 'object' 
+                    ? itemCategoryData._id || itemCategoryData.id 
+                    : itemCategoryData;
+                  return itemCategoryId === categoryId && item._id?.toString() !== productData._id?.toString();
+                })
+                .slice(0, 4);
+            }
+          } catch (err) {
+            console.error('Error fetching all products for filtering:', err);
+          }
+        }
+
         setRelatedProducts(related);
       } catch (err) {
         console.error('Error fetching product:', err);
