@@ -89,24 +89,20 @@ export default function AdminProductsPage() {
   const fetchProducts = async (page = currentPage) => {
     try {
       setLoading(true);
-      const res = await fetch(buildApiUrl(`/api/products?page=${page}&limit=10`), {
+
+      const response = await fetch(`/api/products?page=${page}&limit=10`, {
         method: 'GET',
         cache: 'no-store',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json().catch(() => ({}));
 
-      const nextProducts = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.products)
-          ? data.products
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
+      if (!response.ok) {
+        throw new Error('Failed to fetch products');
+      }
 
-      console.log('Admin products API response:', data);
-      console.log('Admin products length:', nextProducts.length);
+      const data = await response.json().catch(() => ({}));
+      const nextProducts = Array.isArray(data?.products)
+        ? data.products
+        : [];
 
       setProducts(nextProducts);
       const resolvedTotalPages = Number.isFinite(Number(data?.totalPages))
@@ -118,8 +114,8 @@ export default function AdminProductsPage() {
       if (page > resolvedTotalPages) {
         setCurrentPage(resolvedTotalPages);
       }
-    } catch (err) {
-      console.error('Error fetching products:', err);
+    } catch (error) {
+      console.error('Fetch Products Error:', error);
       setProducts([]);
       setTotalPages(1);
       setTotalProducts(0);
