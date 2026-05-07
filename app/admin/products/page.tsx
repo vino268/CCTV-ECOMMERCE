@@ -520,6 +520,7 @@ export default function AdminProductsPage() {
 
       const res = await fetch(buildApiUrl(`/api/admin/products/${id}`), {
         method: 'DELETE',
+        cache: 'no-store',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
       });
@@ -531,19 +532,25 @@ export default function AdminProductsPage() {
         throw new Error(data?.message || data?.error || 'Failed to delete product');
       }
 
-      setProducts((prev) => prev.filter((product) => product._id !== id));
-
-      const remainingCount = Math.max(0, totalProducts - 1);
-      const nextTotalPages = Math.max(1, Math.ceil(remainingCount / 10));
-      setTotalProducts(remainingCount);
-      setTotalPages(nextTotalPages);
-      if (currentPage > nextTotalPages) {
-        setCurrentPage(nextTotalPages);
+      // INSTANTLY UPDATE FRONTEND STATE
+      if (data.success) {
+        setProducts((prev) => prev.filter((product) => product._id !== id));
+        
+        const remainingCount = Math.max(0, totalProducts - 1);
+        const nextTotalPages = Math.max(1, Math.ceil(remainingCount / 10));
+        setTotalProducts(remainingCount);
+        setTotalPages(nextTotalPages);
+        
+        if (currentPage > nextTotalPages) {
+          setCurrentPage(nextTotalPages);
+        }
       }
 
       setDeleteItem(null);
       setDeleteType('');
       showSuccess(data?.message || 'Product deleted successfully');
+      
+      // Refresh to sync with server
       await fetchProducts(currentPage);
       router.refresh();
     } catch (err) {

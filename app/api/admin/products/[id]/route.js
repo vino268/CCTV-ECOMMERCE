@@ -28,25 +28,20 @@ export async function DELETE(req, { params }) {
       );
     }
 
-    const product = await Product.findById(id);
-    if (!product) {
+    const deletedProduct = await Product.findByIdAndDelete(id);
+    if (!deletedProduct) {
       return NextResponse.json(
         { success: false, message: "Product not found" },
         { status: 404 }
       );
     }
 
-    // Soft delete instead of hard delete
-    product.isDeleted = true;
-    product.deletedAt = new Date();
-    await product.save();
-
-    console.log("Admin product soft-deleted successfully:", id);
+    console.log("Admin product hard-deleted successfully:", id);
 
     await AdminLog.create({
       adminName: "Admin",
       action: "Deleted product",
-      details: product.name || String(product._id),
+      details: deletedProduct.name || String(deletedProduct._id),
     });
 
     return NextResponse.json({

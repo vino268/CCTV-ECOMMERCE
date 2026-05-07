@@ -123,10 +123,17 @@ export async function GET(req, { params }) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      product,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        product,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
+      }
+    );
   } catch (error) {
     console.error("GET /api/products/[id] error:", error);
     return NextResponse.json(
@@ -218,11 +225,12 @@ export async function DELETE(req, { params }) {
   try {
     await connectDB();
     const { id } = await params;
-    const product = await Product.findByIdAndDelete(id);
 
-    if (!product) {
+    const deletedProduct = await Product.findByIdAndDelete(id);
+
+    if (!deletedProduct) {
       return NextResponse.json(
-        { error: "Product not found" },
+        { success: false, message: "Product not found" },
         { status: 404 }
       );
     }
@@ -230,13 +238,19 @@ export async function DELETE(req, { params }) {
     await AdminLog.create({
       adminName: "Admin",
       action: "Deleted product",
-      details: product.name || "",
+      details: deletedProduct.name || "",
     });
 
-    return NextResponse.json({ message: "Product deleted successfully" });
+    return NextResponse.json({
+      success: true,
+      message: "Product deleted successfully",
+    });
+
   } catch (error) {
+    console.log("DELETE PRODUCT ERROR:", error);
+
     return NextResponse.json(
-      { error: "Failed to delete product" },
+      { success: false, message: "Server error" },
       { status: 500 }
     );
   }

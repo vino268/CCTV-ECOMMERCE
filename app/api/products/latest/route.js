@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 // GET /api/products/latest — return newest 6 products
 export async function GET() {
   try {
     await connectDB();
-    const products = await Product.find({})
+    const products = await Product.find({ isDeleted: { $ne: true } })
       .sort({ createdAt: -1, _id: -1 })
       .limit(6)
       .lean();
@@ -21,7 +23,7 @@ export async function GET() {
       },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
         },
       }
     );

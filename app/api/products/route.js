@@ -115,16 +115,19 @@ export async function GET(req) {
       : 12;
     const skip = (page - 1) * limit;
 
-    const query = search
-      ? {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { category: { $regex: search, $options: "i" } },
-            { sku: { $regex: search, $options: "i" } },
-            { description: { $regex: search, $options: "i" } },
-          ],
-        }
-      : {};
+    const query = {
+      isDeleted: { $ne: true },
+      ...(search
+        ? {
+            $or: [
+              { name: { $regex: search, $options: "i" } },
+              { category: { $regex: search, $options: "i" } },
+              { sku: { $regex: search, $options: "i" } },
+              { description: { $regex: search, $options: "i" } },
+            ],
+          }
+        : {}),
+    };
 
     if (category && category !== "All Categories") {
       query.category = { $regex: `^${category}$`, $options: "i" };
@@ -146,7 +149,7 @@ export async function GET(req) {
 
     console.log("✅ PRODUCTS COUNT:", products.length);
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: true,
         products,
@@ -163,7 +166,7 @@ export async function GET(req) {
   } catch (error) {
     console.error("❌ FULL ERROR:", error);
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: false,
         products: [],
