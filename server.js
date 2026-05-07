@@ -1,5 +1,11 @@
 const dotenv = require("dotenv");
 dotenv.config();
+// Ensure Cloudinary is configured for the Express backend
+try {
+  require("./lib/cloudinary");
+} catch (err) {
+  // ignore if not present in this environment; Next app routes use lib/cloudinary.ts
+}
 
 const express = require("express");
 const cors = require("cors");
