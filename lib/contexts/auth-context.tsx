@@ -13,6 +13,7 @@ export interface AuthUser {
   image?: string;
   avatar?: string;
   profileImage?: string;
+  avatarVersion?: number;
   role?: string;
 }
 

@@ -138,6 +138,7 @@ export default function ProfilePage() {
           name: updated.name || formData.name,
           avatar: nextAvatarUrl,
           profileImage: nextAvatarUrl,
+          avatarVersion: Date.now(),
         });
         await refreshUser();
 
@@ -171,7 +172,7 @@ export default function ProfilePage() {
     setMessageType('');
 
     try {
-      const res = await fetch('/api/profile/image', {
+      const res = await fetch('/api/account/profile/remove-image', {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -186,7 +187,7 @@ export default function ProfilePage() {
       setAvatarPreview('');
       setAvatarCacheKey(undefined);
       setAvatarFile(null);
-      updateUser({ avatar: '', profileImage: '' });
+      updateUser({ avatar: '', profileImage: '', avatarVersion: Date.now() });
       await refreshUser();
 
       setMessage('Profile image removed');

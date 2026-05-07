@@ -45,6 +45,7 @@ interface UserData {
   address: string;
   avatar?: string;
   profileImage?: string;
+  avatarVersion?: number;
   role: string;
   createdAt: string;
 }
@@ -102,6 +103,7 @@ export default function AccountPage() {
     logout,
     refreshUser,
   } = useAuth();
+  const accountEmail = String(authUser?.email || '').trim().toLowerCase();
 
   const [authChecking, setAuthChecking] = useState(true);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
@@ -172,7 +174,7 @@ export default function AccountPage() {
           cache: 'no-store',
           credentials: 'include',
         }),
-        fetch('/api/orders/my-orders', {
+        fetch(buildApiUrl(`/api/orders/user/${encodeURIComponent(accountEmail)}`), {
           cache: 'no-store',
           credentials: 'include',
         }),
@@ -213,7 +215,7 @@ export default function AccountPage() {
     } finally {
       setLoadingDashboard(false);
     }
-  }, [loadAddresses]);
+  }, [accountEmail, loadAddresses]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -238,7 +240,7 @@ export default function AccountPage() {
     };
 
     orders.forEach((order) => {
-      const normalized = normalizeStatus(order.orderStatus);
+      const normalized = normalizeStatus(order.status || order.trackingStatus || order.orderStatus);
       if (normalized === 'Delivered') stats.delivered += 1;
       else if (normalized === 'Cancelled') stats.cancelled += 1;
       else if (normalized === 'Pending') stats.pending += 1;
@@ -247,11 +249,11 @@ export default function AccountPage() {
     return stats;
   }, [orders]);
 
-  const recentOrders = useMemo(() => orders.slice(0, 5), [orders]);
   const orderedByDate = useMemo(
     () => [...orders].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
     [orders]
   );
+  const recentOrders = useMemo(() => orderedByDate.slice(0, 5), [orderedByDate]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -539,7 +541,7 @@ export default function AccountPage() {
     );
   }
 
-  const accountAvatarSrc = toProfileImageUrl(user?.avatar || user?.profileImage || '');
+  const accountAvatarSrc = toProfileImageUrl(user?.avatar || user?.profileImage || '', user?.avatarVersion);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -693,6 +695,7 @@ export default function AccountPage() {
                         const normalizedStatus = normalizeStatus(order.status || order.trackingStatus || order.orderStatus);
                         const firstProduct = order.products?.[0]?.productName || 'Product';
                         const moreCount = Math.max(0, (order.products?.length || 0) - 1);
+                        const orderTotal = Number(order.totalAmount ?? (order as any).total ?? 0);
 
                         return (
                           <div key={order._id} className="rounded-lg border border-gray-200 p-4">
@@ -722,7 +725,7 @@ export default function AccountPage() {
                                 {firstProduct}
                                 {moreCount > 0 ? ` +${moreCount} more` : ''}
                               </p>
-                              <p className="font-semibold text-gray-900">{formatINRCurrency(order.totalAmount)}</p>
+                              <p className="font-semibold text-gray-900">{formatINRCurrency(orderTotal)}</p>
                             </div>
                           </div>
                         );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Wishlist from "@/models/Wishlist";
+import Product from "@/models/Product";
 import { verifyWishlistUser } from "./_auth";
 
 function normalizeProduct(product) {

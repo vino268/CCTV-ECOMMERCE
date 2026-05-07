@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { verifyAuthSession } from "@/lib/auth-session";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
   try {
     const auth = await verifyAuthSession(req, "user");
@@ -62,6 +64,10 @@ export async function GET(req) {
     return NextResponse.json({
       success: true,
       user: userPayload,
+    }, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
     });
   } catch (error) {
     console.error("Auth me API error", error);

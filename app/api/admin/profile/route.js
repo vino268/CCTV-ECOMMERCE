@@ -5,6 +5,9 @@ import User from "@/models/User";
 import { verifyAdmin } from "@/app/api/admin/_helpers";
 import cloudinary from "@/lib/cloudinary";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -81,15 +84,11 @@ export async function PUT(req) {
     if (file && file instanceof File && file.size > 0) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
+      const base64 = buffer.toString("base64");
+      const dataURI = `data:${file.type};base64,${base64}`;
 
-      const uploadResult = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          { folder: "tn-automation" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        ).end(buffer);
+      const uploadResult = await cloudinary.uploader.upload(dataURI, {
+        folder: "admin_profiles",
       });
 
       imageUrl = uploadResult.secure_url;
@@ -134,6 +133,7 @@ export async function PUT(req) {
 
     return NextResponse.json({ success: true, admin: updated });
   } catch (error) {
+    console.error("Admin profile upload error:", error);
     console.error("Update admin profile error:", error);
     return NextResponse.json(
       { success: false, message: error.message || "Failed to update profile" },

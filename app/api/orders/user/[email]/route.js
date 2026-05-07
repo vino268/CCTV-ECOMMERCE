@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Order from '@/models/Order';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/orders/user/:email
 export async function GET(_req, { params }) {
   try {
@@ -30,7 +32,11 @@ export async function GET(_req, { params }) {
       deduped.push(order);
     }
 
-    return NextResponse.json(deduped);
+    return NextResponse.json(deduped, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error('GET /api/orders/user/:email error:', error);
     return NextResponse.json({ success: false, message: 'Failed to fetch user orders' }, { status: 500 });

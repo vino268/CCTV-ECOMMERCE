@@ -14,6 +14,9 @@ const nextConfig = {
 
   experimental: {
     optimizePackageImports: ["lucide-react"],
+    staleTimes: {
+      dynamic: 0,
+    },
   },
 };
 

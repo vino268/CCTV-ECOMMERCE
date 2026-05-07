@@ -75,7 +75,7 @@ export function AccountMenu() {
 
   // Logged in — show avatar button + dropdown
   const userProfileImage = String(user.profileImage || user.avatar || '').trim();
-  const avatarSrc = toProfileImageUrl(userProfileImage);
+  const avatarSrc = toProfileImageUrl(userProfileImage, user.avatarVersion);
   const initial = getInitial(user.name, user.email);
 
   return (
@@ -89,19 +89,16 @@ export function AccountMenu() {
       >
         {!!avatarSrc && !avatarError ? (
           <Image
-            src={
-              user?.image ||
-              user?.avatar ||
-              "/default-avatar.png"
-            }
+            src={avatarSrc}
             alt="profile"
             width={40}
             height={40}
             priority
-            className="rounded-full object-cover"
+            unoptimized
+            className="h-10 w-10 rounded-full object-cover border-2 border-gray-200 bg-white"
           />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold uppercase">
+          <div className="h-10 w-10 rounded-full border-2 border-gray-200 bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold uppercase">
             {initial}
           </div>
         )}
