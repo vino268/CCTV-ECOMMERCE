@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
@@ -30,6 +33,7 @@ export async function GET(req: Request) {
         const categoryName = String(category?.name || "").trim();
 
         const productCount = await Product.countDocuments({
+          isDeleted: { $ne: true },
           $or: [
             { category: categoryId },
             { category: { $regex: `^${categoryName}$`, $options: "i" } },
@@ -48,7 +52,12 @@ export async function GET(req: Request) {
         success: true,
         categories: categoriesWithCounts,
       },
-      { headers: getCorsHeaders(req) }
+      { 
+        headers: {
+          ...getCorsHeaders(req),
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        }
+      }
     );
   } catch (error) {
     console.error("GET /api/categories/with-count error:", error);

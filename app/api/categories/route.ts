@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
 
@@ -27,7 +30,12 @@ export async function GET(req: Request) {
         success: true,
         categories,
       },
-      { headers: getCorsHeaders(req) }
+      { 
+        headers: {
+          ...getCorsHeaders(req),
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        }
+      }
     );
   } catch (error) {
     console.error("CATEGORY ERROR:", error);
