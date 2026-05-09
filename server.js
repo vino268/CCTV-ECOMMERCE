@@ -1,12 +1,4 @@
-const dotenv = require("dotenv");
-dotenv.config();
-// Ensure Cloudinary is configured for the Express backend
-try {
-  require("./lib/cloudinary");
-} catch (err) {
-  // ignore if not present in this environment; Next app routes use lib/cloudinary.ts
-}
-
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
@@ -33,9 +25,14 @@ console.log("JWT Exists:", !!process.env.JWT_SECRET);
 const app = express();
 
 app.use(cors({
-  origin: "*",
+  origin: [
+    "http://localhost:3000",
+    "https://tnautomation.in",
+    "https://www.tnautomation.in"
+  ],
+  credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.options("*", cors());
@@ -69,7 +66,19 @@ app.use("/api/user", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
-app.use("/api/upload", uploadRoutes);
+app.post("/api/upload", async (req, res) => {
+  try {
+    console.log("UPLOAD API HIT");
+    return res.json({
+      success: true
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: err.message
+    });
+  }
+});
 
 app.use((req, res) => {
   return res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
@@ -114,23 +123,13 @@ async function connectDB() {
   }
 }
 
+const PORT = process.env.PORT || 10000;
+
 async function startServer() {
   try {
     await connectDB();
-
-    const PORT = Number(process.env.PORT || 5000);
-    const server = app.listen(PORT, () => {
+    app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
-    });
-
-    server.on("error", (error) => {
-      if (error && error.code === "EADDRINUSE") {
-        console.log(`Port ${PORT} is already in use. Another backend instance is already running.`);
-        process.exit(0);
-      }
-
-      console.error("Failed to start HTTP server:", error);
-      process.exit(1);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
