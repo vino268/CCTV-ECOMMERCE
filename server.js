@@ -35,34 +35,19 @@ const app = express();
 mongoose.set("strictQuery", true);
 app.set("trust proxy", 1);
 
-const allowedOrigins = [
- "http://localhost:3000",
- "http://localhost:3001",
- "https://tnautomation.in",
- "https://www.tnautomation.in",
- "https://cctv-ecommerce.vercel.app",
- String(process.env.FRONTEND_ORIGIN || "").trim(),
-].filter(Boolean);
-
 app.use(
   cors({
-    origin(origin, callback) {
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        origin.includes("vercel.app")
-      ) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error("Not allowed by CORS"));
-    },
+    origin: [
+      "http://localhost:3000",
+      "https://www.tnautomation.in",
+      "https://tnautomation.in",
+    ],
     credentials: true,
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(compression());
 app.use(cookieParser());
 
