@@ -32,22 +32,19 @@ console.log("JWT Exists:", !!process.env.JWT_SECRET);
 
 const app = express();
 
-mongoose.set("strictQuery", true);
-app.set("trust proxy", 1);
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "https://www.tnautomation.in",
-      "https://tnautomation.in",
-    ],
-    credentials: true,
-  })
-);
+app.options("*", cors());
 
 app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+mongoose.set("strictQuery", true);
+app.set("trust proxy", 1);
 app.use(compression());
 app.use(cookieParser());
 

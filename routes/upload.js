@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const cors = require("cors");
 const cloudinary = require("../lib/cloudinary");
+
+router.options("/", cors());
 
 router.post("/", async (req, res) => {
   try {
