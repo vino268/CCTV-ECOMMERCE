@@ -234,7 +234,7 @@ export default function AdminProductsPage() {
               const base64Image = reader.result;
 
               const response = await fetch(
-                "https://www.tnautomation.in/api/upload",
+                  "https://cctv-ecommerce.onrender.com/api/upload",
                 {
                   method: "POST",
                   headers: {
