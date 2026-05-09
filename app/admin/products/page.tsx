@@ -593,7 +593,14 @@ export default function AdminProductsPage() {
                   <div className="flex gap-2 flex-wrap mt-3">
                     {editImages.map((img, index) => (
                       <div key={`${img}-${index}`} className="relative w-24 h-24 border rounded-lg overflow-hidden">
-                        <img src={img} alt={`Edit preview ${index + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={img}
+                          alt={`Edit preview ${index + 1}`}
+                          className="w-24 h-24 object-cover rounded"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
+                          }}
+                        />
 
                         <button
                           type="button"
@@ -933,7 +940,14 @@ export default function AdminProductsPage() {
                   <div className="flex gap-2 flex-wrap mt-3">
                     {editImages.map((img, index) => (
                       <div key={`${img}-${index}`} className="relative w-24 h-24 border rounded-lg overflow-hidden">
-                        <img src={img} alt={`Edit preview ${index + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={img}
+                          alt={`Edit preview ${index + 1}`}
+                          className="w-24 h-24 object-cover rounded"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
+                          }}
+                        />
 
                         <button
                           type="button"

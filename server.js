@@ -28,7 +28,8 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "https://tnautomation.in",
-    "https://www.tnautomation.in"
+    "https://www.tnautomation.in",
+    "https://cctv-ecommerce.onrender.com"
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -66,19 +67,8 @@ app.use("/api/user", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
-app.post("/api/upload", async (req, res) => {
-  try {
-    console.log("UPLOAD API HIT");
-    return res.json({
-      success: true
-    });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({
-      error: err.message
-    });
-  }
-});
+// Mount the real upload route which returns { success: true, url: result.secure_url }
+app.use("/api/upload", uploadRoutes);
 
 app.use((req, res) => {
   return res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
