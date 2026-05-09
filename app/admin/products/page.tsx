@@ -60,7 +60,7 @@ export default function AdminProductsPage() {
     category: '',
     description: '',
   });
-  const [addImages, setAddImages] = useState<File[]>([]);
+  const [addImages, setAddImages] = useState<string[]>([]);
   const [addImagePreviews, setAddImagePreviews] = useState<string[]>([]);
   const [addImageUrl, setAddImageUrl] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -219,40 +219,52 @@ export default function AdminProductsPage() {
     }
   };
 
-  const toBase64 = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-    });
+  const uploadFiles = async (files: File[]) => {
+    if (files.length === 0) return [] as string[];
 
-  const uploadImageFile = async (file: File): Promise<string> => {
-    try {
-      const base64 = await toBase64(file);
+    const uploadedImages = await Promise.all(
+      files.map((file) => {
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image: base64,
-        }),
-      });
+          reader.readAsDataURL(file);
 
-      const data = await res.json().catch(() => ({}));
+          reader.onloadend = async () => {
+            try {
+              const base64Image = reader.result;
 
-      if (!res.ok) {
-        console.error("Upload Error Details:", data);
-        throw new Error(data.error || "Upload failed");
-      }
+              const response = await fetch(
+                "https://www.tnautomation.in/api/upload",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    image: base64Image,
+                  }),
+                }
+              );
 
-      return data.url;
-    } catch (error) {
-      console.error("toBase64 or Fetch Error:", error);
-      throw error;
-    }
+              const data = await response.json();
+
+              if (!response.ok) {
+                reject(data.error);
+                return;
+              }
+
+              resolve(data.url);
+            } catch (err) {
+              reject(err);
+            }
+          };
+
+          reader.onerror = reject;
+        });
+      })
+    );
+
+    return uploadedImages;
   };
 
   const generateSku = (category: string) => {
@@ -317,22 +329,27 @@ export default function AdminProductsPage() {
     return () => clearTimeout(delay);
   }, [addFormData.sku]);
 
-  const handleAddImageFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  const handleImageUpload = async (input: React.ChangeEvent<HTMLInputElement> | FileList | null) => {
+    const files = input instanceof FileList
+      ? Array.from(input)
+      : Array.from(input?.target?.files || []);
+    const validFiles = files.filter((file) => file.type.startsWith('image/'));
 
-    const validFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
     if (validFiles.length === 0) return;
 
     try {
       setIsAddImageUploading(true);
       setAddImageError('');
 
-      const merged = [...addImages, ...validFiles].slice(0, 5);
+      const uploadedImages = await uploadFiles(validFiles);
+      const merged = [...addImages, ...uploadedImages].slice(0, 5);
       setAddImages(merged);
-      setAddImagePreviews(merged.map((file) => URL.createObjectURL(file)));
-      console.log(merged);
+      setAddImagePreviews(merged);
+      if (input && !(input instanceof FileList)) {
+        input.target.value = '';
+      }
     } catch (err: any) {
-      setAddImageError(err.message || 'Failed to upload one or more images.');
+      setAddImageError(err.message || 'Image upload failed');
     } finally {
       setIsAddImageUploading(false);
     }
@@ -367,13 +384,9 @@ export default function AdminProductsPage() {
         throw new Error('Invalid image URL. It must start with http or https.');
       }
 
-      const uploadedImageUrls = addImages.length > 0
-        ? await Promise.all(addImages.map((file) => uploadImageFile(file)))
-        : [];
-
-      const finalImage = uploadedImageUrls[0] || trimmedImageUrl;
-      const finalImages = uploadedImageUrls.length > 0
-        ? uploadedImageUrls
+      const finalImage = addImages[0] || trimmedImageUrl;
+      const finalImages = addImages.length > 0
+        ? addImages
         : trimmedImageUrl
           ? [trimmedImageUrl]
           : [];
@@ -451,10 +464,10 @@ export default function AdminProductsPage() {
       setIsEditImageUploading(true);
       setEditImageError('');
 
-      const uploadedUrls = await Promise.all(validFiles.map((file) => uploadImageFile(file)));
+      const uploadedUrls = await uploadFiles(validFiles);
       setEditImages((prev) => Array.from(new Set([...prev, ...uploadedUrls])).slice(0, 5));
     } catch (err: any) {
-      setEditImageError(err.message || 'Failed to upload image(s).');
+      setEditImageError(err.message || 'Image upload failed.');
     } finally {
       setIsEditImageUploading(false);
     }
@@ -1098,7 +1111,7 @@ export default function AdminProductsPage() {
                     onDrop={(e) => {
                       e.preventDefault();
                       setIsDragging(false);
-                      handleAddImageFiles(e.dataTransfer.files);
+                      handleImageUpload(e.dataTransfer.files);
                     }}
                   >
                     <input
@@ -1107,7 +1120,7 @@ export default function AdminProductsPage() {
                       accept="image/*"
                       className="hidden"
                       ref={addFileRef}
-                      onChange={(e) => handleAddImageFiles(e.target.files)}
+                      onChange={handleImageUpload}
                     />
 
                     <p className="text-gray-600 mb-3">Drag & drop CCTV images here</p>

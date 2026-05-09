@@ -90,7 +90,7 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
 
         const base64 = await toBase64(previews[i].file);
 
-        const res = await fetch("/api/upload", {
+        const res = await fetch("https://www.tnautomation.in/api/upload", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
