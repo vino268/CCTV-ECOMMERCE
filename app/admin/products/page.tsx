@@ -718,9 +718,9 @@ export default function AdminProductsPage() {
                   return (
                     <tr key={id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
                       <td className="p-4 whitespace-nowrap">
-                        {product.image ? (
+                        {product.images?.[0] || product.image ? (
                           <img
-                            src={getSafeImageSrc(product.image, '/products/default.jpg')}
+                            src={getSafeImageSrc(product.images?.[0] || product.image, '/products/default.jpg')}
                             alt={product.name}
                             className="w-12 h-12 object-cover rounded-md border border-border"
                           />

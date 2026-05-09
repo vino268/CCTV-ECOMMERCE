@@ -24,7 +24,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [toast, setToast] = useState('');
   const [imageError, setImageError] = useState(false);
   const productId = product._id ?? '';
-  const productImage = getSafeImageSrc(product.image, '/products/default.jpg');
+  const productImage = getSafeImageSrc(product.images?.[0] || product.image, '/products/default.jpg');
   const alreadyInCart = isInCart(productId);
   const cartPending = isCartActionPending(productId);
   const wishlisted = isWishlisted(productId);

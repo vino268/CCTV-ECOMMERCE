@@ -112,7 +112,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           product: {
             name: product.name,
             price: product.price,
-            image: product.image,
+            image: product.images?.[0] || product.image,
             category: product.category,
             inStock: product.inStock,
           },
