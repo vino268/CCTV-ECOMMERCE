@@ -25,6 +25,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const userRoutes = require("./routes/userRoutes");
 const addressRoutes = require("./routes/address");
 const profileRoutes = require("./routes/profile");
+const uploadRoutes = require("./routes/upload");
 
 console.log("Mongo URI Exists:", !!process.env.MONGODB_URI);
 console.log("JWT Exists:", !!process.env.JWT_SECRET);
@@ -86,6 +87,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/upload", uploadRoutes);
 
 app.use((req, res) => {
   return res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
