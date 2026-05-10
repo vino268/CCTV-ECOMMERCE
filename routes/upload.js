@@ -1,34 +1,41 @@
 const express = require("express");
 const router = express.Router();
-const cors = require("cors");
+const multer = require("multer");
 const cloudinary = require("../lib/cloudinary");
+const fs = require("fs");
 
-router.options("/", cors());
+const upload = multer({
+  dest: "uploads/",
+});
 
-router.post("/", async (req, res) => {
+router.post("/", upload.single("image"), async (req, res) => {
   try {
-    const { image } = req.body;
-
-    if (!image) {
+    if (!req.file) {
       return res.status(400).json({
-        error: "No image provided",
+        success: false,
+        error: "No file uploaded",
       });
     }
 
-    const result = await cloudinary.uploader.upload(image, {
+    const result = await cloudinary.uploader.upload(req.file.path, {
       folder: "products",
     });
 
-    res.json({
+    if (req.file.path) {
+      fs.unlink(req.file.path, () => {});
+    }
+
+    return res.status(200).json({
       success: true,
       url: result.secure_url,
     });
 
   } catch (error) {
-    console.error("UPLOAD ERROR:", error);
+    console.log("UPLOAD ERROR:", error);
 
-    res.status(500).json({
-      error: error.message,
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Upload failed",
     });
   }
 });

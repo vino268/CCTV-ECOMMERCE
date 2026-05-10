@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     console.log("Upload success");
 
     return NextResponse.json({
+      success: true,
       url: uploadedResponse.secure_url,
     });
   } catch (error: any) {

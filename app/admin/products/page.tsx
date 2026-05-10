@@ -225,41 +225,37 @@ export default function AdminProductsPage() {
     const uploadedImages = await Promise.all(
       files.map((file) => {
         return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-
-          reader.readAsDataURL(file);
-
-          reader.onloadend = async () => {
+          (async () => {
             try {
-              const base64Image = reader.result;
+              const formData = new FormData();
+              formData.append('image', file);
 
-              const response = await fetch(
-                  "https://cctv-ecommerce.onrender.com/api/upload",
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    image: base64Image,
-                  }),
-                }
-              );
+              const uploadUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/upload`;
+
+              const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+              });
 
               const data = await response.json();
+              console.log('UPLOAD RESPONSE:', data);
 
               if (!response.ok) {
-                reject(data.error);
+                reject(data.error || data.message || 'Upload failed');
                 return;
               }
 
-              resolve(data.url);
+              const uploadedUrl = data.url || data.imageUrl || data.secure_url;
+              if (!uploadedUrl) {
+                reject('Upload response missing image URL');
+                return;
+              }
+
+              resolve(uploadedUrl);
             } catch (err) {
               reject(err);
             }
-          };
-
-          reader.onerror = reject;
+          })();
         });
       })
     );
@@ -1160,18 +1156,24 @@ export default function AdminProductsPage() {
                   {addImageError && <p className="text-xs text-red-500 mt-2">{addImageError}</p>}
 
                   {addImagePreviews.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div className="flex gap-2 flex-wrap mt-3">
                     {addImagePreviews.map((img, i) => (
-                      <div key={`${img}-${i}`} className="relative group">
+                      <div
+                        key={`${img}-${i}`}
+                        className="relative border rounded overflow-hidden"
+                      >
                         <img
                           src={img}
                           alt={`Preview ${i + 1}`}
-                          className="w-full h-28 object-cover rounded-lg border"
+                          className="w-24 h-24 object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
+                          }}
                         />
                         <button
                           type="button"
                           onClick={() => removeAddImage(i)}
-                          className="absolute top-1 right-1 bg-red-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                          className="absolute top-0 right-0 bg-red-500 text-white px-1"
                         >
                           ✕
                         </button>

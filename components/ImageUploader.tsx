@@ -64,14 +64,6 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
     });
   };
 
-  const toBase64 = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-    });
-
   const uploadImages = async () => {
     if (previews.length === 0) return;
     
@@ -88,23 +80,24 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
           return next;
         });
 
-        const base64 = await toBase64(previews[i].file);
+        const formData = new FormData();
+        formData.append("image", previews[i].file);
 
-        const res = await fetch("https://www.tnautomation.in/api/upload", {
-          const res = await fetch("https://cctv-ecommerce.onrender.com/api/upload", {
+        const uploadUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/upload`;
+
+        const res = await fetch(uploadUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            image: base64,
-          }),
+          body: formData,
         });
 
         const data = await res.json();
 
-        if (res.ok && data.url) {
-          uploadedUrls.push(data.url);
+        console.log("UPLOAD RESPONSE:", data);
+
+        const uploadedUrl = data.url || data.imageUrl || data.secure_url;
+
+        if (res.ok && data.success !== false && uploadedUrl) {
+          uploadedUrls.push(uploadedUrl);
           setPreviews(prev => {
             const next = [...prev];
             next[i].status = 'success';
@@ -204,6 +197,9 @@ export default function ImageUploader({ onUploadComplete }: ImageUploaderProps) 
                   className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${
                     item.status === 'uploading' ? 'opacity-50 grayscale' : ''
                   }`}
+                  onError={(e) => {
+                    e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
+                  }}
                 />
                 
                 {item.status === 'uploading' && (

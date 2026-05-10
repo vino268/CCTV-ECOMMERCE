@@ -488,9 +488,8 @@ export default function AddProductPage() {
                       src={url}
                       alt={`Preview ${index}`}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      onError={() => {
-                        showToast("Broken image link removed", "error");
-                        setPreviewImages(prev => prev.filter((_, i) => i !== index));
+                      onError={(e) => {
+                        e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
                       }}
                     />
                     <button
