@@ -4,6 +4,9 @@ const cors = require("cors");
 const compression = require("compression");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 
 const productRoutes = require("./routes/product");
 const categoryRoutes = require("./routes/categories");
@@ -17,7 +20,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const userRoutes = require("./routes/userRoutes");
 const addressRoutes = require("./routes/address");
 const profileRoutes = require("./routes/profile");
-const uploadRoutes = require("./routes/upload");
+const cloudinary = require("./lib/cloudinary");
 
 console.log("Mongo URI Exists:", !!process.env.MONGODB_URI);
 console.log("JWT Exists:", !!process.env.JWT_SECRET);
@@ -54,6 +57,26 @@ app.get("/api/health", (_req, res) => {
   res.status(200).json({ success: true, connected: mongoose.connection.readyState === 1 });
 });
 
+const uploadDir = path.join(__dirname, "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
+
+const upload = multer({
+  storage,
+});
+
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/services", serviceRoutes);
@@ -67,8 +90,40 @@ app.use("/api/user", userRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
-// Mount the real upload route which returns { success: true, url: result.secure_url }
-app.use("/api/upload", uploadRoutes);
+
+app.post("/api/upload", upload.single("image"), async (req, res) => {
+  try {
+
+    console.log("FILE RECEIVED:", req.file);
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded",
+      });
+    }
+
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "products",
+    });
+
+    fs.unlinkSync(req.file.path);
+
+    return res.status(200).json({
+      success: true,
+      url: result.secure_url,
+    });
+
+  } catch (error) {
+
+    console.log("UPLOAD ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 app.use((req, res) => {
   return res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
