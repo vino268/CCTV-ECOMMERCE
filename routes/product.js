@@ -61,7 +61,7 @@ router.get("/", async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select("name sku slug price image images features category inStock createdAt updatedAt")
+      .select("name sku slug price image images features category inStock shippingText warrantyYears returnDays createdAt updatedAt")
       .lean();
 
     const safeProducts = Array.isArray(products) ? products : [];
@@ -96,7 +96,7 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const identifier = String(req.params.id || "").trim();
-    const projection = "name sku slug price description image images features category inStock createdAt updatedAt";
+    const projection = "name sku slug price description image images features category inStock shippingText warrantyYears returnDays createdAt updatedAt";
 
     if (!identifier || !mongoose.Types.ObjectId.isValid(identifier)) {
       return res.status(400).json({
@@ -113,6 +113,14 @@ router.get("/:id", async (req, res) => {
         message: "Product not found",
       });
     }
+
+    console.log('🔍 EXPRESS GET /:id - Full Product from DB:', JSON.stringify({
+      _id: product._id,
+      name: product.name,
+      shippingText: product.shippingText,
+      warrantyYears: product.warrantyYears,
+      returnDays: product.returnDays,
+    }, null, 2));
 
     const relatedProducts = await Product.find({
       isDeleted: false,
@@ -141,7 +149,16 @@ router.get("/:id", async (req, res) => {
 // POST /api/products
 router.post("/", async (req, res) => {
   try {
-    const { name, price, description, sku, category, inStock, features, image, images } = req.body || {};
+    const { name, price, description, sku, category, inStock, features, image, images, shippingText, warrantyYears, returnDays } = req.body || {};
+
+    console.log('📥 EXPRESS POST /api/products received:', {
+      shippingText,
+      warrantyYears,
+      returnDays,
+      typeShipping: typeof shippingText,
+      typeWarranty: typeof warrantyYears,
+      typeReturnDays: typeof returnDays,
+    });
 
     const trimmedName = String(name || "").trim();
     if (!trimmedName) {
@@ -173,7 +190,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const product = new Product({
+    const productPayload = {
       name: trimmedName,
       price: parsedPrice,
       description: String(description || "").trim(),
@@ -183,9 +200,30 @@ router.post("/", async (req, res) => {
       images: finalImages,
       image: finalImage,
       features: normalizedFeatures,
-    });
+    };
+
+    // Only set feature fields if they are defined
+    if (shippingText !== undefined) {
+      productPayload.shippingText = String(shippingText || "Across India").trim();
+    }
+    if (warrantyYears !== undefined) {
+      productPayload.warrantyYears = Number.isFinite(Number(warrantyYears)) ? Math.max(0, Math.round(Number(warrantyYears))) : 1;
+    }
+    if (returnDays !== undefined) {
+      productPayload.returnDays = Number.isFinite(Number(returnDays)) ? Math.max(0, Math.round(Number(returnDays))) : 10;
+    }
+
+    const product = new Product(productPayload);
 
     await product.save();
+
+    console.log('✅ EXPRESS POST - Product saved to MongoDB:', JSON.stringify({
+      _id: product._id,
+      name: product.name,
+      shippingText: product.shippingText,
+      warrantyYears: product.warrantyYears,
+      returnDays: product.returnDays,
+    }, null, 2));
 
     await createNotification({
       title: "System Update",

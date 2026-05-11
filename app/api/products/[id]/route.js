@@ -55,7 +55,7 @@ function normalizeProductPayload(data) {
         .filter(Boolean)
     : [];
 
-  return {
+  const payload = {
     ...data,
     sku: typeof data.sku === "string" ? data.sku.trim().toUpperCase() : "",
     name: typeof data.name === "string" ? data.name.trim() : "",
@@ -65,6 +65,19 @@ function normalizeProductPayload(data) {
     price: Math.round(Number(data.price)),
     features,
   };
+
+  // Only set feature fields if they are defined (handles both 0 and non-zero values)
+  if (data.shippingText !== undefined) {
+    payload.shippingText = typeof data.shippingText === "string" ? data.shippingText.trim() : "Across India";
+  }
+  if (data.warrantyYears !== undefined) {
+    payload.warrantyYears = Number.isFinite(Number(data.warrantyYears)) ? Math.max(0, Math.round(Number(data.warrantyYears))) : 1;
+  }
+  if (data.returnDays !== undefined) {
+    payload.returnDays = Number.isFinite(Number(data.returnDays)) ? Math.max(0, Math.round(Number(data.returnDays))) : 10;
+  }
+
+  return payload;
 }
 
 function validateProductPayload(data) {
@@ -123,6 +136,15 @@ export async function GET(req, { params }) {
       );
     }
 
+    console.log('🔍 NEXT.JS GET /api/products/[id] - Full Product from DB:', JSON.stringify({
+      _id: product._id,
+      name: product.name,
+      shippingText: product.shippingText,
+      warrantyYears: product.warrantyYears,
+      returnDays: product.returnDays,
+      allKeys: Object.keys(product.toObject ? product.toObject() : product),
+    }, null, 2));
+
     return NextResponse.json(
       {
         success: true,
@@ -150,6 +172,16 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const requestBody = await req.json();
 
+    console.log('📥 PUT /api/products/[id] received:', {
+      id,
+      shippingTextIn: requestBody?.shippingText,
+      warrantyYearsIn: requestBody?.warrantyYears,
+      returnDaysIn: requestBody?.returnDays,
+      typeShipping: typeof requestBody?.shippingText,
+      typeWarranty: typeof requestBody?.warrantyYears,
+      typeReturnDays: typeof requestBody?.returnDays,
+    });
+
     if (hasDisallowedImageInputs(requestBody)) {
       return validationErrorResponse({
         images:
@@ -158,6 +190,18 @@ export async function PUT(req, { params }) {
     }
 
     const data = normalizeProductPayload(normalizeImages(requestBody));
+
+    console.log('🔄 After normalization - PUT:', {
+      shippingTextOut: data?.shippingText,
+      warrantyYearsOut: data?.warrantyYears,
+      returnDaysOut: data?.returnDays,
+      typeShippingOut: typeof data?.shippingText,
+      typeWarrantyOut: typeof data?.warrantyYears,
+      typeReturnDaysOut: typeof data?.returnDays,
+      hasShipping: 'shippingText' in data,
+      hasWarranty: 'warrantyYears' in data,
+      hasReturnDays: 'returnDays' in data,
+    });
 
     const fieldErrors = validateProductPayload(data);
     if (Object.keys(fieldErrors).length > 0) {
@@ -177,26 +221,60 @@ export async function PUT(req, { params }) {
       }
     }
 
-    const product = await Product.findByIdAndUpdate(
-      id,
-      { $set: data },
-      { new: true, runValidators: true }
-    );
+    // Find existing product and update fields explicitly to avoid unintended overwrites
+    const productDoc = await Product.findById(id);
 
-    if (!product) {
+    if (!productDoc) {
       return NextResponse.json(
         { error: "Product not found" },
         { status: 404 }
       );
     }
 
+    // Update common normalized fields from `data` (already validated)
+    const updatableFields = [
+      'sku', 'name', 'category', 'description', 'price', 'images', 'image', 'inStock', 'features'
+    ];
+    for (const f of updatableFields) {
+      if (data[f] !== undefined) productDoc[f] = data[f];
+    }
+
+    // Update feature fields only if provided in the raw request (preserve existing otherwise)
+    if (requestBody.shippingText !== undefined) {
+      productDoc.shippingText = typeof requestBody.shippingText === 'string'
+        ? String(requestBody.shippingText).trim()
+        : productDoc.shippingText;
+    }
+    if (requestBody.warrantyYears !== undefined) {
+      productDoc.warrantyYears = Number.isFinite(Number(requestBody.warrantyYears))
+        ? Math.max(0, Math.round(Number(requestBody.warrantyYears)))
+        : productDoc.warrantyYears;
+    }
+    if (requestBody.returnDays !== undefined) {
+      productDoc.returnDays = Number.isFinite(Number(requestBody.returnDays))
+        ? Math.max(0, Math.round(Number(requestBody.returnDays)))
+        : productDoc.returnDays;
+    }
+
+    await productDoc.save();
+
+    console.log('✅ Product saved successfully (after explicit save):', {
+      id: productDoc._id,
+      shippingTextAfter: productDoc.shippingText,
+      warrantyYearsAfter: productDoc.warrantyYears,
+      returnDaysAfter: productDoc.returnDays,
+      typeShippingAfter: typeof productDoc.shippingText,
+      typeWarrantyAfter: typeof productDoc.warrantyYears,
+      typeReturnDaysAfter: typeof productDoc.returnDays,
+    });
+
     await AdminLog.create({
       adminName: "Admin",
       action: "Updated product",
-      details: product.name || "",
+      details: productDoc.name || "",
     });
 
-    return NextResponse.json(product);
+    return NextResponse.json(productDoc);
   } catch (error) {
     if (error?.code === 11000 && error?.keyPattern?.sku) {
       return NextResponse.json(

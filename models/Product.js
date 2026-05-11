@@ -21,6 +21,19 @@ const productSchema = new mongoose.Schema(
     features: { type: [String], default: [] },
     category: { type: String, default: "", trim: true },
     inStock: { type: Boolean, default: true },
+    shippingText: {
+      type: String,
+      default: "Across India",
+      trim: true,
+    },
+    warrantyYears: {
+      type: Number,
+      default: 1,
+    },
+    returnDays: {
+      type: Number,
+      default: 10,
+    },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
   },

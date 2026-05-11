@@ -212,6 +212,7 @@ export default function AddProductPage() {
           features,
           images: finalImages,
           image: finalImage,
+          imageUrl: trimmedImageUrl,
         }),
       });
 
@@ -448,6 +449,19 @@ export default function AddProductPage() {
                 }}
                 className="w-full rounded-md border border-border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
+
+              {imageUrl.trim() && (
+                <div className="mt-4">
+                  <img
+                    src={imageUrl.trim()}
+                    alt="Preview"
+                    className="w-32 h-32 object-cover rounded-lg border"
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder.jpg';
+                    }}
+                  />
+                </div>
+              )}
             </div>
             <Button 
               type="button" 

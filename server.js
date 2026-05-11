@@ -20,7 +20,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const userRoutes = require("./routes/userRoutes");
 const addressRoutes = require("./routes/address");
 const profileRoutes = require("./routes/profile");
-const cloudinary = require("./lib/cloudinary");
+const cloudinary = require("./utils/cloudinary");
 
 console.log("Mongo URI Exists:", !!process.env.MONGODB_URI);
 console.log("JWT Exists:", !!process.env.JWT_SECRET);
@@ -103,9 +103,13 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
       });
     }
 
+    console.log("START CLOUDINARY");
+
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder: "products",
     });
+
+    console.log("UPLOAD SUCCESS:", result);
 
     fs.unlinkSync(req.file.path);
 

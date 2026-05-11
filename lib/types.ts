@@ -15,6 +15,9 @@ export interface Product {
   };
   description: string;
   inStock: boolean;
+  shippingText?: string;
+  warrantyYears?: number;
+  returnDays?: number;
   createdAt?: string;
 }
 

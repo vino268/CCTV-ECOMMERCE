@@ -63,6 +63,9 @@ export default function AdminProductsPage() {
   const [addImages, setAddImages] = useState<string[]>([]);
   const [addImagePreviews, setAddImagePreviews] = useState<string[]>([]);
   const [addImageUrl, setAddImageUrl] = useState('');
+  const [shippingText, setShippingText] = useState('Across India');
+  const [warrantyYears, setWarrantyYears] = useState<number>(1);
+  const [returnDays, setReturnDays] = useState<number>(10);
   const [isDragging, setIsDragging] = useState(false);
   const [isAddSubmitting, setIsAddSubmitting] = useState(false);
   const [isAddImageUploading, setIsAddImageUploading] = useState(false);
@@ -80,6 +83,10 @@ export default function AdminProductsPage() {
     category: '',
     description: '',
   });
+  const [editShippingText, setEditShippingText] = useState('Across India');
+  const [editWarrantyYears, setEditWarrantyYears] = useState<number>(1);
+  const [editReturnDays, setEditReturnDays] = useState<number>(10);
+  
   const [editInStock, setEditInStock] = useState(true);
   const [editImages, setEditImages] = useState<string[]>([]);
   const [isEditImageUploading, setIsEditImageUploading] = useState(false);
@@ -166,14 +173,13 @@ export default function AdminProductsPage() {
     const name = categoryName.trim();
     const isAdd = categoryModalType === 'add';
     const isEdit = categoryModalType === 'edit';
-    const isDelete = categoryModalType === 'delete';
 
     if ((isAdd || isEdit) && !name) {
       setCategoryError('Category name is required.');
       return;
     }
 
-    if ((isEdit || isDelete) && !selectedCategory) {
+    if ((isEdit) && !selectedCategory) {
       setCategoryError('No category selected.');
       return;
     }
@@ -188,24 +194,24 @@ export default function AdminProductsPage() {
       setCategoryError('');
 
       const method = isAdd ? 'POST' : isEdit ? 'PUT' : 'DELETE';
-      const url = isAdd 
-        ? buildApiUrl('/api/admin/categories') 
+      const url = isAdd
+        ? buildApiUrl('/api/admin/categories')
         : buildApiUrl(`/api/admin/categories/${selectedCategory?._id}`);
 
       const res = await fetch(url, {
         method,
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: isDelete ? undefined : JSON.stringify({ name }),
+        body: isEdit ? JSON.stringify({ name }) : isAdd ? JSON.stringify({ name }) : undefined,
       });
 
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const fallbackError = isEdit 
-          ? 'Failed to update category' 
-          : isAdd 
-            ? 'Failed to create category' 
+        const fallbackError = isEdit
+          ? 'Failed to update category'
+          : isAdd
+            ? 'Failed to create category'
             : 'Failed to delete category';
         throw new Error(payload.message || payload.error || fallbackError);
       }
@@ -220,7 +226,7 @@ export default function AdminProductsPage() {
   };
 
   const uploadFiles = async (files: File[]) => {
-    if (files.length === 0) return [] as string[];
+    if (!files || files.length === 0) return [] as string[];
 
     const uploadedImages = await Promise.all(
       files.map((file) => {
@@ -400,7 +406,17 @@ export default function AdminProductsPage() {
           inStock: true,
           images: finalImages,
           image: finalImage,
+          imageUrl: trimmedImageUrl,
+            shippingText,
+            warrantyYears,
+            returnDays,
         }),
+      });
+
+      console.log('📤 Admin - Add payload sent:', {
+        shippingText,
+        warrantyYears,
+        returnDays,
       });
 
       if (!res.ok) {
@@ -423,6 +439,9 @@ export default function AdminProductsPage() {
       setAddImages([]);
       setAddImagePreviews([]);
       setAddImageUrl('');
+      setShippingText('Across India');
+      setWarrantyYears(1);
+      setReturnDays(10);
       if (addFileRef.current) addFileRef.current.value = '';
       setShowAddModal(false);
     } catch (err) {
@@ -448,6 +467,9 @@ export default function AdminProductsPage() {
     const fallbackImage = getSafeImageSrc(product.image, '');
     setEditImages(imageList.length > 0 ? imageList : fallbackImage ? [fallbackImage] : []);
     setEditImageError('');
+    setEditShippingText(product.shippingText || 'Across India');
+    setEditWarrantyYears(Number(product.warrantyYears ?? 1));
+    setEditReturnDays(Number(product.returnDays ?? 10));
   };
 
   const handleEditImageFiles = async (files: FileList | null) => {
@@ -499,16 +521,40 @@ export default function AdminProductsPage() {
           images: imageList,
           image: imageList[0] || '',
           inStock: editInStock,
+          shippingText: editShippingText,
+          warrantyYears: editWarrantyYears,
+          returnDays: editReturnDays,
         }),
       });
 
+      console.log('📤 Admin - Update payload sent:', {
+        shippingText: editShippingText,
+        warrantyYears: editWarrantyYears,
+        returnDays: editReturnDays,
+        typeShipping: typeof editShippingText,
+        typeWarranty: typeof editWarrantyYears,
+        typeReturnDays: typeof editReturnDays,
+      });
+
+      const responseData = await res.json().catch(() => ({}));
+      console.log('Update product response:', {
+        ok: res.ok,
+        shippingText: responseData?.shippingText,
+        warrantyYears: responseData?.warrantyYears,
+        returnDays: responseData?.returnDays,
+      });
+
       if (res.ok) {
+        showSuccess('Product updated successfully');
         await fetchProducts();
         setEditProduct(null);
         router.refresh();
+      } else {
+        showError(responseData?.error || 'Failed to update product');
       }
     } catch (err) {
       console.error('Error updating product:', err);
+      showError('Error updating product');
     }
   };
 
@@ -569,48 +615,6 @@ export default function AdminProductsPage() {
       setIsDeleteSubmitting(false);
     }
   };
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Product Images</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) => handleEditImageFiles(e.target.files)}
-                  className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                />
-
-                {isEditImageUploading && (
-                  <p className="mt-2 text-xs text-muted-foreground">Uploading image(s)...</p>
-                )}
-                {editImageError && <p className="mt-2 text-xs text-red-600">{editImageError}</p>}
-
-                {editImages.length > 0 && (
-                  <div className="flex gap-2 flex-wrap mt-3">
-                    {editImages.map((img, index) => (
-                      <div key={`${img}-${index}`} className="relative w-24 h-24 border rounded-lg overflow-hidden">
-                        <img
-                          src={img}
-                          alt={`Edit preview ${index + 1}`}
-                          className="w-24 h-24 object-cover rounded"
-                          onError={(e) => {
-                            e.currentTarget.src = "https://via.placeholder.com/150?text=No+Image";
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => removeEditImage(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
@@ -958,6 +962,46 @@ export default function AdminProductsPage() {
                 )}
               </div>
 
+              <div className="bg-white border rounded-xl p-4 space-y-4">
+                <h3 className="font-semibold text-lg">Product Features</h3>
+
+                <div>
+                  <label className="block text-sm mb-1">Free Shipping Area</label>
+                  <select
+                    value={editShippingText}
+                    onChange={(e) => setEditShippingText(e.target.value)}
+                    className="w-full border rounded-lg p-2"
+                  >
+                    <option value="Across Tamil Nadu">Across Tamil Nadu</option>
+                    <option value="Across India">Across India</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm mb-1">Warranty (Years)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editWarrantyYears}
+                    onChange={(e) => setEditWarrantyYears(Number(e.target.value))}
+                    className="w-full border rounded-lg p-2"
+                    placeholder="Enter years"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm mb-1">Return Policy (Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editReturnDays}
+                    onChange={(e) => setEditReturnDays(Number(e.target.value))}
+                    className="w-full border rounded-lg p-2"
+                    placeholder="Enter return days"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <Button type="submit">Update Product</Button>
                 <Button type="button" variant="outline" onClick={() => setEditProduct(null)}>
@@ -1106,6 +1150,19 @@ export default function AdminProductsPage() {
                     className="input"
                   />
 
+                  {addImageUrl.trim() && (
+                    <div className="mt-4">
+                      <img
+                        src={addImageUrl.trim()}
+                        alt="Preview"
+                        className="w-32 h-32 object-cover rounded-lg border"
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder.jpg';
+                        }}
+                      />
+                    </div>
+                  )}
+
                   <div
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition ${
                       isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'
@@ -1182,6 +1239,57 @@ export default function AdminProductsPage() {
                     </div>
                   )}
                 </div>
+
+                  <div className="bg-white border rounded-xl p-4 space-y-4">
+                    <h3 className="font-semibold text-lg">
+                      Product Features
+                    </h3>
+
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Free Shipping Area
+                      </label>
+
+                      <select
+                        value={shippingText}
+                        onChange={(e) => setShippingText(e.target.value)}
+                        className="w-full border rounded-lg p-2"
+                      >
+                        <option value="Across Tamil Nadu">Across Tamil Nadu</option>
+                        <option value="Across India">Across India</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Warranty (Years)
+                      </label>
+
+                      <input
+                        type="number"
+                        min="0"
+                        value={warrantyYears}
+                        onChange={(e) => setWarrantyYears(Number(e.target.value))}
+                        className="w-full border rounded-lg p-2"
+                        placeholder="Enter years"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Return Policy (Days)
+                      </label>
+
+                      <input
+                        type="number"
+                        min="0"
+                        value={returnDays}
+                        onChange={(e) => setReturnDays(Number(e.target.value))}
+                        className="w-full border rounded-lg p-2"
+                        placeholder="Enter return days"
+                      />
+                    </div>
+                  </div>
 
                 <div className="bg-gray-50 p-4 rounded-xl border">
                   <h3 className="font-semibold mb-4">Actions</h3>

@@ -50,7 +50,7 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select("name sku slug price description image images features category inStock createdAt updatedAt")
+      .select("name sku slug price description image images features category inStock shippingText warrantyYears returnDays createdAt updatedAt")
       .lean();
 
     return NextResponse.json(

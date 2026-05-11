@@ -5,21 +5,92 @@ export const fetchCache = "force-no-store";
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import mongoose from "mongoose";
+import axios from "axios";
+import { PassThrough } from "stream";
 import Product from "@/models/Product";
 import AdminLog from "@/models/AdminLog";
+import cloudinary from "@/lib/cloudinary";
 import {
   isAllowedProductImageInput,
   normalizeProductImageList,
 } from "@/lib/product-image";
 
 function normalizeImages(data) {
-  const images = normalizeProductImageList(data.images, data.image);
+  const images = normalizeProductImageList(data.images, data.imageUrl || data.image);
 
   return {
     ...data,
     images,
     image: images[0] || "",
   };
+}
+
+function isRemoteHttpUrl(value) {
+  if (typeof value !== "string") return false;
+
+  try {
+    const parsed = new URL(value.trim());
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isCloudinaryUrl(value) {
+  return typeof value === "string" && /res\.cloudinary\.com/i.test(value);
+}
+
+function uploadBufferToCloudinary(buffer, options = {}) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(result);
+    });
+
+    const bufferStream = new PassThrough();
+    bufferStream.end(buffer);
+    bufferStream.pipe(uploadStream);
+  });
+}
+
+async function uploadImageFromUrl(imageUrl) {
+  const response = await axios.get(imageUrl, {
+    responseType: "arraybuffer",
+    timeout: 20000,
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+    },
+  });
+
+  const uploaded = await uploadBufferToCloudinary(Buffer.from(response.data), {
+    folder: "products",
+    resource_type: "image",
+  });
+
+  return uploaded.secure_url;
+}
+
+async function resolveStoredImages(images) {
+  const resolved = [];
+
+  for (const entry of Array.isArray(images) ? images : []) {
+    const value = typeof entry === "string" ? entry.trim() : "";
+    if (!value) continue;
+
+    if (isRemoteHttpUrl(value) && !isCloudinaryUrl(value)) {
+      resolved.push(await uploadImageFromUrl(value));
+      continue;
+    }
+
+    resolved.push(value);
+  }
+
+  return [...new Set(resolved)];
 }
 
 function hasDisallowedImageInputs(data) {
@@ -55,7 +126,7 @@ function normalizeProductPayload(data) {
         .filter(Boolean)
     : [];
 
-  return {
+  const payload = {
     ...data,
     sku: typeof data.sku === "string" ? data.sku.trim().toUpperCase() : "",
     name: typeof data.name === "string" ? data.name.trim() : "",
@@ -65,6 +136,25 @@ function normalizeProductPayload(data) {
     price: Math.round(Number(data.price)),
     features,
   };
+
+  // Only set feature fields if they are defined (handles both 0 and non-zero values)
+  if (data.shippingText !== undefined) {
+    payload.shippingText = typeof data.shippingText === "string" && data.shippingText.trim()
+      ? data.shippingText.trim()
+      : "Across India";
+  }
+  if (data.warrantyYears !== undefined) {
+    payload.warrantyYears = Number.isFinite(Number(data.warrantyYears))
+      ? Math.max(0, Math.round(Number(data.warrantyYears)))
+      : 1;
+  }
+  if (data.returnDays !== undefined) {
+    payload.returnDays = Number.isFinite(Number(data.returnDays))
+      ? Math.max(0, Math.round(Number(data.returnDays)))
+      : 10;
+  }
+
+  return payload;
 }
 
 function validateProductPayload(data) {
@@ -140,12 +230,14 @@ export async function GET(req) {
     const total = await Product.countDocuments(query);
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    const products = await Product.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select("name sku slug price description image images features category inStock createdAt updatedAt")
-      .lean();
+      const products = await Product.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select(
+          "name sku slug price description image images features category inStock shippingText warrantyYears returnDays createdAt updatedAt"
+        )
+        .lean();
 
     console.log("✅ PRODUCTS COUNT:", products.length);
 
@@ -186,6 +278,15 @@ export async function POST(req) {
 
     const requestBody = await req.json();
 
+    console.log('📥 POST /api/products received:', {
+      shippingText: requestBody?.shippingText,
+      warrantyYears: requestBody?.warrantyYears,
+      returnDays: requestBody?.returnDays,
+      typeShipping: typeof requestBody?.shippingText,
+      typeWarranty: typeof requestBody?.warrantyYears,
+      typeReturnDays: typeof requestBody?.returnDays,
+    });
+
     console.log("Images received:", requestBody.images);
 
     if (hasDisallowedImageInputs(requestBody)) {
@@ -196,6 +297,17 @@ export async function POST(req) {
     }
 
     const data = normalizeProductPayload(normalizeImages(requestBody));
+    const storedImages = await resolveStoredImages(data.images);
+    const storedImage = storedImages[0] || data.image || "";
+
+    console.log('🔄 POST - After normalization:', {
+      shippingTextOut: data?.shippingText,
+      warrantyYearsOut: data?.warrantyYears,
+      returnDaysOut: data?.returnDays,
+      hasShipping: 'shippingText' in data,
+      hasWarranty: 'warrantyYears' in data,
+      hasReturnDays: 'returnDays' in data,
+    });
 
     const fieldErrors = validateProductPayload(data);
     if (Object.keys(fieldErrors).length > 0) {
@@ -215,10 +327,19 @@ export async function POST(req) {
 
     const payload = {
       ...data,
+      images: storedImages,
+      image: storedImage,
       createdAt: data.createdAt || new Date(),
     };
 
     const product = await Product.create(payload);
+
+    console.log('✅ POST - Product created successfully:', {
+      id: product._id,
+      shippingText: product.shippingText,
+      warrantyYears: product.warrantyYears,
+      returnDays: product.returnDays,
+    });
 
     await AdminLog.create({
       adminName: "Admin",

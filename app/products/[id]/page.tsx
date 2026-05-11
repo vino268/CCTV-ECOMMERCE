@@ -10,7 +10,7 @@ import { Product } from '@/lib/types';
 import { ProductCard } from '@/components/product-card';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/contexts/cart-context';
-import { ShoppingCart, Truck, Shield, RotateCcw, CheckCircle2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Truck, ShieldCheck, RotateCcw, CheckCircle2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { getSafeImageSrc } from '@/lib/product-image';
 
@@ -53,6 +53,22 @@ export default function ProductDetailPage({
         if (!productData) {
           throw new Error('Product not found');
         }
+
+        console.log('📥 Frontend - API response received:', {
+          shippingText: productData.shippingText,
+          warrantyYears: productData.warrantyYears,
+          returnDays: productData.returnDays,
+          typeShipping: typeof productData.shippingText,
+          typeWarranty: typeof productData.warrantyYears,
+          typeReturnDays: typeof productData.returnDays,
+        });
+
+        console.log('Fetched product data:', {
+          name: productData.name,
+          shippingText: productData.shippingText,
+          warrantyYears: productData.warrantyYears,
+          returnDays: productData.returnDays,
+        });
 
         setProduct(productData);
         setCurrentImage(0);
@@ -195,6 +211,20 @@ export default function ProductDetailPage({
     productImages.push(mainImage);
   }
 
+  // DEBUG: Log entire product object before render
+  console.log('🔍 PRODUCT OBJECT:', {
+    _id: product._id,
+    name: product.name,
+    shippingText: product.shippingText,
+    warrantyYears: product.warrantyYears,
+    returnDays: product.returnDays,
+    fullProduct: JSON.stringify({
+      shippingText: product.shippingText,
+      warrantyYears: product.warrantyYears,
+      returnDays: product.returnDays,
+    }, null, 2),
+  });
+
   return (
     <div className="bg-gray-50">
       {/* Breadcrumb */}
@@ -291,9 +321,6 @@ export default function ProductDetailPage({
               ) : null}
 
               <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                  Limited Offer
-                </span>
                 {product.inStock ? (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                     In Stock
@@ -310,9 +337,6 @@ export default function ProductDetailPage({
                   <span className="text-4xl md:text-5xl font-extrabold text-blue-700 tracking-tight">
                     ₹{Number(product.price * quantity).toLocaleString("en-IN")}
                   </span>
-                  <p className="text-sm text-gray-500">
-                    ₹{Number(product.price).toLocaleString("en-IN")} × {quantity}
-                  </p>
                 </div>
                 {!product.inStock && (
                   <span className="bg-destructive text-destructive-foreground px-4 py-1 rounded-full text-sm font-semibold">
@@ -412,33 +436,59 @@ export default function ProductDetailPage({
             </div>
 
             {/* Trust Badges */}
-            <div className="grid grid-cols-3 gap-3 pt-6 border-t border-border">
-              <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-2 rounded-lg p-2">
-                <Truck className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="font-semibold text-sm text-foreground">
-                    Free Shipping
-                  </p>
-                  <p className="text-xs text-muted-foreground">Across India</p>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-2 rounded-lg p-2">
-                <Shield className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="font-semibold text-sm text-foreground">Warranty</p>
-                  <p className="text-xs text-muted-foreground">1-year protection</p>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-2 rounded-lg p-2">
-                <RotateCcw className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="font-semibold text-sm text-foreground">
-                    Returns
-                  </p>
-                  <p className="text-xs text-muted-foreground">10-day policy</p>
-                </div>
-              </div>
-            </div>
+            <div className="grid grid-cols-3 gap-4 border-t pt-4">
+
+  <div className="flex items-center gap-2">
+    <Truck size={18} className="text-blue-500" />
+
+    <div>
+      <p className="font-semibold">
+        Free Shipping
+      </p>
+
+      <p className="text-sm text-gray-500">
+        {product?.shippingText || ""}
+      </p>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <ShieldCheck size={18} className="text-blue-500" />
+
+    <div>
+      <p className="font-semibold">
+        Warranty
+      </p>
+
+      <p className="text-sm text-gray-500">
+        {Number(product?.warrantyYears) === 0
+          ? "No Warranty"
+          : product?.warrantyYears
+          ? `${product.warrantyYears}-year protection`
+          : ""}
+      </p>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <RotateCcw size={18} className="text-blue-500" />
+
+    <div>
+      <p className="font-semibold">
+        Returns
+      </p>
+
+      <p className="text-sm text-gray-500">
+        {Number(product?.returnDays) === 0
+          ? "No Return"
+          : product?.returnDays
+          ? `${product.returnDays}-day policy`
+          : ""}
+      </p>
+    </div>
+  </div>
+
+</div>
           </div>
         </div>
 
