@@ -594,23 +594,17 @@ router.get("/dashboard", protectAdmin, async (_req, res) => {
       return sum;
     }, 0);
 
-    const productFilter = { isDeleted: { $ne: true } };
-    const customerFilter = { role: "user", isDeleted: { $ne: true } };
-    if (startDate) {
-      productFilter.createdAt = { $gte: startDate };
-      customerFilter.createdAt = { $gte: startDate };
-    }
-
-    const [totalProducts, totalCustomers] = await Promise.all([
-      Product.countDocuments(productFilter),
-      User.countDocuments(customerFilter),
+    const [totalProducts, totalCustomers, totalOrders] = await Promise.all([
+      Product.countDocuments({ isDeleted: { $ne: true } }),
+      User.countDocuments({ role: "user", isDeleted: { $ne: true } }),
+      Order.countDocuments({ isDeleted: false }),
     ]);
 
     return res.json({
       success: true,
       data: {
         totalProducts,
-        totalOrders: ordersCount,
+        totalOrders,
         totalCustomers,
         totalRevenue: revenue,
       },
@@ -707,7 +701,7 @@ router.get("/analytics/overview", protectAdmin, async (_req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        range: "7d",
+        range: "all",
         kpis: {
           totalProducts,
           totalOrders,

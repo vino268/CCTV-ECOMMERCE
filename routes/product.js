@@ -52,7 +52,7 @@ router.get("/", async (req, res) => {
     }
 
     const [totalProducts, filteredProductsCount] = await Promise.all([
-      Product.countDocuments(),
+      Product.countDocuments({ isDeleted: false }),
       Product.countDocuments(query),
     ]);
     const totalPages = Math.max(1, Math.ceil(filteredProductsCount / limit));
