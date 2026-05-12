@@ -105,14 +105,26 @@ export async function POST(req) {
       );
     }
 
-    console.log("Sending contact email...");
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    console.log("Starting email send process...");
+    
+    let transporter;
+    try {
+      console.log("Creating nodemailer transporter...");
+      transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+      console.log("Transporter created successfully");
+    } catch (error) {
+      console.error("ERROR: Failed to create transporter:", error.message);
+      return NextResponse.json(
+        { success: false, message: "Email service configuration error" },
+        { status: 500 }
+      );
+    }
 
     const subjectLabel = normalizeText(subject || service) || "General Enquiry";
     const responseMessage = isServiceRequest
@@ -129,23 +141,51 @@ export async function POST(req) {
       html: buildHtml({ name, email, phone, subject, service, message }),
     };
 
-    console.log("Mail options - From:", mailOptions.from);
-    console.log("Mail options - To:", mailOptions.to);
-    console.log("Mail options - Subject:", mailOptions.subject);
+    console.log("✓ Mail options prepared:");
+    console.log("  From:", mailOptions.from);
+    console.log("  To:", mailOptions.to);
+    console.log("  Subject:", mailOptions.subject);
+    console.log("  Content length:", mailOptions.html.length, "bytes");
 
-    await transporter.sendMail(mailOptions);
+    let sendResult;
+    try {
+      console.log(">>> SENDING EMAIL NOW <<<");
+      sendResult = await transporter.sendMail(mailOptions);
+      console.log("✓ EMAIL SENT SUCCESSFULLY");
+      console.log("  Response:", sendResult.response);
+      console.log("  Message ID:", sendResult.messageId);
+    } catch (sendError) {
+      console.error("✗ EMAIL SEND FAILED");
+      console.error("  Error message:", sendError.message);
+      console.error("  Error code:", sendError.code);
+      console.error("  Full error:", JSON.stringify(sendError, null, 2));
+      throw sendError;
+    }
 
-    console.log("Email sent successfully to:", process.env.RECEIVER_EMAIL);
+    // Verify email was actually sent before returning success
+    if (!sendResult || !sendResult.response) {
+      console.error("✗ EMAIL VERIFICATION FAILED - No response from SMTP");
+      return NextResponse.json(
+        { success: false, message: "Email sending verification failed" },
+        { status: 500 }
+      );
+    }
+
+    console.log("✓ Email verified as sent to:", process.env.RECEIVER_EMAIL);
     return NextResponse.json({
       success: true,
       message: responseMessage,
     });
   } catch (error) {
-    console.error("====== MAIL ERROR ======");
+    console.error("\n===== CRITICAL EMAIL ERROR =====");
+    console.error("Timestamp:", new Date().toISOString());
+    console.error("Error type:", error.constructor.name);
     console.error("Error message:", error.message);
     console.error("Error code:", error.code);
+    console.error("Error response:", error.response);
     console.error("Full error:", error);
-    console.error("========================");
+    console.error("=================================\n");
+    
     return NextResponse.json(
       { success: false, message: "Failed to send message" },
       { status: 500 }
