@@ -107,7 +107,7 @@ export default function ServicesPage() {
     setFormError('');
 
     try {
-      const response = await fetch('/api/send-email', {
+      const response = await fetch(buildApiUrl('/api/send-email'), {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -136,7 +136,8 @@ export default function ServicesPage() {
       setName('');
       setPhoneNumber('');
       setMessage('');
-    } catch {
+    } catch (error) {
+      console.error("Service form submission error:", error);
       setFormError('Failed to send request. Please try again.');
       setFormSuccess('');
       toast.error('Failed to send request. Please try again.');

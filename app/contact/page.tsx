@@ -136,7 +136,7 @@ export default function ContactPage() {
     setStatus(null);
 
     try {
-      const res = await fetch('/api/send-email', {
+      const res = await fetch(buildApiUrl('/api/send-email'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,8 @@ export default function ContactPage() {
         toast.error(errorMessage);
         setStatus({ type: 'error', message: errorMessage });
       }
-    } catch {
+    } catch (error) {
+      console.error("Contact form submission error:", error);
       toast.error('Failed to send message');
       setStatus({ type: 'error', message: 'Failed to send message' });
     } finally {

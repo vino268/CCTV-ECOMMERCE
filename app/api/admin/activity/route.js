@@ -69,7 +69,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     await connectDB();
-    const { action, adminName, details } = await req.json();
+    const { action, adminName, details, type, message } = await req.json();
 
     if (!action || !adminName) {
       return NextResponse.json(
@@ -78,7 +78,13 @@ export async function POST(req) {
       );
     }
 
-    const log = await AdminLog.create({ action, adminName, details });
+    const log = await AdminLog.create({
+      action,
+      adminName,
+      details,
+      type: type || "system",
+      message: message || action,
+    });
     await pruneOldLogs();
     return NextResponse.json({ success: true, log });
   } catch (error) {

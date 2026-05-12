@@ -145,7 +145,9 @@ export async function POST(req) {
 
     await AdminLog.create({
       adminName: "Admin",
-      action: "Updated settings",
+      type: "settings",
+      action: "update",
+      message: "Settings updated",
       details: "Site settings updated",
     });
 

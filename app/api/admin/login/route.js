@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { connectDB } from "@/lib/mongodb";
 import Admin from "@/models/Admin";
+import AdminLog from "@/models/AdminLog";
 import bcrypt from "bcryptjs";
 import {
   createAuthSession,
@@ -51,6 +52,14 @@ export async function POST(req) {
       userId: admin._id,
       role: "admin",
       email: admin.email,
+    });
+
+    await AdminLog.create({
+      adminName: adminData.name || "Admin",
+      type: "auth",
+      action: "login",
+      message: "Admin logged in",
+      details: adminData.email || "",
     });
 
     const response = NextResponse.json({

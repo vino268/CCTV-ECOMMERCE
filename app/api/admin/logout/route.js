@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import AdminLog from "@/models/AdminLog";
+import { verifyAuthSession } from "@/lib/auth-session";
 import { revokeAuthSession } from "@/lib/auth-session";
 
 export async function POST() {
+  try {
+    await connectDB();
+    const auth = await verifyAuthSession(undefined, "admin");
+    if (auth?.ok) {
+      const adminEmail = String(auth?.session?.email || "");
+      await AdminLog.create({
+        adminName: "Admin",
+        type: "auth",
+        action: "logout",
+        message: "Admin logged out",
+        details: adminEmail,
+      });
+    }
+  } catch (error) {
+    console.error("Admin logout activity log error:", error);
+  }
+
   await revokeAuthSession("admin").catch(() => null);
 
   const response = NextResponse.json({

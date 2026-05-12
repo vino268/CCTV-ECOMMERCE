@@ -98,7 +98,9 @@ export async function POST(req) {
 
     await AdminLog.create({
       adminName: "Admin",
-      action: "Added service",
+      type: "service",
+      action: "add",
+      message: "Service added",
       details: service.name,
     });
 

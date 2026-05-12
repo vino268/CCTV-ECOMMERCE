@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Order from "@/models/Order";
 import Session from "@/models/Session";
+import AdminLog from "@/models/AdminLog";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
 async function getUserById(id) {
@@ -111,6 +112,14 @@ export async function DELETE(req, { params }) {
     if (!user) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
+
+    await AdminLog.create({
+      adminName: "Admin",
+      type: "customer",
+      action: "delete",
+      message: "Customer deleted",
+      details: user.email || user.name || String(user._id),
+    });
 
     return NextResponse.json({ message: "Customer moved to trash successfully" });
   } catch (error) {

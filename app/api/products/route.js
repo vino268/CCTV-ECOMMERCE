@@ -343,7 +343,9 @@ export async function POST(req) {
 
     await AdminLog.create({
       adminName: "Admin",
-      action: "Added product",
+      type: "product",
+      action: "add",
+      message: "Product added",
       details: product.name || "",
     });
 

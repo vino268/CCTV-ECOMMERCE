@@ -32,7 +32,7 @@ interface DeletedProduct {
   deletedAt?: string;
 }
 
-type TrashTab = 'orders' | 'customers' | 'products';
+type TrashTab = 'deleted-orders' | 'deleted-customers' | 'deleted-products';
 
 type PendingDelete = {
   id: string;
@@ -54,7 +54,13 @@ function formatDeletedDate(value?: string) {
 }
 
 export default function AdminTrashPage() {
-  const [tab, setTab] = useState<TrashTab>('orders');
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const paramTab = (searchParams.get('tab') || '').toString();
+  const validTabs = ['deleted-orders', 'deleted-customers', 'deleted-products'];
+  const defaultTab: TrashTab = 'deleted-products';
+  const initialTab = (validTabs.includes(paramTab) ? (paramTab as TrashTab) : defaultTab) as TrashTab;
+
+  const [tab, setTab] = useState<TrashTab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<DeletedOrder[]>([]);
   const [customers, setCustomers] = useState<DeletedCustomer[]>([]);
@@ -70,17 +76,17 @@ export default function AdminTrashPage() {
     try {
       setLoading(true);
       const [ordersRes, customersRes, productsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/admin/orders/deleted'), {
+        fetch(buildApiUrl('/api/trash/orders'), {
           cache: 'no-store',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
         }),
-        fetch(buildApiUrl('/api/admin/customers/deleted'), {
+        fetch(buildApiUrl('/api/trash/customers'), {
           cache: 'no-store',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
         }),
-        fetch(buildApiUrl('/api/admin/products/deleted'), {
+        fetch(buildApiUrl('/api/trash/products'), {
           cache: 'no-store',
           credentials: 'include',
           headers: getAdminAuthHeaders(),
@@ -115,8 +121,8 @@ export default function AdminTrashPage() {
   }, [tab]);
 
   const currentRows = useMemo(() => {
-    if (tab === 'orders') return orders;
-    if (tab === 'customers') return customers;
+    if (tab === 'deleted-orders') return orders;
+    if (tab === 'deleted-customers') return customers;
     return products;
   }, [tab, orders, customers, products]);
   const currentIds = useMemo(() => currentRows.map((row) => row._id), [currentRows]);
@@ -144,16 +150,16 @@ export default function AdminTrashPage() {
       setActionKey(key);
 
       let endpoint;
-      if (currentTab === 'orders') {
-        endpoint = buildApiUrl(`/api/admin/orders/${id}/restore`);
-      } else if (currentTab === 'customers') {
-        endpoint = buildApiUrl(`/api/admin/customers/${id}/restore`);
+      if (currentTab === 'deleted-orders') {
+        endpoint = buildApiUrl(`/api/trash/orders/${id}/restore`);
+      } else if (currentTab === 'deleted-customers') {
+        endpoint = buildApiUrl(`/api/trash/customers/${id}/restore`);
       } else {
-        endpoint = buildApiUrl(`/api/admin/products/${id}/restore`);
+        endpoint = buildApiUrl(`/api/trash/products/${id}/restore`);
       }
 
       const res = await fetch(endpoint, {
-        method: 'PATCH',
+        method: 'POST',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
       });
@@ -164,7 +170,17 @@ export default function AdminTrashPage() {
         return;
       }
 
-      await fetchDeletedData();
+      // remove restored item from UI instantly
+      if (currentTab === 'deleted-orders') setOrders((prev) => prev.filter((o) => o._id !== id));
+      if (currentTab === 'deleted-customers') setCustomers((prev) => prev.filter((c) => c._id !== id));
+      if (currentTab === 'deleted-products') setProducts((prev) => prev.filter((p) => p._id !== id));
+
+      // warm dashboard cache and notify listeners
+      try {
+        fetch(buildApiUrl('/api/admin/dashboard'))
+          .catch(() => null);
+        window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+      } catch (e) {}
     } catch (error) {
       console.error('Restore error:', error);
       setError('Failed to restore item');
@@ -182,12 +198,12 @@ export default function AdminTrashPage() {
       setActionKey(key);
 
       let endpoint;
-      if (pendingDelete.tab === 'orders') {
-        endpoint = `/api/admin/orders/${pendingDelete.id}/permanent`;
-      } else if (pendingDelete.tab === 'customers') {
-        endpoint = `/api/admin/customers/${pendingDelete.id}/permanent`;
+      if (pendingDelete.tab === 'deleted-orders') {
+        endpoint = buildApiUrl(`/api/trash/orders/${pendingDelete.id}`);
+      } else if (pendingDelete.tab === 'deleted-customers') {
+        endpoint = buildApiUrl(`/api/trash/customers/${pendingDelete.id}`);
       } else {
-        endpoint = `/api/admin/products/${pendingDelete.id}/permanent`;
+        endpoint = buildApiUrl(`/api/trash/products/${pendingDelete.id}`);
       }
 
       const res = await fetch(endpoint, {
@@ -202,8 +218,16 @@ export default function AdminTrashPage() {
         return;
       }
 
+      // update UI instantly
+      if (pendingDelete.tab === 'deleted-orders') setOrders((prev) => prev.filter((o) => o._id !== pendingDelete.id));
+      if (pendingDelete.tab === 'deleted-customers') setCustomers((prev) => prev.filter((c) => c._id !== pendingDelete.id));
+      if (pendingDelete.tab === 'deleted-products') setProducts((prev) => prev.filter((p) => p._id !== pendingDelete.id));
       setPendingDelete(null);
-      await fetchDeletedData();
+
+      try {
+        fetch(buildApiUrl('/api/admin/dashboard')).catch(() => null);
+        window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+      } catch (e) {}
     } catch (error) {
       console.error('Permanent delete error:', error);
       alert('Permanent delete failed');
@@ -219,6 +243,7 @@ export default function AdminTrashPage() {
       setError('');
       setActionKey(`bulk-selected-${tab}`);
 
+      const tabKey = tab.replace('deleted-', '');
       const res = await fetch(buildApiUrl('/api/admin/trash/delete-selected'), {
         method: 'POST',
         credentials: 'include',
@@ -226,7 +251,7 @@ export default function AdminTrashPage() {
           ...getAdminAuthHeaders(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ids: selectedIds, tab }),
+        body: JSON.stringify({ ids: selectedIds, tab: tabKey }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -235,8 +260,12 @@ export default function AdminTrashPage() {
         return false;
       }
 
+      // remove items from UI instantly
+      if (tab === 'deleted-orders') setOrders((prev) => prev.filter((p) => !selectedIds.includes(p._id)));
+      if (tab === 'deleted-customers') setCustomers((prev) => prev.filter((p) => !selectedIds.includes(p._id)));
+      if (tab === 'deleted-products') setProducts((prev) => prev.filter((p) => !selectedIds.includes(p._id)));
       setSelectedIds([]);
-      await fetchDeletedData();
+      try { fetch(buildApiUrl('/api/admin/dashboard')).catch(()=>null); window.dispatchEvent(new CustomEvent('admin:counts-changed')) } catch(e) {}
       return true;
     } catch (error) {
       console.error('Bulk delete selected error:', error);
@@ -252,7 +281,8 @@ export default function AdminTrashPage() {
       setError('');
       setActionKey(`bulk-all-${tab}`);
 
-      const res = await fetch(buildApiUrl(`/api/admin/trash/delete-all?tab=${tab}`), {
+      const tabKey = tab.replace('deleted-', '');
+      const res = await fetch(buildApiUrl(`/api/admin/trash/delete-all?tab=${tabKey}`), {
         method: 'DELETE',
         credentials: 'include',
         headers: getAdminAuthHeaders(),
@@ -264,8 +294,12 @@ export default function AdminTrashPage() {
         return false;
       }
 
+      // clear tab UI instantly
+      if (tab === 'deleted-orders') setOrders([]);
+      if (tab === 'deleted-customers') setCustomers([]);
+      if (tab === 'deleted-products') setProducts([]);
       setSelectedIds([]);
-      await fetchDeletedData();
+      try { fetch(buildApiUrl('/api/admin/dashboard')).catch(()=>null); window.dispatchEvent(new CustomEvent('admin:counts-changed')) } catch(e) {}
       return true;
     } catch (error) {
       console.error('Bulk delete all error:', error);
@@ -310,27 +344,48 @@ export default function AdminTrashPage() {
       <div className="bg-white p-3 rounded-xl border shadow-sm flex gap-2">
         <button
           type="button"
-          onClick={() => setTab('orders')}
+          onClick={() => {
+            setTab('deleted-orders');
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('tab', 'deleted-orders');
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {}
+          }}
           className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-            tab === 'orders' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            tab === 'deleted-orders' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
           Deleted Orders ({orders.length})
         </button>
         <button
           type="button"
-          onClick={() => setTab('customers')}
+          onClick={() => {
+            setTab('deleted-customers');
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('tab', 'deleted-customers');
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {}
+          }}
           className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-            tab === 'customers' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            tab === 'deleted-customers' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
           Deleted Customers ({customers.length})
         </button>
         <button
           type="button"
-          onClick={() => setTab('products')}
+          onClick={() => {
+            setTab('deleted-products');
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('tab', 'deleted-products');
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {}
+          }}
           className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-            tab === 'products' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            tab === 'deleted-products' ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
           Deleted Products ({products.length})
@@ -361,7 +416,7 @@ export default function AdminTrashPage() {
           <div className="p-10 text-center text-gray-500">Loading deleted data...</div>
         ) : currentRows.length === 0 ? (
           <div className="p-10 text-center text-gray-500">No deleted data found.</div>
-        ) : tab === 'orders' ? (
+        ) : tab === 'deleted-orders' ? (
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -404,7 +459,7 @@ export default function AdminTrashPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleRestore(order._id, 'orders')}
+                          onClick={() => handleRestore(order._id, 'deleted-orders')}
                           disabled={busy}
                           className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
                         >
@@ -415,7 +470,7 @@ export default function AdminTrashPage() {
                           onClick={() =>
                             setPendingDelete({
                               id: order._id,
-                              tab: 'orders',
+                              tab: 'deleted-orders',
                               label: order.orderNumber || order._id,
                             })
                           }
@@ -431,7 +486,7 @@ export default function AdminTrashPage() {
               })}
             </tbody>
           </table>
-        ) : tab === 'customers' ? (
+        ) : tab === 'deleted-customers' ? (
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -472,7 +527,7 @@ export default function AdminTrashPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleRestore(customer._id, 'customers')}
+                          onClick={() => handleRestore(customer._id, 'deleted-customers')}
                           disabled={busy}
                           className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
                         >
@@ -483,7 +538,7 @@ export default function AdminTrashPage() {
                           onClick={() =>
                             setPendingDelete({
                               id: customer._id,
-                              tab: 'customers',
+                              tab: 'deleted-customers',
                               label: customer.name || customer.email || customer._id,
                             })
                           }
@@ -542,7 +597,7 @@ export default function AdminTrashPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleRestore(product._id, 'products')}
+                          onClick={() => handleRestore(product._id, 'deleted-products')}
                           disabled={busy}
                           className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
                         >
@@ -553,7 +608,7 @@ export default function AdminTrashPage() {
                           onClick={() =>
                             setPendingDelete({
                               id: product._id,
-                              tab: 'products',
+                              tab: 'deleted-products',
                               label: product.name || product._id,
                             })
                           }

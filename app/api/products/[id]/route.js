@@ -270,7 +270,9 @@ export async function PUT(req, { params }) {
 
     await AdminLog.create({
       adminName: "Admin",
-      action: "Updated product",
+      type: "product",
+      action: "update",
+      message: "Product updated",
       details: productDoc.name || "",
     });
 
@@ -315,7 +317,9 @@ export async function DELETE(req, { params }) {
 
     await AdminLog.create({
       adminName: "Admin",
-      action: "Deleted product",
+      type: "product",
+      action: "delete",
+      message: "Product deleted",
       details: deletedProduct.name || "",
     });
 

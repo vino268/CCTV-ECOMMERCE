@@ -7,6 +7,8 @@ import {
   Clock,
   Package,
   ShoppingCart,
+  LogIn,
+  LogOut,
   KeyRound,
   Settings,
   Wrench,
@@ -17,7 +19,9 @@ import { buildApiUrl } from '@/lib/http-response';
 
 type LogEntry = {
   _id: string;
+  type?: string;
   action: string;
+  message?: string;
   adminName: string;
   details: string;
   createdAt: string;
@@ -37,6 +41,8 @@ function timeAgo(dateStr: string) {
 
 function getActionIcon(action: string) {
   const a = action.toLowerCase();
+  if (a === 'login' || a.includes('logged in')) return LogIn;
+  if (a === 'logout' || a.includes('logged out')) return LogOut;
   if (a.includes('product')) return Package;
   if (a.includes('order')) return ShoppingCart;
   if (a.includes('password')) return KeyRound;
@@ -48,11 +54,24 @@ function getActionIcon(action: string) {
 
 function getActionColor(action: string) {
   const a = action.toLowerCase();
+  if (a === 'login' || a.includes('logged in')) return 'bg-green-100 text-green-600';
+  if (a === 'logout' || a.includes('logged out')) return 'bg-red-100 text-red-600';
   if (a.includes('added') || a.includes('created')) return 'bg-green-100 text-green-600';
   if (a.includes('updated') || a.includes('changed')) return 'bg-blue-100 text-blue-600';
   if (a.includes('deleted') || a.includes('cancelled') || a.includes('canceled'))
     return 'bg-red-100 text-red-600';
   return 'bg-gray-100 text-gray-600';
+}
+
+function getActivityText(log: LogEntry) {
+  const message = String(log.message || '').trim();
+  if (message) return message;
+
+  const action = String(log.action || '').trim().toLowerCase();
+  if (!action) return 'Activity recorded';
+
+  const details = String(log.details || '').trim();
+  return details ? `${action} — ${details}` : action;
 }
 
 export default function ActivityLogPage() {
@@ -208,8 +227,9 @@ export default function ActivityLogPage() {
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="max-h-[500px] overflow-y-auto divide-y divide-border">
             {logs.map((log) => {
-              const Icon = getActionIcon(log.action);
-              const colorClass = getActionColor(log.action);
+              const iconSource = `${log.type || ''} ${log.action || ''} ${log.message || ''}`.trim();
+              const Icon = getActionIcon(iconSource);
+              const colorClass = getActionColor(iconSource);
               return (
                 <div
                   key={log._id}
@@ -224,14 +244,8 @@ export default function ActivityLogPage() {
                     <p className="text-sm font-medium text-foreground">
                       {log.adminName}{' '}
                       <span className="font-normal text-muted-foreground">
-                        {log.action.toLowerCase()}
+                        {getActivityText(log)}
                       </span>
-                      {log.details && (
-                        <span className="font-normal text-muted-foreground">
-                          {' '}
-                          — {log.details}
-                        </span>
-                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Service from "@/models/Service";
+import AdminLog from "@/models/AdminLog";
 
 // PUT /api/services/[id] — update name, description and price
 export async function PUT(req, { params }) {
@@ -35,6 +36,15 @@ export async function PUT(req, { params }) {
     if (!service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
+
+    await AdminLog.create({
+      adminName: "Admin",
+      type: "service",
+      action: "update",
+      message: "Service updated",
+      details: service.name || String(service._id),
+    });
+
     return NextResponse.json(service);
   } catch (error) {
     return NextResponse.json(
@@ -53,6 +63,15 @@ export async function DELETE(req, { params }) {
     if (!service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
+
+    await AdminLog.create({
+      adminName: "Admin",
+      type: "service",
+      action: "delete",
+      message: "Service deleted",
+      details: service.name || String(service._id),
+    });
+
     return NextResponse.json({ message: "Service deleted successfully" });
   } catch (error) {
     return NextResponse.json(
