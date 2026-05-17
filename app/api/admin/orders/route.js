@@ -10,11 +10,9 @@ export async function GET(req) {
 
     await connectDB();
 
-    const orders = await Order.find({ isDeleted: false })
-      .sort({ createdAt: -1 })
-      .lean();
+    const orders = await Order.find({}).sort({ createdAt: -1 });
 
-    console.log("Admin Orders Fetched:", orders.length);
+    console.log("ADMIN ORDERS:", orders.length);
 
     return NextResponse.json({
       success: true,

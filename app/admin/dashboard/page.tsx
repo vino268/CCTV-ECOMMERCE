@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -37,8 +37,7 @@ interface RevenueState {
 }
 
 interface OrderStatusDistribution {
-  ordered: number;
-  packed: number;
+  pending: number;
   shipped: number;
   delivered: number;
   cancelled: number;
@@ -114,7 +113,7 @@ const orderStatusStyles: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
-  const [range, setRange] = useState<1 | 7 | 30>(7);
+  const [timeFilter, setTimeFilter] = useState<'today' | '7days' | '30days'>('today');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -126,8 +125,7 @@ export default function AdminDashboard() {
   });
   const [revenue, setRevenue] = useState<RevenueState>({ total: 0, data: [] });
   const [statusData, setStatusData] = useState<OrderStatusDistribution>({
-    ordered: 0,
-    packed: 0,
+    pending: 0,
     shipped: 0,
     delivered: 0,
     cancelled: 0,
@@ -161,7 +159,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const fetchAnalytics = useCallback(async (selectedRange: 1 | 7 | 30, isInitialLoad = false) => {
+  const fetchAnalytics = useCallback(async (selectedFilter: 'today' | '7days' | '30days', isInitialLoad = false) => {
     try {
       if (isInitialLoad) {
         setLoading(true);
@@ -169,15 +167,15 @@ export default function AdminDashboard() {
         setRefreshing(true);
       }
 
-      const rangeQuery = `?range=${selectedRange === 1 ? 'today' : selectedRange === 30 ? '30days' : '7days'}`;
+      const filterQuery = `?filter=${selectedFilter}`;
 
-      console.log('Selected Range:', selectedRange, 'query:', rangeQuery);
+      console.log('Selected Filter:', selectedFilter, 'query:', filterQuery);
       console.log('Fetching dashboard data...');
 
       const [dashboardResult, revenueResult, orderStatusResult, latestOrdersResult, latestCustomersResult] = await Promise.all([
-        fetchJsonSafe<{ data?: { totalProducts?: number; totalOrders?: number; totalCustomers?: number; totalRevenue?: number } }>(`/api/admin/dashboard${rangeQuery}`),
-        fetchJsonSafe<{ total?: unknown; totalRevenue?: unknown; data?: Array<{ label?: unknown; amount?: unknown }>; daily?: Array<{ label?: unknown; amount?: unknown }>; revenueData?: Array<{ date?: unknown; amount?: unknown; revenue?: unknown }> }>(`/api/admin/revenue${rangeQuery}`),
-        fetchJsonSafe<OrderStatusDistribution>(`/api/admin/order-status${rangeQuery}`),
+        fetchJsonSafe<{ data?: { totalProducts?: number; totalOrders?: number; totalCustomers?: number; totalRevenue?: number } }>(`/api/admin/dashboard${filterQuery}`),
+        fetchJsonSafe<{ total?: unknown; totalRevenue?: unknown; data?: Array<{ label?: unknown; amount?: unknown }>; daily?: Array<{ label?: unknown; amount?: unknown }>; revenueData?: Array<{ date?: unknown; amount?: unknown; revenue?: unknown }> }>(`/api/admin/revenue${filterQuery}`),
+        fetchJsonSafe<OrderStatusDistribution>(`/api/admin/order-status${filterQuery}`),
         fetchJsonSafe<{ success?: boolean; orders?: Array<Record<string, unknown>> }>('/api/admin/latest-orders'),
         fetchJsonSafe<{ success?: boolean; users?: Array<Record<string, unknown>> }>('/api/admin/latest-customers'),
       ]);
@@ -189,12 +187,9 @@ export default function AdminDashboard() {
       const latestCustomersPayload = latestCustomersResult.data;
 
       const dashboardData =
-        dashboardPayload && typeof dashboardPayload === 'object' && 'data' in dashboardPayload
-          ? (dashboardPayload.data || {})
+        dashboardPayload && typeof dashboardPayload === 'object'
+          ? ((dashboardPayload as any).data || dashboardPayload)
           : {};
-
-      console.log('Dashboard Data:', dashboardPayload);
-      console.log('Revenue Data:', revenuePayload);
 
       const rawRevenueArray = Array.isArray((revenuePayload as any)?.data)
         ? (revenuePayload as any).data
@@ -225,7 +220,7 @@ export default function AdminDashboard() {
 
       setRevenue({ total: revenueValue, data: normalizedRevenue });
 
-      const statusSource = (orderStatusPayload || {}) as Partial<OrderStatusDistribution>;
+      const statusSource = ((orderStatusPayload as any)?.orderStatus || orderStatusPayload || {}) as Partial<OrderStatusDistribution>;
       const latestOrdersSource =
         latestOrdersPayload && typeof latestOrdersPayload === 'object'
           ? latestOrdersPayload
@@ -257,9 +252,6 @@ export default function AdminDashboard() {
           }))
         : [];
 
-      console.log('Dashboard Data:', dashboardPayload);
-      console.log('Revenue Data:', revenuePayload);
-
       setOverview((prev) => ({
         ...prev,
         totalProducts: Number(dashboardData.totalProducts || 0),
@@ -268,10 +260,8 @@ export default function AdminDashboard() {
         totalRevenue: revenueValue,
       }));
 
-      console.log('Chart Data:', normalizedRevenue);
       setStatusData({
-        ordered: Number(statusSource.ordered || 0),
-        packed: Number(statusSource.packed || 0),
+        pending: Number(statusSource.pending || 0),
         shipped: Number(statusSource.shipped || 0),
         delivered: Number(statusSource.delivered || 0),
         cancelled: Number(statusSource.cancelled || 0),
@@ -310,13 +300,34 @@ export default function AdminDashboard() {
     }
   }, [fetchJsonSafe]);
 
-  const analyticsCalledRef = useRef(false);
+  useEffect(() => {
+    fetchAnalytics(timeFilter, true);
+  }, [fetchAnalytics, timeFilter]);
 
   useEffect(() => {
-    if (analyticsCalledRef.current) return;
-    analyticsCalledRef.current = true;
-    fetchAnalytics(range, true);
-  }, [fetchAnalytics, range]);
+    const refreshAnalytics = () => {
+      fetchAnalytics(timeFilter, false);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAnalytics();
+      }
+    };
+
+    window.addEventListener('admin:counts-changed', refreshAnalytics as EventListener);
+    window.addEventListener('focus', refreshAnalytics);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const intervalId = window.setInterval(refreshAnalytics, 20000);
+
+    return () => {
+      window.removeEventListener('admin:counts-changed', refreshAnalytics as EventListener);
+      window.removeEventListener('focus', refreshAnalytics);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [fetchAnalytics, timeFilter]);
 
   const kpiCards = useMemo(() => {
     return [
@@ -367,13 +378,13 @@ export default function AdminDashboard() {
           <label htmlFor="range" className="text-sm font-medium text-gray-600">Time Filter</label>
           <select
             id="range"
-            value={String(range)}
-            onChange={(e) => setRange(Number(e.target.value) as 1 | 7 | 30)}
+            value={timeFilter}
+            onChange={(e) => setTimeFilter(e.target.value as 'today' | '7days' | '30days')}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
-            <option value="1">Today</option>
-            <option value="7">Last 7 Days</option>
-            <option value="30">Last 30 Days</option>
+            <option value="today">Today</option>
+            <option value="7days">Last 7 Days</option>
+            <option value="30days">Last 30 Days</option>
           </select>
         </div>
       </div>
@@ -415,12 +426,12 @@ export default function AdminDashboard() {
           data={revenue.data}
           loading={loading}
           total={revenue.total}
-          range={range === 1 ? 'Today' : range === 30 ? 'Last 30 Days' : 'Last 7 Days'}
+          range={timeFilter === 'today' ? 'Today' : timeFilter === '30days' ? 'Last 30 Days' : 'Last 7 Days'}
         />
         <OrdersStatusChart
           data={statusData}
           loading={loading}
-          subtitle={range === 1 ? 'Today' : range === 30 ? 'Last 30 days' : 'Last 7 days'}
+          subtitle={timeFilter === 'today' ? 'Today' : timeFilter === '30days' ? 'Last 30 days' : 'Last 7 days'}
         />
       </div>
 

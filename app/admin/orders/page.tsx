@@ -7,6 +7,12 @@ import ConfirmModal from '@/components/confirm-modal';
 import { Ban, Eye, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
 
+function notifyDashboardCountsChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+  }
+}
+
 interface OrderProduct {
   productId: string;
   productName: string;
@@ -252,6 +258,7 @@ export default function AdminOrdersPage() {
       }
       setMessage({ type: 'success', text: 'Order status updated successfully' });
       await fetchOrders();
+      notifyDashboardCountsChanged();
     } catch (error) {
       console.error('Error updating order status:', error);
       setMessage({ type: 'error', text: 'Failed to update order status' });
@@ -292,6 +299,7 @@ export default function AdminOrdersPage() {
 
       setMessage({ type: 'success', text: 'Order cancelled successfully' });
       await fetchOrders();
+      notifyDashboardCountsChanged();
     } catch (error) {
       console.error('❌ Error cancelling order:', error);
       setMessage({ type: 'error', text: 'Failed to cancel order' });
@@ -331,6 +339,7 @@ export default function AdminOrdersPage() {
       
       // Refresh list from server
       await fetchOrders();
+      notifyDashboardCountsChanged();
     } catch (error) {
       console.error('Error deleting order:', error);
       setMessage({ type: 'error', text: 'Failed to delete order' });

@@ -12,8 +12,7 @@ import {
 } from 'recharts';
 
 const STATUS_ROWS = [
-  { key: 'ordered', label: 'Ordered', color: '#3b82f6' },
-  { key: 'packed', label: 'Packed', color: '#6b7280' },
+  { key: 'pending', label: 'Pending', color: '#f59e0b' },
   { key: 'shipped', label: 'Shipped', color: '#8b5cf6' },
   { key: 'delivered', label: 'Delivered', color: '#22c55e' },
   { key: 'cancelled', label: 'Cancelled', color: '#ef4444' },
@@ -22,8 +21,7 @@ const STATUS_ROWS = [
 type StatusKey = (typeof STATUS_ROWS)[number]['key'];
 
 interface OrdersStatusData {
-  ordered: number;
-  packed: number;
+  pending: number;
   shipped: number;
   delivered: number;
   cancelled: number;
@@ -48,8 +46,7 @@ export default function OrdersStatusChart({
   }));
 
   const total =
-    Number(data.ordered || 0) +
-    Number(data.packed || 0) +
+    Number(data.pending || 0) +
     Number(data.shipped || 0) +
     Number(data.delivered || 0) +
     Number(data.cancelled || 0);

@@ -15,14 +15,32 @@ const ALLOWED_TRANSITIONS = {
   Cancelled: [],
 };
 
+function normalizeIncomingStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  const map = {
+    pending: 'Pending',
+    ordered: 'Ordered',
+    packed: 'Packed',
+    shipped: 'Shipped',
+    outfordelivery: 'Out for Delivery',
+    'out for delivery': 'Out for Delivery',
+    out_for_delivery: 'Out for Delivery',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+  };
+
+  return map[value] || String(status || '').trim();
+}
+
 // PATCH /api/admin/orders/[id]/status
 export async function PATCH(req, { params }) {
   try {
     await connectDB();
     const { id } = await params;
     const { status, trackingNumber, estimatedDelivery } = await req.json();
+    const normalizedStatus = normalizeIncomingStatus(status);
 
-    if (!status) {
+    if (!normalizedStatus) {
       return NextResponse.json(
         { error: "Status is required" },
         { status: 400 }
@@ -40,27 +58,27 @@ export async function PATCH(req, { params }) {
     const currentStatus = order.trackingStatus || order.orderStatus;
     const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
 
-    if (!allowed.includes(status)) {
+    if (!allowed.includes(normalizedStatus)) {
       return NextResponse.json(
         {
-          error: `Cannot change status from ${currentStatus} to ${status}. Allowed: ${allowed.join(", ") || "none"}`,
+          error: `Cannot change status from ${currentStatus} to ${normalizedStatus}. Allowed: ${allowed.join(", ") || "none"}`,
         },
         { status: 400 }
       );
     }
 
     // Update status fields
-    order.status = status;
-    order.orderStatus = status;
-    order.trackingStatus = status;
+    order.status = normalizedStatus;
+    order.orderStatus = normalizedStatus;
+    order.trackingStatus = normalizedStatus;
 
-    if (status === "Delivered") {
+    if (normalizedStatus === "Delivered") {
       order.paymentStatus = order.paymentStatus === "Refunded" ? "Refunded" : "Paid";
     }
 
     // Set timestamp for the new status
     const now = new Date();
-    switch (status) {
+    switch (normalizedStatus) {
       case "Packed":
         order.confirmedAt = now;
         break;
@@ -86,7 +104,7 @@ export async function PATCH(req, { params }) {
     await AdminLog.create({
       adminName: "Admin",
       action: "Updated order tracking status",
-      details: `${order.orderNumber || order._id} → ${status}`,
+      details: `${order.orderNumber || order._id} → ${normalizedStatus}`,
     });
 
     const normalizedUserId =
@@ -99,11 +117,11 @@ export async function PATCH(req, { params }) {
     console.log("Saving notification for:", order._id);
 
     await Notification.create({
-      type: status === "Cancelled" ? "CANCELLED" : "STATUS_UPDATED",
+      type: normalizedStatus === "Cancelled" ? "CANCELLED" : "STATUS_UPDATED",
       message:
-        status === "Cancelled"
+        normalizedStatus === "Cancelled"
           ? `Order ${order.orderId} cancelled`
-          : `Order ${order.orderId} updated to ${status}`,
+          : `Order ${order.orderId} updated to ${normalizedStatus}`,
       orderId: order._id,
       userId: normalizedUserId,
     });

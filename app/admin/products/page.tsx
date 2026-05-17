@@ -16,6 +16,12 @@ import { useToast } from '@/hooks/use-toast';
 import { buildApiUrl } from '@/lib/http-response';
 import imageCompression from 'browser-image-compression';
 
+function notifyDashboardCountsChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+  }
+}
+
 interface AddFormData {
   sku: string;
   name: string;
@@ -45,6 +51,7 @@ export default function AdminProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [categoryModalType, setCategoryModalType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(null);
@@ -444,6 +451,7 @@ export default function AdminProductsPage() {
       setReturnDays(10);
       if (addFileRef.current) addFileRef.current.value = '';
       setShowAddModal(false);
+      notifyDashboardCountsChanged();
     } catch (err) {
       console.error('Error adding product:', err);
     } finally {
@@ -548,6 +556,7 @@ export default function AdminProductsPage() {
         showSuccess('Product updated successfully');
         await fetchProducts();
         setEditProduct(null);
+        notifyDashboardCountsChanged();
         router.refresh();
       } else {
         showError(responseData?.error || 'Failed to update product');
@@ -607,6 +616,7 @@ export default function AdminProductsPage() {
       
       // Refresh to sync with server
       await fetchProducts(currentPage);
+      notifyDashboardCountsChanged();
       router.refresh();
     } catch (err) {
       console.error('Delete product error:', err);
@@ -615,6 +625,16 @@ export default function AdminProductsPage() {
       setIsDeleteSubmitting(false);
     }
   };
+  const filteredProducts = products.filter((product) => {
+    const text = searchTerm.toLowerCase();
+    return (
+      product.name?.toLowerCase().includes(text) ||
+      product.category?.toLowerCase().includes(text) ||
+      String(product.price || "").toLowerCase().includes(text) ||
+      product.sku?.toLowerCase().includes(text)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
@@ -700,11 +720,21 @@ export default function AdminProductsPage() {
         {categoryError && <p className="mt-2 text-xs text-red-600">{categoryError}</p>}
       </Card>
 
+      <div className="mb-4 flex items-center gap-3">
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-blue-500"
+        />
+      </div>
+
       <Card className="border">
         {loading ? (
           <div className="p-12 text-center text-muted-foreground">Loading products...</div>
-        ) : products.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground">No products found.</div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground">No products found</div>
         ) : (
           <div className="w-full overflow-x-auto">
             <div className="min-w-[900px]">
@@ -720,7 +750,7 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => {
+                {filteredProducts.map((product) => {
                   const id = product._id;
                   return (
                     <tr key={id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
