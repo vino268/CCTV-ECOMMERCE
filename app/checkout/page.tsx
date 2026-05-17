@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatPrice } from '@/lib/currency';
-import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { getSafeImageSrc } from '@/lib/product-image';
@@ -702,7 +701,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
         </div>
       </div>
 
-      <ToastNotification toast={toast} />
+      
     </div>
   );
 }

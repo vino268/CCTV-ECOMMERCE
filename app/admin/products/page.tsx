@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Edit2, Trash2, Plus, X, RefreshCw, Upload } from 'lucide-react';
 import ProductDeleteConfirmModal from '@/components/admin/ProductDeleteConfirmModal';
-import ToastNotification from '@/components/ui/toast-notification';
 import { getSafeImageSrc } from '@/lib/product-image';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import toast from 'react-hot-toast';
@@ -1479,7 +1478,7 @@ export default function AdminProductsPage() {
         onConfirm={confirmDelete}
       />
 
-      <ToastNotification toast={toast} />
+      
 
       <style jsx global>{`
         .animate-modal {

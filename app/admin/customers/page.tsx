@@ -6,7 +6,6 @@ import { formatINRCurrency } from '@/lib/currency';
 import { Eye, RefreshCw, Search, Trash2, UserX, UserCheck, X } from 'lucide-react';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
-import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { buildApiUrl } from '@/lib/http-response';
 
@@ -587,7 +586,7 @@ export default function AdminCustomersPage() {
         onConfirm={confirmDelete}
       />
 
-      <ToastNotification toast={toast} />
+      
     </div>
   );
 }

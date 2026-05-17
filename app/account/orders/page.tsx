@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import OrderCard, { type AccountOrder } from '@/components/order-card';
 import CancelOrderModal from '@/components/cancel-order-modal';
-import ToastNotification from '@/components/ui/toast-notification';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/contexts/auth-context';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
@@ -323,7 +322,7 @@ export default function AccountOrdersPage() {
         onConfirm={handleConfirmCancelOrder}
       />
 
-      <ToastNotification toast={toast} />
+      
     </div>
   );
 }
