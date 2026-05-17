@@ -3,6 +3,27 @@ import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
 import { verifyAuthSession } from "@/lib/auth-session";
 
+function slugifyCategoryName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "category";
+}
+
+async function createUniqueSlug(name) {
+  const baseSlug = slugifyCategoryName(name);
+  let slug = baseSlug;
+  let suffix = 1;
+
+  while (await Category.findOne({ slug })) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return slug;
+}
+
 export async function POST(req) {
   try {
     const auth = await verifyAuthSession(req, "admin");
@@ -26,7 +47,8 @@ export async function POST(req) {
       return NextResponse.json({ message: "Category already exists" }, { status: 400 });
     }
 
-    const category = await Category.create({ name: normalizedName });
+    const slug = await createUniqueSlug(normalizedName);
+    const category = await Category.create({ name: normalizedName, slug });
 
     return NextResponse.json({ success: true, category });
   } catch (error) {

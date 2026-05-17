@@ -3,6 +3,27 @@ import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
 import { verifyAuthSession } from "@/lib/auth-session";
 
+function slugifyCategoryName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "category";
+}
+
+async function createUniqueSlug(name, excludeId) {
+  const baseSlug = slugifyCategoryName(name);
+  let slug = baseSlug;
+  let suffix = 1;
+
+  while (await Category.findOne({ slug, _id: { $ne: excludeId } })) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return slug;
+}
+
 export async function PUT(req, { params }) {
   try {
     const auth = await verifyAuthSession(req, "admin");
@@ -19,6 +40,7 @@ export async function PUT(req, { params }) {
 
     await connectDB();
     const normalizedName = name.trim();
+    const slug = await createUniqueSlug(normalizedName, id);
     
     const duplicate = await Category.findOne({
       _id: { $ne: id },
@@ -31,7 +53,7 @@ export async function PUT(req, { params }) {
 
     const updated = await Category.findByIdAndUpdate(
       id,
-      { name: normalizedName },
+      { name: normalizedName, slug },
       { new: true }
     );
 

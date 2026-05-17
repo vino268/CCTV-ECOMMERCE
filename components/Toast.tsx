@@ -26,6 +26,10 @@ export default function Toast() {
 
   const isSuccess = toast.type === "success";
   const title = isSuccess ? "Success" : "Error";
+  const message = toast.message || '';
+  if (!message || message.trim() === '' || message === 'Error' || message === 'error') {
+    return null;
+  }
 
   return (
     <div className="pointer-events-none fixed right-5 top-5 z-[100]">

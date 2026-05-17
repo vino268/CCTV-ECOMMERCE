@@ -53,13 +53,13 @@ export default function NotificationsPage() {
     }
 
     try {
-      const res = await fetchWithAuth(buildApiUrl('/api/notifications'), {
+      const res = await fetchWithAuth(buildApiUrl('/api/admin/notifications'), {
         headers: getAdminAuthHeaders(),
       });
-      const data = await parseResponseBody<Notification[] | { notifications?: Notification[] }>(res);
+      const data = await parseResponseBody<{ success?: boolean; notifications?: Notification[] }>(res);
 
-      const list = Array.isArray(data)
-        ? data
+      const list = Array.isArray((data as any))
+        ? (data as any)
         : Array.isArray(data?.notifications)
           ? data.notifications
           : [];
@@ -78,24 +78,21 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    const intervalKey = '__adminNotificationsInterval';
-    if (!(window as any)[intervalKey]) {
-      void fetchNotifications();
-      const id = setInterval(() => {
-        void fetchNotifications(true);
-      }, 5000);
-      (window as any)[intervalKey] = id;
-    } else {
-      // Ensure we at least fetch once when effect runs
-      void fetchNotifications();
-    }
+    let mounted = true;
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const run = async () => {
+      if (!mounted) return;
+      await fetchNotifications();
+      if (!mounted) return;
+      id = setInterval(() => void fetchNotifications(true), 15000);
+    };
+
+    void run();
 
     return () => {
-      const id = (window as any)[intervalKey];
-      if (id) {
-        clearInterval(id);
-        delete (window as any)[intervalKey];
-      }
+      mounted = false;
+      if (id) clearInterval(id);
     };
   }, []);
 

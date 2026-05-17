@@ -9,7 +9,7 @@ import { formatPrice } from '@/lib/currency';
 import { buildApiUrl } from '@/lib/http-response';
 import imageCompression from 'browser-image-compression';
 import ImageUploader from '@/components/ImageUploader';
-import { showToast } from '@/utils/toast';
+import toast from 'react-hot-toast';
 
 type FormErrors = Partial<Record<'name' | 'sku' | 'price' | 'category' | 'description' | 'images' | 'imageUrl' | 'features', string>>;
 
@@ -58,7 +58,6 @@ export default function AddProductPage() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [categoryMessage, setCategoryMessage] = useState('');
 
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState('');
@@ -109,8 +108,7 @@ export default function AddProductPage() {
 
     try {
       setIsAddingCategory(true);
-      setCategoryMessage('');
-      const res = await fetch(buildApiUrl('/api/admin/categories'), {
+      const res = await fetch(buildApiUrl('/api/categories'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -120,17 +118,26 @@ export default function AddProductPage() {
       const payload = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        const errMsg = payload?.message || payload?.error || 'Request failed';
+        toast.error(errMsg);
         setErrors((prev) => ({
           ...prev,
-          category: payload.error || 'Failed to add category.',
+          category: errMsg,
         }));
         return;
       }
 
+      if (payload.category) {
+        setCategories((prev) => [payload.category, ...prev.filter((category) => category._id !== payload.category._id)]);
+      }
       setNewCategoryName('');
-      setCategoryMessage('Category added successfully.');
+      toast.success('Category created successfully');
       await fetchCategories();
-    } catch (error) {
+    } catch (error: any) {
+      console.log(error);
+      if (error?.message) {
+        toast.error(error.message);
+      }
       setErrors((prev) => ({ ...prev, category: 'Failed to add category.' }));
     } finally {
       setIsAddingCategory(false);
@@ -181,7 +188,7 @@ export default function AddProductPage() {
     if (Object.keys(validationErrors).length > 0) return;
 
     if (previewImages.length === 0 && !imageUrl.trim()) {
-      showToast("Please add at least one valid image", "error");
+      toast.error("Please add at least one valid image");
       return;
     }
 
@@ -219,7 +226,7 @@ export default function AddProductPage() {
       const result = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        showToast(result?.message || result?.error || 'Upload failed', 'error');
+        toast.error(result?.message || result?.error || 'Request failed');
         setErrors((prev) => ({
           ...prev,
           name: result?.fieldErrors?.name || prev.name,
@@ -232,12 +239,14 @@ export default function AddProductPage() {
         return;
       }
 
-      showToast('Product added successfully', 'success');
+      toast.success('Product created successfully');
 
       router.push('/admin/products');
-    } catch (error) {
-      console.error('Error creating product:', error);
-      showToast('Something went wrong', 'error');
+    } catch (error: any) {
+      console.log(error);
+      if (error?.message) {
+        toast.error(error.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -366,7 +375,6 @@ export default function AddProductPage() {
                   {isAddingCategory ? 'Adding...' : 'Add Category'}
                 </Button>
               </div>
-              {categoryMessage && <p className="mt-1 text-xs text-green-600">{categoryMessage}</p>}
             </div>
           </div>
         </Card>

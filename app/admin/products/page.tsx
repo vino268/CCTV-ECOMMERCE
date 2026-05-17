@@ -12,7 +12,7 @@ import ProductDeleteConfirmModal from '@/components/admin/ProductDeleteConfirmMo
 import ToastNotification from '@/components/ui/toast-notification';
 import { getSafeImageSrc } from '@/lib/product-image';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
-import { useToast } from '@/hooks/use-toast';
+import toast from 'react-hot-toast';
 import { buildApiUrl } from '@/lib/http-response';
 import imageCompression from 'browser-image-compression';
 
@@ -45,7 +45,6 @@ interface CategoryItem {
 
 export default function AdminProductsPage() {
   const router = useRouter();
-  const { toast, showError, showSuccess } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,6 +54,7 @@ export default function AdminProductsPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [categoryModalType, setCategoryModalType] = useState<'add' | 'edit' | 'delete' | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(null);
+  const [newCategory, setNewCategory] = useState('');
   const [categoryName, setCategoryName] = useState('');
   const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
   const [categoryError, setCategoryError] = useState('');
@@ -171,6 +171,7 @@ export default function AdminProductsPage() {
   const closeCategoryModal = () => {
     setCategoryModalType(null);
     setSelectedCategory(null);
+    setNewCategory('');
     setCategoryName('');
   };
 
@@ -180,8 +181,11 @@ export default function AdminProductsPage() {
     const name = categoryName.trim();
     const isAdd = categoryModalType === 'add';
     const isEdit = categoryModalType === 'edit';
+    const addCategoryName = newCategory.trim();
+    const editCategoryName = categoryName.trim();
+    const nextName = isAdd ? addCategoryName : editCategoryName;
 
-    if ((isAdd || isEdit) && !name) {
+    if ((isAdd || isEdit) && !nextName) {
       setCategoryError('Category name is required.');
       return;
     }
@@ -200,16 +204,38 @@ export default function AdminProductsPage() {
       setIsCategorySubmitting(true);
       setCategoryError('');
 
-      const method = isAdd ? 'POST' : isEdit ? 'PUT' : 'DELETE';
-      const url = isAdd
-        ? buildApiUrl('/api/admin/categories')
-        : buildApiUrl(`/api/admin/categories/${selectedCategory?._id}`);
+      if (isAdd) {
+        const res = await fetch(buildApiUrl('/api/categories'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: addCategoryName }),
+        });
+
+        const payload = await res.json().catch(() => ({}));
+
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload.message || payload.error || 'Failed to create category');
+        }
+
+        if (payload.category) {
+          setCategories((prev) => [payload.category, ...prev.filter((cat) => cat._id !== payload.category._id)]);
+        }
+        setNewCategory('');
+        closeCategoryModal();
+        toast.success("Category created successfully");
+        await fetchCategories();
+        return;
+      }
+
+      const method = isEdit ? 'PUT' : 'DELETE';
+      const url = buildApiUrl(`/api/admin/categories/${selectedCategory?._id}`);
 
       const res = await fetch(url, {
         method,
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: isEdit ? JSON.stringify({ name }) : isAdd ? JSON.stringify({ name }) : undefined,
+        body: isEdit ? JSON.stringify({ name: editCategoryName }) : undefined,
       });
 
       const payload = await res.json().catch(() => ({}));
@@ -217,16 +243,20 @@ export default function AdminProductsPage() {
       if (!res.ok) {
         const fallbackError = isEdit
           ? 'Failed to update category'
-          : isAdd
-            ? 'Failed to create category'
-            : 'Failed to delete category';
+          : 'Failed to delete category';
         throw new Error(payload.message || payload.error || fallbackError);
       }
 
       closeCategoryModal();
+      toast.success(isEdit ? "Category updated successfully" : "Category deleted successfully");
       await fetchCategories();
     } catch (err: any) {
-      setCategoryError(err.message || (isEdit ? 'Failed to update category' : 'Failed to create category'));
+      console.log(err);
+      if (err?.message) {
+        toast.error(err.message);
+      }
+      const errMsg = err.message || (isEdit ? 'Failed to update category' : 'Failed to create category');
+      setCategoryError(errMsg);
     } finally {
       setIsCategorySubmitting(false);
     }
@@ -553,17 +583,19 @@ export default function AdminProductsPage() {
       });
 
       if (res.ok) {
-        showSuccess('Product updated successfully');
+        toast.success('Updated successfully');
         await fetchProducts();
         setEditProduct(null);
         notifyDashboardCountsChanged();
         router.refresh();
       } else {
-        showError(responseData?.error || 'Failed to update product');
+        toast.error(responseData?.message || responseData?.error || 'Request failed');
       }
-    } catch (err) {
-      console.error('Error updating product:', err);
-      showError('Error updating product');
+    } catch (err: any) {
+      console.log(err);
+      if (err?.message) {
+        toast.error(err.message);
+      }
     }
   };
 
@@ -574,7 +606,7 @@ export default function AdminProductsPage() {
 
     if (!id) {
       console.error('Delete product error: missing MongoDB _id', deleteItem);
-      showError('Unable to delete product: missing product id');
+      toast.error('Unable to delete product: missing product id');
       return;
     }
 
@@ -608,19 +640,23 @@ export default function AdminProductsPage() {
         if (currentPage > nextTotalPages) {
           setCurrentPage(nextTotalPages);
         }
+        
+        setDeleteItem(null);
+        setDeleteType('');
+        toast.success('Product deleted successfully');
+      } else {
+        toast.error(data?.message || 'Something went wrong');
       }
-
-      setDeleteItem(null);
-      setDeleteType('');
-      showSuccess(data?.message || 'Product deleted successfully');
       
       // Refresh to sync with server
       await fetchProducts(currentPage);
       notifyDashboardCountsChanged();
       router.refresh();
-    } catch (err) {
-      console.error('Delete product error:', err);
-      showError(err instanceof Error ? err.message : 'Failed to delete product');
+    } catch (err: any) {
+      console.log(err);
+      if (err?.message) {
+        toast.error(err.message);
+      }
     } finally {
       setIsDeleteSubmitting(false);
     }
@@ -670,6 +706,7 @@ export default function AdminProductsPage() {
             onClick={() => {
               setCategoryModalType('add');
               setSelectedCategory(null);
+              setNewCategory('');
               setCategoryName('');
               setCategoryError('');
             }}
@@ -679,43 +716,47 @@ export default function AdminProductsPage() {
           </Button>
         </div>
         <div className="mt-4 flex flex-col gap-4">
-          {categories.map((cat) => (
-            <div
-              key={cat._id}
-              className="bg-white rounded-xl shadow-sm border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between hover:shadow-md transition"
-            >
-              <h3 className="text-gray-800 font-medium text-sm break-words md:text-base">{cat.name}</h3>
-              <div className="flex gap-2 md:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 md:flex-none border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
-                  onClick={() => {
-                    setCategoryModalType('edit');
-                    setSelectedCategory(cat);
-                    setCategoryName(cat.name);
-                    setCategoryError('');
-                  }}
-                  disabled={isCategorySubmitting}
-                >
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1 md:flex-none bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition"
-                  onClick={() => {
-                    setCategoryModalType('delete');
-                    setSelectedCategory(cat);
-                    setCategoryName('');
-                    setCategoryError('');
-                  }}
-                  disabled={isCategorySubmitting}
-                >
-                  Delete
-                </Button>
+          {categories.length > 0 ? (
+            categories.map((cat) => (
+              <div
+                key={cat._id}
+                className="bg-white rounded-xl shadow-sm border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between hover:shadow-md transition"
+              >
+                <h3 className="text-gray-800 font-medium text-sm break-words md:text-base">{cat.name}</h3>
+                <div className="flex gap-2 md:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 md:flex-none border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition"
+                    onClick={() => {
+                      setCategoryModalType('edit');
+                      setSelectedCategory(cat);
+                      setCategoryName(cat.name);
+                      setCategoryError('');
+                    }}
+                    disabled={isCategorySubmitting}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 md:flex-none bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition"
+                    onClick={() => {
+                      setCategoryModalType('delete');
+                      setSelectedCategory(cat);
+                      setCategoryName('');
+                      setCategoryError('');
+                    }}
+                    disabled={isCategorySubmitting}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="text-center py-10 text-gray-500">No categories found</div>
+          )}
         </div>
         {categoryError && <p className="mt-2 text-xs text-red-600">{categoryError}</p>}
       </Card>
@@ -1349,40 +1390,57 @@ export default function AdminProductsPage() {
       )}
 
       {categoryModalType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-3">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-fadeIn">
-            <h2 className="text-lg font-semibold mb-4">
-              {categoryModalType === 'add' && 'Add Category'}
-              {categoryModalType === 'edit' && 'Edit Category'}
-              {categoryModalType === 'delete' && 'Delete Category'}
-            </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-2xl font-bold">
+                {categoryModalType === 'add' && 'Add Category'}
+                {categoryModalType === 'edit' && 'Edit Category'}
+                {categoryModalType === 'delete' && 'Delete Category'}
+              </h2>
 
-            {(categoryModalType === 'add' || categoryModalType === 'edit') && (
-              <input
-                type="text"
-                value={categoryName}
-                onChange={(e) => {
-                  setCategoryName(e.target.value);
-                  if (categoryError) setCategoryError('');
-                }}
-                className="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter category name"
-              />
-            )}
-
-            {categoryModalType === 'delete' && (
-              <p className="text-sm text-gray-600">
-                Are you sure you want to delete{' '}
-                <span className="font-semibold">"{selectedCategory?.name}"</span>?
-              </p>
-            )}
-
-            {categoryError && <p className="mt-3 text-xs text-red-600">{categoryError}</p>}
-
-            <div className="flex justify-end gap-3 mt-5">
               <button
                 onClick={closeCategoryModal}
-                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+                className="text-gray-400 hover:text-black text-xl"
+                disabled={isCategorySubmitting}
+                aria-label="Close category modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {(categoryModalType === 'add' || categoryModalType === 'edit') && (
+                <input
+                  type="text"
+                  value={categoryModalType === 'add' ? newCategory : categoryName}
+                  onChange={(e) => {
+                    if (categoryModalType === 'add') {
+                      setNewCategory(e.target.value);
+                    } else {
+                      setCategoryName(e.target.value);
+                    }
+                    if (categoryError) setCategoryError('');
+                  }}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+                  placeholder="Enter category name"
+                />
+              )}
+
+              {categoryModalType === 'delete' && (
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to delete{' '}
+                  <span className="font-semibold">"{selectedCategory?.name}"</span>?
+                </p>
+              )}
+
+              {categoryError && <p className="text-xs text-red-600">{categoryError}</p>}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={closeCategoryModal}
+                className="rounded-xl border px-5 py-2 hover:bg-gray-100"
                 disabled={isCategorySubmitting}
               >
                 Cancel
@@ -1390,7 +1448,7 @@ export default function AdminProductsPage() {
 
               <button
                 onClick={handleSubmitCategoryModal}
-                className={`px-4 py-2 rounded-lg text-white ${
+                className={`rounded-xl px-5 py-2 text-white ${
                   categoryModalType === 'delete'
                     ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-blue-600 hover:bg-blue-700'
@@ -1403,7 +1461,7 @@ export default function AdminProductsPage() {
                     : 'Saving...'
                   : categoryModalType === 'delete'
                     ? 'Delete'
-                    : 'Save'}
+                    : 'Save Category'}
               </button>
             </div>
           </div>

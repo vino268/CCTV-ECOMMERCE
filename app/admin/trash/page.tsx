@@ -7,6 +7,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import DeleteConfirmModal from '@/components/admin/DeleteConfirmModal';
 import { getAdminAuthHeaders } from '@/lib/admin-auth';
 import { buildApiUrl } from '@/lib/http-response';
+import toast from 'react-hot-toast';
 
 interface DeletedOrder {
   _id: string;
@@ -214,7 +215,7 @@ export default function AdminTrashPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!data.success) {
-        alert(data.message || 'Permanent delete failed');
+        toast.error(data.message || 'Permanent delete failed');
         return;
       }
 
@@ -228,9 +229,11 @@ export default function AdminTrashPage() {
         fetch(buildApiUrl('/api/admin/dashboard')).catch(() => null);
         window.dispatchEvent(new CustomEvent('admin:counts-changed'));
       } catch (e) {}
-    } catch (error) {
-      console.error('Permanent delete error:', error);
-      alert('Permanent delete failed');
+    } catch (error: any) {
+      console.log(error);
+      if (error?.message) {
+        toast.error(error.message);
+      }
     } finally {
       setActionKey(null);
     }

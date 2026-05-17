@@ -16,7 +16,7 @@ export async function GET(req) {
       .lean();
     return NextResponse.json({
       success: true,
-      data: notifications,
+      notifications: notifications || [],
     });
   } catch (error) {
     console.error("GET /api/admin/notifications error:", error);

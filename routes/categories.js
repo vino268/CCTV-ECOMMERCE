@@ -4,6 +4,27 @@ const ProductModel = require("../models/Product");
 
 const router = express.Router();
 
+function slugifyCategoryName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "category";
+}
+
+async function createUniqueSlug(name, excludeId) {
+  const baseSlug = slugifyCategoryName(name);
+  let slug = baseSlug;
+  let suffix = 1;
+
+  while (await CategoryModel.findOne({ slug, ...(excludeId ? { _id: { $ne: excludeId } } : {}) }).lean()) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return slug;
+}
+
 // Public: GET /api/categories
 router.get("/", async (_req, res) => {
   try {
@@ -87,7 +108,8 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Category already exists" });
     }
 
-    const newCategory = new CategoryModel({ name: trimmedName });
+    const slug = await createUniqueSlug(trimmedName);
+    const newCategory = new CategoryModel({ name: trimmedName, slug });
     await newCategory.save();
 
     return res.status(201).json(newCategory);
@@ -118,9 +140,11 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ message: "Category already exists" });
     }
 
+    const slug = await createUniqueSlug(trimmedName, req.params.id);
+
     const updated = await CategoryModel.findByIdAndUpdate(
       req.params.id,
-      { name: trimmedName },
+      { name: trimmedName, slug },
       { new: true }
     );
 

@@ -18,24 +18,26 @@ export default function useNotifications() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch("/api/admin/notifications", {
-        cache: "no-store",
-        credentials: "include",
-      });
+      const res = await fetch("/api/admin/notifications");
       const data = await res.json();
 
       if (data.success) {
-        setNotifications(data.data || []);
+        setNotifications(data.notifications || []);
+      } else {
+        console.log("Notification fetch failed");
       }
-    } catch (err) {
-      console.error("Polling error:", err);
+    } catch (error) {
+      console.log("Notification Error:", error);
+      // DO NOT SHOW TOAST HERE
     }
   };
 
   useEffect(() => {
     fetchNotifications();
 
-    const interval = setInterval(fetchNotifications, 5000);
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 

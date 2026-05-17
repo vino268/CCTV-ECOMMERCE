@@ -8,11 +8,22 @@ const CategorySchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
   },
   {
     timestamps: true,
-    versionKey: false,
   }
 );
 
-export default mongoose.models.Category || mongoose.model("Category", CategorySchema);
+if (mongoose.models.Category) {
+  mongoose.deleteModel("Category");
+}
+
+const Category = mongoose.models.Category || mongoose.model("Category", CategorySchema);
+
+export default Category;

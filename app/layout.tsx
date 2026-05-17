@@ -8,7 +8,7 @@ import { CartProvider } from '@/lib/contexts/cart-context'
 import { WishlistProvider } from '@/lib/contexts/wishlist-context'
 import { AuthProvider } from '@/lib/contexts/auth-context'
 import { ConditionalLayout } from '@/components/conditional-layout'
-import { Toaster } from 'sonner'
+import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -55,7 +55,7 @@ export default function RootLayout({
           </CartProvider>
         </AuthProvider>
         <Analytics />
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-right" reverseOrder={false} />
       </body>
     </html>
   )
