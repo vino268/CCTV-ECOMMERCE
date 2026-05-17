@@ -3,34 +3,45 @@ import mongoose from "mongoose";
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI missing");
+  throw new Error("Please define MONGODB_URI in .env");
 }
 
-let cached = (globalThis as any).mongoose;
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace NodeJS {
+    interface Global {}
+  }
+  var mongoose:
+    | {
+        conn: typeof mongoose | null;
+        promise: Promise<typeof mongoose> | null;
+      }
+    | undefined;
+}
+
+let cached = globalThis.mongoose;
 
 if (!cached) {
-  cached = (globalThis as any).mongoose = {
+  cached = globalThis.mongoose = {
     conn: null,
     promise: null,
   };
 }
 
-export async function connectDB() {
-  if (cached.conn) {
+async function connectDB() {
+  if (cached?.conn) {
     return cached.conn;
   }
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+  if (!cached?.promise) {
+    cached!.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
     });
   }
 
-  cached.conn = await cached.promise;
+  cached!.conn = await cached!.promise;
 
-  console.log("✅ MongoDB Connected");
-
-  return cached.conn;
+  return cached!.conn;
 }
 
 export default connectDB;
