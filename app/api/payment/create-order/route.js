@@ -1,13 +1,29 @@
 import { NextResponse } from "next/server";
-import razorpay from "@/lib/razorpay";
+import Razorpay from "razorpay";
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const amount = Number(body?.amount || 0);
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
 
-    console.log("RAZORPAY KEY:", process.env.RAZORPAY_KEY_ID);
-    console.log("RAZORPAY SECRET EXISTS:", !!process.env.RAZORPAY_KEY_SECRET);
+    if (!key_id || !key_secret) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Razorpay keys missing",
+        },
+        { status: 500 }
+      );
+    }
+
+    const razorpay = new Razorpay({
+      key_id,
+      key_secret,
+    });
+
+    const body = await req.json();
+
+    const amount = Number(body?.amount);
 
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json(
@@ -19,35 +35,21 @@ export async function POST(req) {
       );
     }
 
-    if (!String(process.env.RAZORPAY_KEY_ID || "").startsWith("rzp_test_")) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Only Razorpay TEST mode is enabled",
-        },
-        { status: 400 }
-      );
-    }
-
     const options = {
-      amount: Math.round(amount * 100),
+      amount: amount * 100,
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     };
 
     const order = await razorpay.orders.create(options);
 
-    return NextResponse.json({
-      success: true,
-      order,
-    });
+    return NextResponse.json(order);
   } catch (error) {
-    console.error("Create Razorpay order failed:", error);
+    console.log("RAZORPAY ERROR:", error);
 
     return NextResponse.json(
       {
-        success: false,
-        message: "Failed to create order",
+        error: "Failed to create order",
       },
       { status: 500 }
     );
