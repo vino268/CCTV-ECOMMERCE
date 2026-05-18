@@ -81,6 +81,10 @@ export default function CheckoutPage() {
 
   // Auth guard + one-time auto-fill from user profile
   useEffect(() => {
+    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
+  }, []);
+
+  useEffect(() => {
     if (authLoading) return;
 
     if (!isAuthenticated || !user) {
@@ -226,6 +230,28 @@ export default function CheckoutPage() {
   // Checkout items can come from cart or a buy-now single item session
   const cartItems = checkoutItems;
 
+  const loadRazorpay = () => {
+    return new Promise<boolean>((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve(false);
+        return;
+      }
+
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript && (window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -289,157 +315,214 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePayment = async () => {
     if (placingOrderRef.current || isProcessing) return;
     if (!validateCheckoutForm()) return;
-    if (!formData.fullName || !formData.phone || !formData.address || !formData.city || !formData.state || !formData.pincode) {
-      showError('Complete address is required');
-      return;
-    }
     if (cartItems.length === 0) return;
 
     placingOrderRef.current = true;
     setIsProcessing(true);
 
     try {
-      const productId = String(buyNowOrder?.productId || buyNowProductId).trim();
-      const quantity = Number(buyNowOrder?.quantity || 1);
-      const unitPrice = Number(buyNowOrder?.product?.price || 0);
-      const computedTotalAmount = unitPrice * quantity;
-
-      if (!productId || !user?.email) {
-        throw new Error('Unable to finalize order. Please try again.');
+      const sdkLoaded = await loadRazorpay();
+      if (!sdkLoaded) {
+        throw new Error('Razorpay SDK failed to load');
       }
 
-      const orderData = {
-        productId,
-        quantity,
-        totalAmount: computedTotalAmount,
-        address: {
-          fullName: formData.fullName,
-          phone: formData.phone,
+      const response = await fetch(buildApiUrl('/api/payment/create-order'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: total }),
+      });
+
+      const data = await parseResponseBody<any>(response);
+      const razorpayOrder = data?.order || data;
+
+      if (!response.ok || !razorpayOrder?.id) {
+        throw new Error(data?.message || data?.error || 'Failed to create Razorpay order');
+      }
+
+      const normalizedProducts = cartItems.map((item) => ({
+        productId: String(item.productId || '').trim(),
+        productName: String(item.product?.name || '').trim(),
+        productImage: String(item.product?.image || '').trim(),
+        productPrice: Number(item.product?.price || 0),
+        quantity: Number(item.quantity || 1),
+      }));
+
+      const primaryProduct = normalizedProducts[0];
+      const paymentOptions = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: 'TN AUTOMATION',
+        description: 'Product Payment',
+        order_id: razorpayOrder.id,
+        handler: async (paymentResponse: any) => {
+          console.log('PAYMENT SUCCESS', paymentResponse);
+
+          try {
+            const orderPayload = {
+              productId: String(primaryProduct?.productId || buyNowOrder?.productId || buyNowProductId || '').trim(),
+              quantity: Number(primaryProduct?.quantity || buyNowOrder?.quantity || 1),
+              totalAmount: Number(total),
+              paymentMethod: 'Razorpay',
+              paymentStatus: 'Paid',
+              razorpayOrderId: paymentResponse.razorpay_order_id,
+              razorpayPaymentId: paymentResponse.razorpay_payment_id,
+              razorpaySignature: paymentResponse.razorpay_signature,
+              products: normalizedProducts,
+              items: normalizedProducts.map((item) => ({
+                name: item.productName,
+                price: item.productPrice,
+                quantity: item.quantity,
+                image: item.productImage,
+              })),
+              address: {
+                fullName: formData.fullName,
+                phone: formData.phone,
+                email: formData.email,
+                address: formData.address,
+                city: formData.city,
+                state: formData.state,
+                pincode: formData.pincode,
+              },
+            };
+
+            const saveResponse = await fetch(buildApiUrl('/api/orders'), {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(orderPayload),
+            });
+
+            const savedOrder = await parseResponseBody<any>(saveResponse);
+            if (!saveResponse.ok || !savedOrder?.success) {
+              throw new Error(savedOrder?.message || 'Payment succeeded but order save failed');
+            }
+
+            const createdOrderId = String(savedOrder?.order?._id || savedOrder?.order?.orderId || '').trim();
+            showSuccess('Payment successful');
+            router.push(createdOrderId ? `/order-success?orderId=${encodeURIComponent(createdOrderId)}` : '/account/orders');
+          } catch (saveError: any) {
+            console.error('ORDER SAVE ERROR:', saveError);
+            showError(saveError?.message || 'Payment succeeded but order save failed');
+          } finally {
+            setIsProcessing(false);
+            placingOrderRef.current = false;
+          }
+        },
+        prefill: {
+          name: formData.fullName,
           email: formData.email,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
+          contact: formData.phone,
+        },
+        theme: {
+          color: '#2563eb',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessing(false);
+            placingOrderRef.current = false;
+          },
         },
       };
 
-      console.log('Sending address:', formData);
-      console.log('Sending order:', orderData);
+      const RazorpayConstructor = (window as any).Razorpay;
+      if (!RazorpayConstructor) {
+        throw new Error('Razorpay checkout is unavailable');
+      }
 
-      const createRes = await fetch(buildApiUrl('/api/orders'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData),
+      const paymentObject = new RazorpayConstructor(paymentOptions);
+      paymentObject.on('payment.failed', (event: any) => {
+        const failureMessage =
+          event?.error?.description ||
+          event?.error?.reason ||
+          event?.error?.source ||
+          event?.error?.code ||
+          'Payment failed';
+
+        if (event?.error && Object.keys(event.error).length > 0) {
+          console.warn('PAYMENT FAILED', event.error);
+        } else {
+          console.warn('PAYMENT FAILED');
+        }
+
+        showError(failureMessage);
+        setIsProcessing(false);
+        placingOrderRef.current = false;
       });
-
-      const createResClone = createRes.clone();
-      const data = await parseResponseBody<any>(createRes);
-      const responseText = !data || Object.keys(data).length === 0
-        ? await createResClone.text().catch(() => '')
-        : '';
-      const contentType = (createRes.headers.get('content-type') || '').toLowerCase();
-      console.log('Response:', data);
-
-      if (!createRes.ok || !data?.success) {
-        const normalizedMessage =
-          data?.message ||
-          data?.error ||
-          (createRes.status === 401 ? 'Please login to place order' : '') ||
-          (createRes.status === 403 ? 'You are not allowed to place an order' : '') ||
-          (createRes.status === 404 ? 'Order API route not found' : '') ||
-          (responseText && contentType.includes('text/html')
-            ? `Server returned HTML instead of JSON (status ${createRes.status})`
-            : '') ||
-          `Order failed (status ${createRes.status})`;
-
-        console.error('ORDER ERROR:', {
-          status: createRes.status,
-          ok: createRes.ok,
-          contentType,
-          data,
-          responsePreview: responseText.slice(0, 200),
-        });
-        showError(normalizedMessage);
-        return;
-      }
-
-      const createdOrderId = String(data?.order?._id || '').trim();
-      if (!createdOrderId) {
-        showError('Order not created properly');
-        return;
-      }
-
-      console.log('ORDER ID:', createdOrderId);
-      router.push(`/order-success?orderId=${encodeURIComponent(createdOrderId)}`);
-    } catch (error) {
-      console.error('PLACE ORDER ERROR:', error);
-      showError('Something went wrong');
-    } finally {
-      placingOrderRef.current = false;
+      paymentObject.open();
+    } catch (error: any) {
+      console.error('PAYMENT ERROR:', error);
+      showError(error?.message || 'Payment failed');
       setIsProcessing(false);
+      placingOrderRef.current = false;
     }
   };
 
-  if (step === 'complete') {
-    return (
-      <div className="bg-background min-h-screen">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center py-16 max-w-2xl mx-auto">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-4xl">
-                <Check className="w-10 h-10" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Order Confirmed!
-            </h1>
-            <p className="text-muted-foreground mb-6">
-              Thank you for your order. We've received your payment and will
-              start processing your order right away.
-            </p>
-            <div className="bg-card border border-border rounded-lg p-6 mb-8 text-left">
-              <h2 className="font-semibold text-foreground mb-4">
-                Order Details
-              </h2>
-              <div className="space-y-2 text-sm mb-4">
-                <p>
-                  <span className="text-muted-foreground">Order Number:</span>{' '}
-                  <span className="font-semibold">
-                    {orderNumber}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Customer:</span>{' '}
-                  <span className="font-semibold">
-                    {formData.fullName}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Email:</span>{' '}
-                  <span className="font-semibold">{formData.email}</span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Total Amount:</span>{' '}
-                  <span className="font-semibold">{formatPrice(total)}</span>
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                A confirmation email has been sent to {formData.email}
-              </p>
-            </div>
-            <Link href="/products">
-              <Button size="lg">Continue Shopping</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handlePlaceOrder = handlePayment;
 
+  if (step === 'complete') {
+          return (
+            <div className="bg-background min-h-screen">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="text-center py-16 max-w-2xl mx-auto">
+                  <div className="flex justify-center mb-6">
+                    <div className="w-20 h-20 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-4xl">
+                      <Check className="w-10 h-10" />
+                    </div>
+                  </div>
+                  <h1 className="text-3xl font-bold text-foreground mb-2">
+                    Order Confirmed!
+                  </h1>
+                  <p className="text-muted-foreground mb-6">
+                    Thank you for your order. We've received your payment and will
+                    start processing your order right away.
+                  </p>
+                  <div className="bg-card border border-border rounded-lg p-6 mb-8 text-left">
+                    <h2 className="font-semibold text-foreground mb-4">
+                      Order Details
+                    </h2>
+                    <div className="space-y-2 text-sm mb-4">
+                      <p>
+                        <span className="text-muted-foreground">Order Number:</span>{' '}
+                        <span className="font-semibold">
+                          {orderNumber}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Customer:</span>{' '}
+                        <span className="font-semibold">
+                          {formData.fullName}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Email:</span>{' '}
+                        <span className="font-semibold">{formData.email}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Total Amount:</span>{' '}
+                        <span className="font-semibold">{formatPrice(total)}</span>
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      A confirmation email has been sent to {formData.email}
+                    </p>
+                  </div>
+                  <Link href="/products">
+                    <Button size="lg">Continue Shopping</Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          );
+        }
   if (authLoading) {
     return (
       <div className="bg-background min-h-screen flex items-center justify-center">
@@ -683,7 +766,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
               </div>
 
               <Button
-                onClick={handlePlaceOrder}
+                onClick={handlePayment}
                 disabled={isProcessing || cartItems.length === 0}
                 size="lg"
                 className="place-order-btn"
@@ -694,7 +777,7 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                     Processing...
                   </>
                 ) : (
-                  'Place Order'
+                  'Pay with Razorpay'
                 )}
               </Button>
           </div>

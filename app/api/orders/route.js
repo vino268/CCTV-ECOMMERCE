@@ -114,7 +114,9 @@ export async function POST(req) {
 
     const body = await req.json();
 
-    const productId = toTrimmed(body?.productId || body?.product?.productId);
+    const payloadProducts = Array.isArray(body?.products) ? body.products.filter(Boolean) : [];
+    const payloadItems = Array.isArray(body?.items) ? body.items.filter(Boolean) : [];
+    const productId = toTrimmed(body?.productId || body?.product?.productId || payloadProducts[0]?.productId);
     const quantity = toPositiveInteger(body?.quantity, 1);
     const totalAmountFromBody = toPositiveNumber(body?.totalAmount, toPositiveNumber(body?.total, 0));
 
@@ -159,12 +161,48 @@ export async function POST(req) {
 
     const paymentMethod = normalizePaymentMethod(body?.paymentMethod || body?.payment?.method || body?.payment?.paymentMethod);
     const paymentStatus = normalizePaymentStatus(body?.paymentStatus || body?.payment?.status, paymentMethod);
+    const razorpayOrderId = toTrimmed(body?.razorpayOrderId || body?.razorpay_order_id);
+    const razorpayPaymentId = toTrimmed(body?.razorpayPaymentId || body?.razorpay_payment_id);
+    const razorpaySignature = toTrimmed(body?.razorpaySignature || body?.razorpay_signature);
 
+    const normalizedProducts = payloadProducts.length
+      ? payloadProducts.map((item) => ({
+          productId: toTrimmed(item?.productId || productId),
+          productName: toTrimmed(item?.productName || item?.name || productDoc?.name || "Product"),
+          productImage: toTrimmed(item?.productImage || item?.image || productDoc?.image),
+          productPrice: toPositiveNumber(item?.productPrice, toPositiveNumber(item?.price, toPositiveNumber(productDoc?.price, 0))),
+          quantity: toPositiveInteger(item?.quantity, 1),
+        }))
+      : [
+          {
+            productId,
+            productName: toTrimmed(body?.product?.name || productDoc?.name || "Product"),
+            productImage: toTrimmed(body?.product?.image || productDoc?.image),
+            productPrice: toPositiveNumber(body?.product?.price, toPositiveNumber(productDoc?.price, 0)),
+            quantity,
+          },
+        ];
+
+    const normalizedItems = payloadItems.length
+      ? payloadItems.map((item) => ({
+          name: toTrimmed(item?.name || item?.productName || productDoc?.name || "Product"),
+          price: toPositiveNumber(item?.price, toPositiveNumber(item?.productPrice, toPositiveNumber(productDoc?.price, 0))),
+          quantity: toPositiveInteger(item?.quantity, quantity),
+          image: toTrimmed(item?.image || item?.productImage || productDoc?.image),
+        }))
+      : normalizedProducts.map((item) => ({
+          name: item.productName,
+          price: item.productPrice,
+          quantity: item.quantity,
+          image: item.productImage,
+        }));
+
+    const primaryProduct = normalizedProducts[0];
     const product = {
-      productId,
-      name: toTrimmed(body?.product?.name || productDoc?.name || "Product"),
-      price: toPositiveNumber(body?.product?.price, toPositiveNumber(productDoc?.price, 0)),
-      image: toTrimmed(body?.product?.image || productDoc?.image),
+      productId: primaryProduct.productId,
+      name: primaryProduct.productName,
+      price: primaryProduct.productPrice,
+      image: primaryProduct.productImage,
     };
 
     const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
@@ -196,6 +234,9 @@ export async function POST(req) {
       status: "Ordered",
       paymentMethod,
       paymentStatus,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
 
       // Compatibility fields
       userId: toTrimmed(auth.userId),
@@ -205,23 +246,8 @@ export async function POST(req) {
       customerName: user.name || address.fullName,
       email: user.email,
       phone: address.phone,
-      items: [
-        {
-          name: product.name,
-          price: product.price,
-          quantity,
-          image: product.image,
-        },
-      ],
-      products: [
-        {
-          productId: product.productId,
-          productName: product.name,
-          productImage: product.image,
-          productPrice: product.price,
-          quantity,
-        },
-      ],
+      items: normalizedItems,
+      products: normalizedProducts,
       totalAmount: totalAmountFromBody,
       orderStatus: "Ordered",
       trackingStatus: "Ordered",

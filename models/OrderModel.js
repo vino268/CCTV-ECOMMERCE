@@ -136,6 +136,21 @@ const orderModelSchema = new Schema(
       type: String,
       default: "Unpaid",
     },
+    razorpayOrderId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    razorpaySignature: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     orderStatus: {
       type: String,
       default: "Ordered",
