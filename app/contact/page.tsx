@@ -136,7 +136,7 @@ export default function ContactPage() {
     setStatus(null);
 
     try {
-      const res = await fetch(buildApiUrl('/api/send-email'), {
+      const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,8 +145,9 @@ export default function ContactPage() {
       });
 
       const data = await res.json();
+      console.log(data);
 
-      if (res.ok && data.success) {
+      if (data.success) {
         const successMessage = data.message || 'Message sent successfully';
         toast.success(successMessage);
         setStatus({ type: 'success', message: successMessage });

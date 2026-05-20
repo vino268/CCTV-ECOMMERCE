@@ -26,9 +26,13 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeService, setActiveService] = useState<Service | null>(null);
-  const [name, setName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [message, setMessage] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    service: '',
+    message: '',
+  });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -77,25 +81,36 @@ export default function ServicesPage() {
 
   useEffect(() => {
     if (activeService) {
-      setName('');
-      setPhoneNumber('');
-      setMessage('');
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        service: activeService.name,
+        message: '',
+      });
       setFormError('');
       setFormSuccess('');
       setSubmitting(false);
     }
   }, [activeService]);
 
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [event.target.name]: event.target.value,
+    });
+  };
+
   const handleBookingSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!name.trim() || !phoneNumber.trim()) {
-      setFormError('Please enter your name and phone number.');
+    if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim()) {
+      setFormError('Please enter your name, email, and phone number.');
       setFormSuccess('');
       return;
     }
 
-    const selectedServiceType = activeService?.name?.trim();
+    const selectedServiceType = formData.service.trim();
 
     if (!selectedServiceType) {
       setFormError('Please select a service and try again.');
@@ -114,10 +129,11 @@ export default function ServicesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: name.trim(),
-          phone: phoneNumber.trim(),
-          service: selectedServiceType,
-          message: message.trim(),
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          service: formData.service,
+          message: formData.message,
         }),
       });
 
@@ -133,9 +149,13 @@ export default function ServicesPage() {
       const successMessage = result.message || 'Service request submitted';
       setFormSuccess(successMessage);
       toast.success(successMessage);
-      setName('');
-      setPhoneNumber('');
-      setMessage('');
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        service: selectedServiceType,
+        message: '',
+      });
     } catch (error) {
       console.error("Service form submission error:", error);
       setFormError('Failed to send request. Please try again.');
@@ -297,29 +317,41 @@ export default function ServicesPage() {
           <form className="mb-4" onSubmit={handleBookingSubmit}>
             <input
               type="text"
+              name="name"
               placeholder="Name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address"
+              value={formData.email}
+              onChange={handleChange}
               className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
             <input
               type="tel"
+              name="phone"
               placeholder="Phone Number"
-              value={phoneNumber}
-              onChange={(event) => setPhoneNumber(event.target.value)}
+              value={formData.phone}
+              onChange={handleChange}
               className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
             <input
               type="text"
-              value={activeService?.name || ''}
+              name="service"
+              value={formData.service || activeService?.name || ''}
               readOnly
               className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 bg-gray-50 text-gray-600"
             />
             <textarea
+              name="message"
               placeholder="Message (optional)"
               rows={3}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
+              value={formData.message}
+              onChange={handleChange}
               className="w-full p-3 text-sm sm:text-base rounded-lg border mb-3 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
             />
 

@@ -3,12 +3,43 @@ import nodemailer from "nodemailer";
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const name = body?.name || "N/A";
-    const email = body?.email || "N/A";
-    const phone = body?.phone || "N/A";
-    const service = body?.service || body?.serviceType || "N/A";
-    const message = body?.message || "N/A";
+    const { name, email, phone, service, message } = await req.json();
+    const isServiceRequest = Boolean(service);
+    const senderEmail = (process.env.EMAIL_USER || "").trim();
+    const senderPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "").trim();
+    const receiverEmail = (process.env.EMAIL_RECEIVER || "").trim();
+
+    if (!senderEmail || !senderPass) {
+      return NextResponse.json(
+        { success: false, message: "Email sender credentials are missing" },
+        { status: 500 }
+      );
+    }
+
+    if (!receiverEmail) {
+      return NextResponse.json(
+        { success: false, message: "Receiver email is missing. Set EMAIL_RECEIVER." },
+        { status: 500 }
+      );
+    }
+
+    const subject = isServiceRequest ? "New Service Request" : "New Contact Message";
+    const htmlTemplate = isServiceRequest
+      ? `
+        <h2>New Service Request</h2>
+        <p><b>Name:</b> ${name}</p>
+        <p><b>Email:</b> ${email}</p>
+        <p><b>Phone:</b> ${phone}</p>
+        <p><b>Service:</b> ${service}</p>
+        <p><b>Message:</b> ${message}</p>
+      `
+      : `
+        <h2>New Contact Message</h2>
+        <p><b>Name:</b> ${name}</p>
+        <p><b>Email:</b> ${email}</p>
+        <p><b>Phone:</b> ${phone}</p>
+        <p><b>Message:</b> ${message}</p>
+      `;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -18,21 +49,16 @@ export async function POST(req) {
       },
     });
 
-    console.log("EMAIL USER:", process.env.EMAIL_USER);
-    console.log("Sending service request mail...");
+    console.log("EMAIL USER:", senderEmail);
+    console.log("EMAIL RECEIVER:", receiverEmail);
+    console.log(isServiceRequest ? "Sending service request mail..." : "Sending contact message mail...");
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: "New Service Request",
-      html: `
-        <h2>New Service Request</h2>
-        <p><b>Name:</b> ${name}</p>
-        <p><b>Email:</b> ${email}</p>
-        <p><b>Phone:</b> ${phone}</p>
-        <p><b>Service:</b> ${service}</p>
-        <p><b>Message:</b> ${message}</p>
-      `,
+      from: `"TN Automation" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_RECEIVER,
+      replyTo: email,
+      subject: subject || "New Contact Message",
+      html: htmlTemplate,
     });
 
     console.log("MAIL SENT SUCCESS");
@@ -42,7 +68,7 @@ export async function POST(req) {
       message: "Message sent successfully",
     });
   } catch (error) {
-    console.log("MAIL ERROR:", error);
+    console.error("MAIL ERROR:", error);
     
     return NextResponse.json(
       { success: false, message: "Failed to send message" },
