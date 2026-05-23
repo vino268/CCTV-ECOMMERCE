@@ -25,6 +25,7 @@ export interface AccountOrder {
   email: string;
   products: OrderProduct[];
   totalAmount: number;
+  paymentMethod?: string;
   paymentStatus?: string;
   orderStatus?: string;
   trackingStatus?: string;
@@ -65,6 +66,13 @@ function normalizeOrderStatus(raw?: string) {
     cancelled: 'Cancelled',
   };
   return map[value] || 'Ordered';
+}
+
+function getPaymentMethodLabel(value?: string) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'cod' || normalized === 'cash on delivery') return 'COD';
+  if (normalized === 'razorpay' || normalized === 'online') return 'Online';
+  return String(value || 'Online').trim() || 'Online';
 }
 
 function getTimelineActiveStep(status: string) {
@@ -108,6 +116,8 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const firstProduct = order.products?.[0];
   const productImage = getSafeImageSrc(firstProduct?.productImage || firstProduct?.image, '/products/default.jpg');
   const itemCount = (order.products || []).reduce((sum, p) => sum + (p.quantity || 0), 0);
+  const paymentMethod = getPaymentMethodLabel(order.paymentMethod);
+  const paymentStatus = String(order.paymentStatus || 'Unpaid').trim() || 'Unpaid';
 
   const handleViewDetails = () => {
     if (!orderId) return;
@@ -153,7 +163,8 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
 
             <div className="text-right">
               <p className="text-lg font-bold text-gray-900">{formatINRCurrency(order.totalAmount)}</p>
-              <p className="text-xs text-gray-500">Payment: {order.paymentStatus || 'Unpaid'}</p>
+              <p className="text-xs text-gray-500">Payment: {paymentStatus}</p>
+              <p className="text-xs text-gray-500">Method: {paymentMethod}</p>
             </div>
           </div>
 

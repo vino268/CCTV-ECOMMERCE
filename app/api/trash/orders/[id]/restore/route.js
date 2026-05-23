@@ -5,24 +5,37 @@ import AdminLog from '@/models/AdminLog';
 import Admin from '@/models/Admin';
 import { verifyAdmin, adminAuthError } from '@/app/api/admin/_helpers';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(req, { params }) {
   try {
     const auth = await verifyAdmin(req);
     if (!auth.ok) return adminAuthError(auth);
 
     await connectDB();
-    const id = params.id;
-    const doc = await Order.findById(id);
-    if (!doc) return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    }
 
-    doc.isDeleted = false;
-    doc.deletedAt = null;
-    await doc.save();
+    const doc = await Order.findByIdAndUpdate(
+      id,
+      {
+        isDeleted: false,
+        deletedAt: null,
+      },
+      { new: true }
+    );
+
+    if (!doc) {
+      return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    }
 
     const adminRec = await Admin.findById(auth.adminId).select('name').catch(() => null);
     await AdminLog.create({ adminName: adminRec?.name || String(auth.adminId), type: 'trash', action: 'order_restore', message: `Order restored: ${doc._id}`, details: String(doc._id) });
 
-    return NextResponse.json({ success: true, message: 'Order restored', order: doc });
+    return NextResponse.json({ success: true, message: 'Order restored successfully', order: doc });
   } catch (error) {
     console.error('POST /api/trash/orders/[id]/restore error:', error);
     return NextResponse.json({ success: false, message: 'Failed to restore order' }, { status: 500 });

@@ -4,6 +4,9 @@ import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function DELETE(req, { params }) {
   try {
     const auth = await verifyAdmin(req);
@@ -12,8 +15,7 @@ export async function DELETE(req, { params }) {
     await connectDB();
     const { id } = await params;
 
-    // Permanent delete: remove completely from DB
-    const order = await Order.findByIdAndDelete(id);
+    const order = await Order.findOne({ _id: id, isDeleted: true });
 
     if (!order) {
       return NextResponse.json(
@@ -21,6 +23,8 @@ export async function DELETE(req, { params }) {
         { status: 404 }
       );
     }
+
+    await Order.findByIdAndDelete(id);
 
     // Log the permanent deletion
     await AdminLog.create({

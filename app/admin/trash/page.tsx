@@ -166,8 +166,10 @@ export default function AdminTrashPage() {
       });
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setError(data.error || 'Failed to restore item');
+      if (!res.ok || !data.success) {
+        const message = data.message || data.error || '';
+        setError(message);
+        if (message) toast.error(message);
         return;
       }
 
@@ -176,15 +178,20 @@ export default function AdminTrashPage() {
       if (currentTab === 'deleted-customers') setCustomers((prev) => prev.filter((c) => c._id !== id));
       if (currentTab === 'deleted-products') setProducts((prev) => prev.filter((p) => p._id !== id));
 
+      // keep both trash and orders views in sync without requiring a manual refresh
+      await fetchDeletedData();
+
       // warm dashboard cache and notify listeners
       try {
         fetch(buildApiUrl('/api/admin/dashboard'))
           .catch(() => null);
         window.dispatchEvent(new CustomEvent('admin:counts-changed'));
       } catch (e) {}
+
+      toast.success(data.message || 'Item restored successfully');
     } catch (error) {
       console.error('Restore error:', error);
-      setError('Failed to restore item');
+      setError('');
     } finally {
       setActionKey(null);
     }
@@ -200,7 +207,7 @@ export default function AdminTrashPage() {
 
       let endpoint;
       if (pendingDelete.tab === 'deleted-orders') {
-        endpoint = buildApiUrl(`/api/trash/orders/${pendingDelete.id}`);
+        endpoint = buildApiUrl(`/api/admin/orders/permanent-delete/${pendingDelete.id}`);
       } else if (pendingDelete.tab === 'deleted-customers') {
         endpoint = buildApiUrl(`/api/trash/customers/${pendingDelete.id}`);
       } else {
@@ -214,8 +221,9 @@ export default function AdminTrashPage() {
       });
       const data = await res.json().catch(() => ({}));
 
-      if (!data.success) {
-        toast.error(data.message || 'Permanent delete failed');
+      if (!res.ok || !data.success) {
+        const message = data.message || data.error || '';
+        if (message) toast.error(message);
         return;
       }
 
@@ -225,10 +233,15 @@ export default function AdminTrashPage() {
       if (pendingDelete.tab === 'deleted-products') setProducts((prev) => prev.filter((p) => p._id !== pendingDelete.id));
       setPendingDelete(null);
 
+      await fetchDeletedData();
+
       try {
         fetch(buildApiUrl('/api/admin/dashboard')).catch(() => null);
         window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+        window.dispatchEvent(new CustomEvent('orders-changed'));
       } catch (e) {}
+
+      toast.success(data.message || 'Order permanently deleted');
     } catch (error: any) {
       console.log(error);
       if (error?.message) {

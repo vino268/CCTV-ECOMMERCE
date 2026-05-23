@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
   try {
     const auth = await verifyAdmin(req);

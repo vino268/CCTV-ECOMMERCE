@@ -6,10 +6,12 @@ import { formatINRCurrency } from '@/lib/currency';
 import ConfirmModal from '@/components/confirm-modal';
 import { Ban, Eye, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { buildApiUrl, parseResponseBody } from '@/lib/http-response';
+import toast from 'react-hot-toast';
 
 function notifyDashboardCountsChanged() {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('admin:counts-changed'));
+    window.dispatchEvent(new CustomEvent('orders-changed'));
   }
 }
 
@@ -94,9 +96,17 @@ const statusStyles: Record<string, string> = {
 
 const paymentStyles: Record<string, string> = {
   Paid: 'bg-green-100 text-green-800',
+  Pending: 'bg-yellow-100 text-yellow-800',
   Unpaid: 'bg-red-100 text-red-800',
   Refunded: 'bg-gray-100 text-gray-800',
 };
+
+function getPaymentMethodLabel(value?: string) {
+  const normalized = String(value || 'Online').trim().toLowerCase();
+  if (normalized === 'cod' || normalized === 'cash on delivery') return 'COD';
+  if (normalized === 'razorpay') return 'Online';
+  return String(value || 'Online').trim() || 'Online';
+}
 
 function getDisplayStatus(order: Order): string {
   const raw = String(order.status || order.trackingStatus || order.orderStatus || 'Ordered').trim();
@@ -160,7 +170,7 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetch(buildApiUrl('/api/admin/orders'), { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/orders', { cache: 'no-store', credentials: 'include' });
       const data = await parseResponseBody<any>(res);
 
       if (!res.ok) {
@@ -168,7 +178,7 @@ export default function AdminOrdersPage() {
         return;
       }
 
-      setOrders(Array.isArray(data?.orders) ? data.orders : []);
+      setOrders(Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []);
     } catch (err) {
       setOrders([]);
     } finally {
@@ -178,6 +188,19 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+  }, []);
+
+  useEffect(() => {
+    const handleOrdersChanged = () => {
+      fetchOrders();
+    };
+
+    window.addEventListener('admin:counts-changed', handleOrdersChanged);
+    window.addEventListener('orders-changed', handleOrdersChanged);
+    return () => {
+      window.removeEventListener('admin:counts-changed', handleOrdersChanged);
+      window.removeEventListener('orders-changed', handleOrdersChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -319,25 +342,25 @@ export default function AdminOrdersPage() {
 
     try {
       setDeletingId(selectedId);
-      const res = await fetch(buildApiUrl(`/api/admin/orders/${selectedId}`), { 
-        method: 'PATCH', 
+      setMessage(null);
+      const orderId = selectedId;
+      const res = await fetch(`/api/orders/${orderId}`, { 
+        method: 'DELETE', 
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await parseResponseBody<any>(res);
-      
-      // ❌ DO NOT assume success
+
       if (!res.ok || !data.success) {
         setMessage({ type: 'error', text: data.error || data.message || 'Failed to delete order' });
         return;
       }
 
-      // ✅ Success logic
+      setOrders((prev) => prev.filter((order) => order._id !== orderId));
       setShowDeleteModal(false);
       setSelectedId(null);
-      setMessage({ type: 'success', text: 'Order moved to trash' });
-      
-      // Refresh list from server
+      setMessage(null);
+      toast.success('Order deleted successfully');
       await fetchOrders();
       notifyDashboardCountsChanged();
     } catch (error) {
@@ -409,6 +432,7 @@ export default function AdminOrdersPage() {
 
           <select value={draftFilters.payment} onChange={(e) => setDraftFilters((p) => ({ ...p, payment: e.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="All">Payment: All</option>
+            <option value="Pending">Pending</option>
             <option value="Paid">Paid</option>
             <option value="Unpaid">Unpaid</option>
           </select>
@@ -449,6 +473,7 @@ export default function AdminOrdersPage() {
                       <p className="font-bold text-lg text-gray-900">{formatINRCurrency(order.totalAmount)}</p>
                       <div className="flex flex-wrap gap-2">
                         <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${paymentStyles[order.paymentStatus] || 'bg-gray-100 text-gray-800'}`}>{order.paymentStatus}</span>
+                        <span className="px-2.5 py-1 text-xs rounded-full font-medium bg-slate-100 text-slate-800">Method: {getPaymentMethodLabel(order.paymentMethod)}</span>
                         <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${statusStyles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
                         {displayStatus === 'Cancelled' && order.cancelledBy === 'USER' && (
                           <span className="px-2.5 py-1 text-xs rounded-full font-medium bg-rose-100 text-rose-800">
@@ -537,6 +562,7 @@ export default function AdminOrdersPage() {
                 Address: {getDisplayAddress(selectedOrder) || '-'}
               </p>
               <p className="text-sm text-gray-700">Payment Status: {selectedOrder.paymentStatus || 'Unpaid'}</p>
+              <p className="text-sm text-gray-700">Payment Method: {getPaymentMethodLabel(selectedOrder.paymentMethod)}</p>
               <p className="text-sm text-gray-700">Order Date &amp; Time: {new Date(selectedOrder.createdAt).toLocaleString()}</p>
               <p className="text-sm text-gray-700 mt-3 font-semibold">Total: {formatINRCurrency(selectedOrder.totalAmount)}</p>
             </div>

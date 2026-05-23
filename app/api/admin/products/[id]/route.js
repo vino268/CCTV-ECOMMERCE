@@ -28,7 +28,16 @@ export async function DELETE(req, { params }) {
       );
     }
 
-    const deletedProduct = await Product.findByIdAndDelete(id);
+    const deletedProduct = await Product.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
     if (!deletedProduct) {
       return NextResponse.json(
         { success: false, message: "Product not found" },
@@ -36,7 +45,7 @@ export async function DELETE(req, { params }) {
       );
     }
 
-    console.log("Admin product hard-deleted successfully:", id);
+    console.log("Admin product moved to trash successfully:", id);
 
     await AdminLog.create({
       adminName: "Admin",
@@ -46,7 +55,7 @@ export async function DELETE(req, { params }) {
 
     return NextResponse.json({
       success: true,
-      message: "Product deleted successfully",
+      message: "Product moved to trash successfully",
     });
   } catch (error) {
     console.error("Delete product API error:", error);

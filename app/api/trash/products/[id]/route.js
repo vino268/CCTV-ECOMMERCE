@@ -5,6 +5,9 @@ import AdminLog from '@/models/AdminLog';
 import Admin from '@/models/Admin';
 import { verifyAdmin, adminAuthError } from '@/app/api/admin/_helpers';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function DELETE(req, { params }) {
   try {
     const auth = await verifyAdmin(req);
@@ -12,14 +15,12 @@ export async function DELETE(req, { params }) {
 
     await connectDB();
     const id = params.id;
-    const doc = await Product.findById(id);
-    if (!doc) return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
-
-    await Product.deleteOne({ _id: id });
+    const deletedProduct = await Product.findByIdAndDelete(id);
+    if (!deletedProduct) return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
 
     // log
     const adminRec = await Admin.findById(auth.adminId).select('name').catch(() => null);
-    await AdminLog.create({ adminName: adminRec?.name || String(auth.adminId), type: 'trash', action: 'product_permanent_delete', message: `Product permanently deleted: ${doc._id}`, details: String(doc._id) });
+    await AdminLog.create({ adminName: adminRec?.name || String(auth.adminId), type: 'trash', action: 'product_permanent_delete', message: `Product permanently deleted: ${deletedProduct._id}`, details: String(deletedProduct._id) });
 
     return NextResponse.json({ success: true, message: 'Product permanently deleted' });
   } catch (error) {

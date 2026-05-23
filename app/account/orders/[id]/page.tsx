@@ -65,6 +65,7 @@ interface Order {
   items?: OrderItem[];
   products: OrderProduct[];
   totalAmount: number;
+  paymentMethod?: string;
   paymentStatus?: string;
   orderStatus: string;
   trackingStatus: string;
@@ -120,6 +121,14 @@ function normalizeStatus(status?: string) {
   if (value === 'cancelled') return 'Cancelled';
   return 'Ordered';
 }
+
+function getPaymentMethodLabel(value?: string) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'cod' || normalized === 'cash on delivery') return 'COD';
+  if (normalized === 'razorpay' || normalized === 'online') return 'Online';
+  return String(value || 'Online').trim() || 'Online';
+}
+
 
 export default function OrderDetailsPage() {
   const params = useParams();
@@ -527,6 +536,7 @@ export default function OrderDetailsPage() {
                 })}
               </p>
               <p className="text-sm text-gray-500 mt-1">Payment: {order.paymentStatus || 'Unpaid'}</p>
+              <p className="text-sm text-gray-500 mt-1">Method: {getPaymentMethodLabel(order.paymentMethod)}</p>
             </div>
 
             <span

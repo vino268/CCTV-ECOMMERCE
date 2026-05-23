@@ -4,6 +4,14 @@ import Order from '@/models/Order';
 
 export const dynamic = 'force-dynamic';
 
+function normalizePaymentMethod(value) {
+  const method = String(value || 'COD').trim();
+  const normalized = method.toLowerCase();
+  if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) return 'COD';
+  if (/online|razorpay|upi|card|netbanking/i.test(normalized)) return 'Online';
+  return method || 'COD';
+}
+
 // GET /api/orders/user/:email
 export async function GET(_req, { params }) {
   try {
@@ -29,7 +37,10 @@ export async function GET(_req, { params }) {
       const key = String(order?.orderId || order?._id || '').trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      deduped.push(order);
+      deduped.push({
+        ...order.toObject(),
+        paymentMethod: normalizePaymentMethod(order.paymentMethod),
+      });
     }
 
     return NextResponse.json(deduped, {

@@ -209,6 +209,7 @@ export default function CheckoutPage() {
     state: '',
     pincode: '',
   });
+  const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD' | null>(null);
 
   const checkoutItems = isBuyNowFlow
     ? buyNowOrder
@@ -260,6 +261,11 @@ export default function CheckoutPage() {
   };
 
   const validateCheckoutForm = () => {
+    if (!paymentMethod) {
+      showError('Please select a payment method');
+      return false;
+    }
+
     if (
       !formData.fullName ||
       !formData.email ||
@@ -273,6 +279,80 @@ export default function CheckoutPage() {
       return false;
     }
     return true;
+  };
+
+  const createOrderPayload = (method: 'Online' | 'COD', paymentResponse?: any) => {
+    const normalizedProducts = cartItems.map((item) => ({
+      productId: String(item.productId || '').trim(),
+      productName: String(item.product?.name || '').trim(),
+      productImage: String(item.product?.image || '').trim(),
+      productPrice: Number(item.product?.price || 0),
+      quantity: Number(item.quantity || 1),
+    }));
+
+    const primaryProduct = normalizedProducts[0];
+
+    return {
+      productId: String(primaryProduct?.productId || buyNowOrder?.productId || buyNowProductId || '').trim(),
+      quantity: Number(primaryProduct?.quantity || buyNowOrder?.quantity || 1),
+      totalAmount: Number(total),
+      paymentMethod: method === 'COD' ? 'COD' : 'Razorpay',
+      paymentStatus: method === 'COD' ? 'Pending' : 'Paid',
+      orderStatus: 'Ordered',
+      ...(paymentResponse
+        ? {
+            razorpayOrderId: paymentResponse.razorpay_order_id,
+            razorpayPaymentId: paymentResponse.razorpay_payment_id,
+            razorpaySignature: paymentResponse.razorpay_signature,
+          }
+        : {}),
+      products: normalizedProducts,
+      items: normalizedProducts.map((item) => ({
+        name: item.productName,
+        price: item.productPrice,
+        quantity: item.quantity,
+        image: item.productImage,
+      })),
+      address: {
+        fullName: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+      },
+    };
+  };
+
+  const saveOrderAndRedirect = async (method: 'Online' | 'COD', paymentResponse?: any) => {
+    const orderPayload = createOrderPayload(method, paymentResponse);
+
+    const saveResponse = await fetch(buildApiUrl('/api/orders'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderPayload),
+    });
+
+    const savedOrder = await parseResponseBody<any>(saveResponse);
+    if (!saveResponse.ok || !savedOrder?.success) {
+      throw new Error(savedOrder?.message || 'Failed to save order');
+    }
+
+    const createdOrderId = String(savedOrder?.order?._id || savedOrder?.order?.orderId || '').trim();
+    if (!isBuyNowFlow) {
+      clearCart();
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('orders-changed'));
+    }
+
+    showSuccess(method === 'COD' ? 'COD Order Placed Successfully' : 'Payment successful');
+    router.push(createdOrderId ? `/order-success?orderId=${encodeURIComponent(createdOrderId)}` : '/account/orders');
   };
 
   const handleSaveAddress = async () => {
@@ -315,15 +395,21 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePayment = async () => {
+  const handlePlaceOrder = async (method: 'Online' | 'COD' = paymentMethod || 'Online') => {
     if (placingOrderRef.current || isProcessing) return;
     if (!validateCheckoutForm()) return;
     if (cartItems.length === 0) return;
 
     placingOrderRef.current = true;
     setIsProcessing(true);
+    setPaymentMethod(method);
 
     try {
+      if (method === 'COD') {
+        await saveOrderAndRedirect('COD');
+        return;
+      }
+
       const sdkLoaded = await loadRazorpay();
       if (!sdkLoaded) {
         throw new Error('Razorpay SDK failed to load');
@@ -345,15 +431,6 @@ export default function CheckoutPage() {
         throw new Error(data?.message || data?.error || 'Failed to create Razorpay order');
       }
 
-      const normalizedProducts = cartItems.map((item) => ({
-        productId: String(item.productId || '').trim(),
-        productName: String(item.product?.name || '').trim(),
-        productImage: String(item.product?.image || '').trim(),
-        productPrice: Number(item.product?.price || 0),
-        quantity: Number(item.quantity || 1),
-      }));
-
-      const primaryProduct = normalizedProducts[0];
       const paymentOptions = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: razorpayOrder.amount,
@@ -365,50 +442,7 @@ export default function CheckoutPage() {
           console.log('PAYMENT SUCCESS', paymentResponse);
 
           try {
-            const orderPayload = {
-              productId: String(primaryProduct?.productId || buyNowOrder?.productId || buyNowProductId || '').trim(),
-              quantity: Number(primaryProduct?.quantity || buyNowOrder?.quantity || 1),
-              totalAmount: Number(total),
-              paymentMethod: 'Razorpay',
-              paymentStatus: 'Paid',
-              razorpayOrderId: paymentResponse.razorpay_order_id,
-              razorpayPaymentId: paymentResponse.razorpay_payment_id,
-              razorpaySignature: paymentResponse.razorpay_signature,
-              products: normalizedProducts,
-              items: normalizedProducts.map((item) => ({
-                name: item.productName,
-                price: item.productPrice,
-                quantity: item.quantity,
-                image: item.productImage,
-              })),
-              address: {
-                fullName: formData.fullName,
-                phone: formData.phone,
-                email: formData.email,
-                address: formData.address,
-                city: formData.city,
-                state: formData.state,
-                pincode: formData.pincode,
-              },
-            };
-
-            const saveResponse = await fetch(buildApiUrl('/api/orders'), {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(orderPayload),
-            });
-
-            const savedOrder = await parseResponseBody<any>(saveResponse);
-            if (!saveResponse.ok || !savedOrder?.success) {
-              throw new Error(savedOrder?.message || 'Payment succeeded but order save failed');
-            }
-
-            const createdOrderId = String(savedOrder?.order?._id || savedOrder?.order?.orderId || '').trim();
-            showSuccess('Payment successful');
-            router.push(createdOrderId ? `/order-success?orderId=${encodeURIComponent(createdOrderId)}` : '/account/orders');
+            await saveOrderAndRedirect('Online', paymentResponse);
           } catch (saveError: any) {
             console.error('ORDER SAVE ERROR:', saveError);
             showError(saveError?.message || 'Payment succeeded but order save failed');
@@ -465,8 +499,6 @@ export default function CheckoutPage() {
       placingOrderRef.current = false;
     }
   };
-
-  const handlePlaceOrder = handlePayment;
 
   if (step === 'complete') {
           return (
@@ -765,21 +797,87 @@ if (!isBuyNowFlow && cart.length === 0) {    return (
                 Estimated Delivery: 3-5 days
               </div>
 
-              <Button
-                onClick={handlePayment}
-                disabled={isProcessing || cartItems.length === 0}
-                size="lg"
-                className="place-order-btn"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Pay with Razorpay'
-                )}
-              </Button>
+              <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-3 text-sm font-semibold text-slate-900">Payment Method</p>
+                <div className="space-y-3">
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
+                      paymentMethod === 'Online'
+                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-100'
+                        : 'border-slate-200 bg-white hover:border-blue-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="Online"
+                      checked={paymentMethod === 'Online'}
+                      onChange={() => setPaymentMethod('Online')}
+                      className="mt-1 h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">Online Payment (Razorpay)</span>
+                      <span className="block text-xs text-slate-500">Pay now using Razorpay checkout.</span>
+                    </span>
+                  </label>
+
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
+                      paymentMethod === 'COD'
+                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-100'
+                        : 'border-slate-200 bg-white hover:border-blue-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="COD"
+                      checked={paymentMethod === 'COD'}
+                      onChange={() => setPaymentMethod('COD')}
+                      className="mt-1 h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-900">Cash on Delivery</span>
+                      <span className="block text-xs text-slate-500">Pay when your order is delivered.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  onClick={() => handlePlaceOrder('Online')}
+                  disabled={isProcessing || cartItems.length === 0 || paymentMethod !== 'Online'}
+                  size="lg"
+                  className="place-order-btn"
+                >
+                  {isProcessing && paymentMethod === 'Online' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Pay with Razorpay'
+                  )}
+                </Button>
+
+                <Button
+                  onClick={() => handlePlaceOrder('COD')}
+                  disabled={isProcessing || cartItems.length === 0 || paymentMethod !== 'COD'}
+                  size="lg"
+                  variant="outline"
+                  className="rounded-xl border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
+                >
+                  {isProcessing && paymentMethod === 'COD' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Place COD Order'
+                  )}
+                </Button>
+              </div>
           </div>
         </div>
       </div>

@@ -4,6 +4,9 @@ import Product from "@/models/Product";
 import AdminLog from "@/models/AdminLog";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function DELETE(req, { params }) {
   try {
     const auth = await verifyAdmin(req);

@@ -154,12 +154,19 @@ export default function AccountOrdersPage() {
       (window as any).__accountOrdersIntervalRef = id;
     }
 
+    const handleOrdersChanged = () => {
+      fetchOrders(uid, email, { silent: true });
+    };
+
+    window.addEventListener('orders-changed', handleOrdersChanged);
+
     return () => {
       const id = (window as any).__accountOrdersIntervalRef;
       if (id) {
         window.clearInterval(id);
         delete (window as any).__accountOrdersIntervalRef;
       }
+      window.removeEventListener('orders-changed', handleOrdersChanged);
     };
   }, [router, authLoading, isAuthenticated, user?._id, user?.email]);
 

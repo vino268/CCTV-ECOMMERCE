@@ -5,6 +5,9 @@ import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const ADMIN_ALLOWED_STATUSES = [
   "Pending",
   "Ordered",
@@ -14,6 +17,18 @@ const ADMIN_ALLOWED_STATUSES = [
   "Delivered",
   "Cancelled",
 ];
+
+function normalizePaymentMethod(value) {
+  const method = String(value || "COD").trim();
+  const normalized = method.toLowerCase();
+  if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) {
+    return "COD";
+  }
+  if (/online|razorpay|upi|card|netbanking/i.test(normalized)) {
+    return "Online";
+  }
+  return method || "COD";
+}
 
 function normalizeIncomingStatus(status) {
   if (!status) return status;
@@ -68,7 +83,10 @@ export async function GET(req, { params }) {
       );
     }
 
-    return NextResponse.json(order);
+    return NextResponse.json({
+      ...order.toObject(),
+      paymentMethod: normalizePaymentMethod(order.paymentMethod),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch order" },
@@ -168,7 +186,13 @@ export async function PUT(req, { params }) {
         });
       }
 
-      return NextResponse.json({ success: true, order });
+      return NextResponse.json({
+        success: true,
+        order: {
+          ...order.toObject(),
+          paymentMethod: normalizePaymentMethod(order.paymentMethod),
+        },
+      });
     }
 
     if (body.paymentStatus !== undefined) {
@@ -213,8 +237,8 @@ export async function DELETE(req, { params }) {
     await connectDB();
     const { id } = await params;
 
-    const order = await Order.findByIdAndUpdate(
-      id,
+    const order = await Order.findOneAndUpdate(
+      { _id: id, isDeleted: false },
       {
         $set: {
           isDeleted: true,
@@ -223,9 +247,7 @@ export async function DELETE(req, { params }) {
       },
       { new: true }
     );
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     await AdminLog.create({
       adminName: "Admin",
@@ -233,7 +255,7 @@ export async function DELETE(req, { params }) {
       details: order.orderNumber || String(order._id),
     });
 
-    return NextResponse.json({ message: "Order moved to trash successfully", order });
+    return NextResponse.json({ success: true, message: "Order moved to trash successfully", order });
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete order" }, { status: 500 });
   }

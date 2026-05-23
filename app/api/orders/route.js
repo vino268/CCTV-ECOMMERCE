@@ -6,6 +6,9 @@ import User from "@/models/User";
 import Product from "@/models/Product";
 import { authError, verifyUser } from "@/app/api/address/_helpers";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function buildUniqueOrderId() {
   return `#TN-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
 }
@@ -19,6 +22,9 @@ function normalizePaymentMethod(value) {
   const normalized = method.toLowerCase();
   if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) {
     return "COD";
+  }
+  if (/online|razorpay|upi|card|netbanking/i.test(normalized)) {
+    return "Razorpay";
   }
   return method || "COD";
 }
@@ -80,6 +86,7 @@ export async function GET(req) {
       return {
         ...order,
         orderId: order.orderId || order.orderNumber || String(order._id || ""),
+        paymentMethod: normalizePaymentMethod(order.paymentMethod),
         customerName:
           order.customerName ||
           [delivery.firstName, delivery.lastName]

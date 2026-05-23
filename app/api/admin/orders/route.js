@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import { verifyAdmin, adminAuthError } from "@/app/api/admin/_helpers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req) {
   try {
     const auth = await verifyAdmin(req);
@@ -10,7 +12,7 @@ export async function GET(req) {
 
     await connectDB();
 
-    const orders = await Order.find({}).sort({ createdAt: -1 });
+    const orders = await Order.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     console.log("ADMIN ORDERS:", orders.length);
 

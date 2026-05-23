@@ -48,7 +48,7 @@ export async function PATCH(req, { params }) {
     }
 
     const order = await Order.findById(id);
-    if (!order) {
+    if (!order || order.isDeleted) {
       return NextResponse.json(
         { error: "Order not found" },
         { status: 404 }
@@ -72,8 +72,8 @@ export async function PATCH(req, { params }) {
     order.orderStatus = normalizedStatus;
     order.trackingStatus = normalizedStatus;
 
-    if (normalizedStatus === "Delivered") {
-      order.paymentStatus = order.paymentStatus === "Refunded" ? "Refunded" : "Paid";
+    if (normalizedStatus === "Delivered" && String(order.paymentMethod || '').trim().toLowerCase() === 'cod') {
+      order.paymentStatus = "Paid";
     }
 
     // Set timestamp for the new status
