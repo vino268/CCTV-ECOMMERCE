@@ -1,25 +1,26 @@
 import dotenv from "dotenv";
 import { NextResponse } from "next/server";
-import getRazorpayClient from "../../../../lib/razorpay";
 
 dotenv.config();
 
 export async function POST(req) {
   try {
-    console.log("RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "FOUND" : "MISSING");
-    console.log("RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "FOUND" : "MISSING");
+    console.log("========== RAZORPAY DEBUG ==========");
+    console.log("KEY ID:", process.env.RAZORPAY_KEY_ID);
+    console.log("KEY SECRET:", process.env.RAZORPAY_KEY_SECRET ? "Loaded" : "Missing");
+    console.log("====================================");
 
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       return NextResponse.json(
         {
           success: false,
-          message: "Razorpay environment variables are missing.",
+          message: "Razorpay environment variables are missing",
         },
         { status: 500 }
       );
     }
 
-    const razorpay = getRazorpayClient();
+    const { default: razorpay } = await import("../../../../lib/razorpay");
 
     const body = await req.json();
 
