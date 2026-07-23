@@ -14,8 +14,6 @@ export async function GET(req) {
 
     const orders = await Order.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
-    console.log("ADMIN ORDERS:", orders.length);
-
     return NextResponse.json({
       success: true,
       orders,

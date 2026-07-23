@@ -99,6 +99,7 @@ const paymentStyles: Record<string, string> = {
   Pending: 'bg-yellow-100 text-yellow-800',
   Unpaid: 'bg-red-100 text-red-800',
   Refunded: 'bg-gray-100 text-gray-800',
+  Failed: 'bg-rose-100 text-rose-800',
 };
 
 function getPaymentMethodLabel(value?: string) {
@@ -561,7 +562,7 @@ export default function AdminOrdersPage() {
               <p className="text-sm text-gray-700">
                 Address: {getDisplayAddress(selectedOrder) || '-'}
               </p>
-              <p className="text-sm text-gray-700">Payment Status: {selectedOrder.paymentStatus || 'Unpaid'}</p>
+              <p className="text-sm text-gray-700">Payment Status: {selectedOrder.paymentStatus || '-'}</p>
               <p className="text-sm text-gray-700">Payment Method: {getPaymentMethodLabel(selectedOrder.paymentMethod)}</p>
               <p className="text-sm text-gray-700">Order Date &amp; Time: {new Date(selectedOrder.createdAt).toLocaleString()}</p>
               <p className="text-sm text-gray-700 mt-3 font-semibold">Total: {formatINRCurrency(selectedOrder.totalAmount)}</p>

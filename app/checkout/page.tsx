@@ -60,7 +60,7 @@ export default function CheckoutPage() {
   const [orderNumber, setOrderNumber] = useState('');
   const [buyNowOrder, setBuyNowOrder] = useState<BuyNowOrderState | null>(null);
   const [isLoadingBuyNow, setIsLoadingBuyNow] = useState(false);
-  const { toast, showError, showSuccess } = useToast();
+  const { showError, showSuccess } = useToast();
   const buyNowOrderId = searchParams.get('orderId');
   const buyNowProductId = String(searchParams.get('productId') || '').trim();
   const isBuyNowFlow = Boolean(buyNowProductId || buyNowOrderId);
@@ -78,11 +78,6 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
-  // Auth guard + one-time auto-fill from user profile
-  useEffect(() => {
-    console.log('NEXT_PUBLIC_RAZORPAY_KEY_ID:', process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
-  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -210,6 +205,8 @@ export default function CheckoutPage() {
     pincode: '',
   });
   const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD' | null>(null);
+  const paymentFinalizedRef = useRef(false);
+  const razorpayOrderIdRef = useRef('');
 
   const checkoutItems = isBuyNowFlow
     ? buyNowOrder
@@ -281,7 +278,7 @@ export default function CheckoutPage() {
     return true;
   };
 
-  const createOrderPayload = (method: 'Online' | 'COD', paymentResponse?: any) => {
+  const createOrderPayload = (method: 'Online' | 'COD', paymentResponse?: any, paymentStatusOverride?: 'Paid' | 'Failed' | 'Pending') => {
     const normalizedProducts = cartItems.map((item) => ({
       productId: String(item.productId || '').trim(),
       productName: String(item.product?.name || '').trim(),
@@ -296,16 +293,18 @@ export default function CheckoutPage() {
       productId: String(primaryProduct?.productId || buyNowOrder?.productId || buyNowProductId || '').trim(),
       quantity: Number(primaryProduct?.quantity || buyNowOrder?.quantity || 1),
       totalAmount: Number(total),
-      paymentMethod: method === 'COD' ? 'COD' : 'Razorpay',
-      paymentStatus: method === 'COD' ? 'Pending' : 'Paid',
+      paymentMethod: method === 'COD' ? 'COD' : 'Online',
+      paymentStatus: paymentStatusOverride || (method === 'COD' ? 'Pending' : 'Paid'),
       orderStatus: 'Ordered',
       ...(paymentResponse
         ? {
-            razorpayOrderId: paymentResponse.razorpay_order_id,
+            razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderIdRef.current,
             razorpayPaymentId: paymentResponse.razorpay_payment_id,
             razorpaySignature: paymentResponse.razorpay_signature,
           }
-        : {}),
+        : razorpayOrderIdRef.current
+          ? { razorpayOrderId: razorpayOrderIdRef.current }
+          : {}),
       products: normalizedProducts,
       items: normalizedProducts.map((item) => ({
         name: item.productName,
@@ -325,8 +324,8 @@ export default function CheckoutPage() {
     };
   };
 
-  const saveOrderAndRedirect = async (method: 'Online' | 'COD', paymentResponse?: any) => {
-    const orderPayload = createOrderPayload(method, paymentResponse);
+  const persistOrder = async (method: 'Online' | 'COD', paymentResponse?: any, paymentStatusOverride?: 'Paid' | 'Failed' | 'Pending') => {
+    const orderPayload = createOrderPayload(method, paymentResponse, paymentStatusOverride);
 
     const saveResponse = await fetch(buildApiUrl('/api/orders'), {
       method: 'POST',
@@ -338,6 +337,12 @@ export default function CheckoutPage() {
     });
 
     const savedOrder = await parseResponseBody<any>(saveResponse);
+    return { saveResponse, savedOrder };
+  };
+
+  const saveOrderAndRedirect = async (method: 'Online' | 'COD', paymentResponse?: any) => {
+    const { saveResponse, savedOrder } = await persistOrder(method, paymentResponse, 'Paid');
+
     if (!saveResponse.ok || !savedOrder?.success) {
       throw new Error(savedOrder?.message || 'Failed to save order');
     }
@@ -353,6 +358,21 @@ export default function CheckoutPage() {
 
     showSuccess(method === 'COD' ? 'COD Order Placed Successfully' : 'Payment successful');
     router.push(createdOrderId ? `/order-success?orderId=${encodeURIComponent(createdOrderId)}` : '/account/orders');
+  };
+
+  const finalizeFailedPayment = async (status: 'Failed' | 'Pending', message: string) => {
+    if (paymentFinalizedRef.current) return;
+    paymentFinalizedRef.current = true;
+
+    try {
+      await persistOrder('Online', undefined, status);
+    } catch (error) {
+      console.error('ORDER SAVE ERROR:', error);
+    } finally {
+      showError(message);
+      setIsProcessing(false);
+      placingOrderRef.current = false;
+    }
   };
 
   const handleSaveAddress = async () => {
@@ -403,6 +423,8 @@ export default function CheckoutPage() {
     placingOrderRef.current = true;
     setIsProcessing(true);
     setPaymentMethod(method);
+    paymentFinalizedRef.current = false;
+    razorpayOrderIdRef.current = '';
 
     try {
       if (method === 'COD') {
@@ -431,6 +453,8 @@ export default function CheckoutPage() {
         throw new Error(data?.message || data?.error || 'Failed to create Razorpay order');
       }
 
+      razorpayOrderIdRef.current = String(razorpayOrder.id || '').trim();
+
       const paymentOptions = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: razorpayOrder.amount,
@@ -439,13 +463,17 @@ export default function CheckoutPage() {
         description: 'Product Payment',
         order_id: razorpayOrder.id,
         handler: async (paymentResponse: any) => {
-          console.log('PAYMENT SUCCESS', paymentResponse);
+          if (paymentFinalizedRef.current) return;
+          paymentFinalizedRef.current = true;
 
           try {
             await saveOrderAndRedirect('Online', paymentResponse);
           } catch (saveError: any) {
             console.error('ORDER SAVE ERROR:', saveError);
             showError(saveError?.message || 'Payment succeeded but order save failed');
+            paymentFinalizedRef.current = false;
+            setIsProcessing(false);
+            placingOrderRef.current = false;
           } finally {
             setIsProcessing(false);
             placingOrderRef.current = false;
@@ -461,8 +489,7 @@ export default function CheckoutPage() {
         },
         modal: {
           ondismiss: () => {
-            setIsProcessing(false);
-            placingOrderRef.current = false;
+            void finalizeFailedPayment('Pending', 'Payment cancelled');
           },
         },
       };
@@ -481,15 +508,7 @@ export default function CheckoutPage() {
           event?.error?.code ||
           'Payment failed';
 
-        if (event?.error && Object.keys(event.error).length > 0) {
-          console.warn('PAYMENT FAILED', event.error);
-        } else {
-          console.warn('PAYMENT FAILED');
-        }
-
-        showError(failureMessage);
-        setIsProcessing(false);
-        placingOrderRef.current = false;
+        void finalizeFailedPayment('Failed', failureMessage);
       });
       paymentObject.open();
     } catch (error: any) {

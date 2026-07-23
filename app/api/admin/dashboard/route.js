@@ -4,60 +4,103 @@ import Product from "@/models/Product";
 import Order from "@/models/Order";
 import User from "@/models/User";
 
+const IST_OFFSET_MINUTES = 330;
+const IST_OFFSET_MS = IST_OFFSET_MINUTES * 60 * 1000;
+
+function getRangeBounds(filter) {
+  const now = new Date();
+  const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+
+  if (filter === "today") {
+    const startIST = new Date(nowIST);
+    const endIST = new Date(nowIST);
+    startIST.setHours(0, 0, 0, 0);
+    endIST.setHours(23, 59, 59, 999);
+    return {
+      startDate: new Date(startIST.getTime() - IST_OFFSET_MS),
+      endDate: new Date(endIST.getTime() - IST_OFFSET_MS),
+    };
+  }
+
+  const startIST = new Date(nowIST);
+  const endIST = new Date(nowIST);
+  if (filter === "7days") {
+    startIST.setDate(startIST.getDate() - 6);
+  } else {
+    startIST.setDate(startIST.getDate() - 29);
+  }
+  startIST.setHours(0, 0, 0, 0);
+  endIST.setHours(23, 59, 59, 999);
+
+  return {
+    startDate: new Date(startIST.getTime() - IST_OFFSET_MS),
+    endDate: new Date(endIST.getTime() - IST_OFFSET_MS),
+  };
+}
+
+function normalizeStatus(order) {
+  const value = String(order?.status || order?.orderStatus || order?.trackingStatus || "").trim().toLowerCase();
+
+  if (value === "packed" || value === "processing" || value === "confirmed") return "Processing";
+  if (value === "ordered" || value === "pending") return "Ordered";
+  if (value === "shipped") return "Shipped";
+  if (value === "delivered") return "Delivered";
+  if (value === "cancelled") return "Cancelled";
+  return "Ordered";
+}
+
 export async function GET(req) {
   try {
     await connectDB();
 
     const { searchParams } = new URL(req.url);
     const filter = searchParams.get("filter") || searchParams.get("range") || "today";
-    const now = new Date();
-    let startDate = new Date();
 
-    if (filter === "today") {
-      startDate.setHours(0,0,0,0);
-    } else if (filter === "7days") {
-      startDate.setDate(now.getDate() - 7);
-    } else {
-      startDate.setDate(now.getDate() - 30);
-    }
+    const { startDate, endDate } = getRangeBounds(filter);
+    const dateQuery = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    };
 
-    console.log("START DATE:", startDate);
+    const [allOrders, paidOrders] = await Promise.all([
+      Order.find(dateQuery),
+      Order.find({
+        ...dateQuery,
+        paymentStatus: "Paid",
+      }),
+    ]);
 
-    const allOrders = await Order.find({});
-    console.log("ALL DATABASE ORDERS:", allOrders.length);
+    const totalRevenue = paidOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
 
-    const filteredOrders = allOrders.filter((order) => {
-      if (!order.createdAt) return false;
-      return new Date(order.createdAt) >= startDate;
-    });
-
-    console.log("FILTERED ORDERS:", filteredOrders.length);
-
-    const deliveredOrders = filteredOrders.filter(
-      order => order.status === "Delivered" || order.orderStatus === "Delivered" || order.trackingStatus === "Delivered"
+    const statusCounts = allOrders.reduce(
+      (acc, order) => {
+        const normalized = normalizeStatus(order);
+        if (normalized === "Ordered") acc.ordered += 1;
+        if (normalized === "Processing") acc.processing += 1;
+        if (normalized === "Shipped") acc.shipped += 1;
+        if (normalized === "Delivered") acc.delivered += 1;
+        if (normalized === "Cancelled") acc.cancelled += 1;
+        return acc;
+      },
+      { ordered: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 }
     );
-
-    const totalRevenue = deliveredOrders.reduce(
-      (sum, order) => sum + Number(order.totalAmount || 0),
-      0
-    );
-
-    const pendingCount = filteredOrders.filter(o => o.status === "Pending" || o.orderStatus === "Pending" || o.trackingStatus === "Pending").length;
-    const shippedCount = filteredOrders.filter(o => o.status === "Shipped" || o.orderStatus === "Shipped" || o.trackingStatus === "Shipped").length;
-    const cancelledCount = filteredOrders.filter(o => o.status === "Cancelled" || o.orderStatus === "Cancelled" || o.trackingStatus === "Cancelled").length;
 
     return NextResponse.json({
       success: true,
       totalProducts: await Product.countDocuments(),
       totalCustomers: await User.countDocuments(),
-      totalOrders: filteredOrders.length,
+      totalOrders: allOrders.length,
       totalRevenue,
       orderStatus: {
-        pending: pendingCount,
-        shipped: shippedCount,
-        delivered: deliveredOrders.length,
-        cancelled: cancelledCount
-      }
+        ordered: statusCounts.ordered,
+        processing: statusCounts.processing,
+        shipped: statusCounts.shipped,
+        delivered: statusCounts.delivered,
+        cancelled: statusCounts.cancelled,
+        pending: statusCounts.ordered,
+      },
     });
   } catch (error) {
     console.error("Dashboard API error:", error);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import Notification from "@/models/Notification";
@@ -24,19 +25,37 @@ function normalizePaymentMethod(value) {
     return "COD";
   }
   if (/online|razorpay|upi|card|netbanking/i.test(normalized)) {
-    return "Razorpay";
+    return "Online";
   }
   return method || "COD";
 }
 
 function normalizePaymentStatus(value, paymentMethod = "COD") {
   const raw = toTrimmed(value);
-  const validStatuses = ["Paid", "Unpaid", "Pending", "Refunded"];
+  const validStatuses = ["Paid", "Unpaid", "Pending", "Refunded", "Failed"];
   const matched = validStatuses.find((status) => status.toLowerCase() === raw.toLowerCase());
   if (matched) {
     return matched;
   }
   return paymentMethod === "COD" ? "Pending" : "Paid";
+}
+
+function verifyRazorpaySignature({ orderId, paymentId, signature }) {
+  const keySecret = String(process.env.RAZORPAY_KEY_SECRET || "").trim();
+  if (!keySecret) {
+    return false;
+  }
+
+  const expected = crypto
+    .createHmac("sha256", keySecret)
+    .update(`${orderId}|${paymentId}`)
+    .digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  } catch {
+    return false;
+  }
 }
 
 function toPositiveNumber(value, fallback = 0) {
@@ -69,7 +88,6 @@ export async function GET(req) {
     }
 
     const orders = await Order.find(query).sort({ createdAt: -1 });
-    console.log("Orders:", orders.length);
 
     const normalizedOrders = orders.map((orderDoc) => {
       const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc;
@@ -97,7 +115,7 @@ export async function GET(req) {
         phone: order.phone || delivery.phone || "",
         address: order.address || fullAddress || "",
         status: order.status || order.trackingStatus || order.orderStatus || "Ordered",
-        paymentStatus: order.paymentStatus || "Unpaid",
+        paymentStatus: order.paymentStatus,
         createdAt: order.createdAt || new Date(),
       };
     });
@@ -172,6 +190,34 @@ export async function POST(req) {
     const razorpayPaymentId = toTrimmed(body?.razorpayPaymentId || body?.razorpay_payment_id);
     const razorpaySignature = toTrimmed(body?.razorpaySignature || body?.razorpay_signature);
 
+    if (paymentMethod === "Online" && paymentStatus === "Paid") {
+      if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Missing Razorpay payment verification details",
+          },
+          { status: 400 }
+        );
+      }
+
+      const signatureValid = verifyRazorpaySignature({
+        orderId: razorpayOrderId,
+        paymentId: razorpayPaymentId,
+        signature: razorpaySignature,
+      });
+
+      if (!signatureValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Invalid Razorpay payment signature",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const normalizedProducts = payloadProducts.length
       ? payloadProducts.map((item) => ({
           productId: toTrimmed(item?.productId || productId),
@@ -212,25 +258,27 @@ export async function POST(req) {
       image: primaryProduct.productImage,
     };
 
-    const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
-    const existingOrder = await Order.findOne({
-      isDeleted: false,
-      createdAt: { $gte: duplicateWindowStart },
-      email: user.email,
-      userId: toTrimmed(auth.userId),
-      productId: product.productId,
-      "address.fullName": address.fullName,
-      "address.phone": address.phone,
-      "address.address": address.address,
-    });
+    if (paymentMethod === "COD") {
+      const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
+      const existingOrder = await Order.findOne({
+        isDeleted: false,
+        createdAt: { $gte: duplicateWindowStart },
+        email: user.email,
+        userId: toTrimmed(auth.userId),
+        productId: product.productId,
+        "address.fullName": address.fullName,
+        "address.phone": address.phone,
+        "address.address": address.address,
+      });
 
-    if (existingOrder) {
-      return NextResponse.json({
-        success: true,
-        message: "Order created successfully",
-        duplicate: true,
-        order: existingOrder,
-      }, { status: 201 });
+      if (existingOrder) {
+        return NextResponse.json({
+          success: true,
+          message: "Order created successfully",
+          duplicate: true,
+          order: existingOrder,
+        }, { status: 201 });
+      }
     }
 
     const orderCode = buildUniqueOrderId();
@@ -285,16 +333,18 @@ export async function POST(req) {
       title: "New Order",
     });
 
+    const isFailedOnlinePayment = paymentMethod === "Online" && paymentStatus !== "Paid";
+
     return NextResponse.json(
       {
-        success: true,
-        message: "Order created successfully",
+        success: !isFailedOnlinePayment,
+        message: isFailedOnlinePayment ? "Payment not completed" : "Order created successfully",
         order: newOrder,
       },
-      { status: 201 }
+      { status: isFailedOnlinePayment ? 400 : 201 }
     );
   } catch (error) {
-    console.error("ORDER ERROR:", error?.message || error);
+    console.error("Razorpay Error:", error);
     return NextResponse.json({ success: false, message: error?.message || "Server error" }, { status: 500 });
   }
 }

@@ -2,8 +2,55 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 
+const IST_OFFSET_MINUTES = 330;
+const IST_OFFSET_MS = IST_OFFSET_MINUTES * 60 * 1000;
+
+function getRangeBounds(filter) {
+  const now = new Date();
+  const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+
+  if (filter === "today") {
+    const startIST = new Date(nowIST);
+    const endIST = new Date(nowIST);
+    startIST.setHours(0, 0, 0, 0);
+    endIST.setHours(23, 59, 59, 999);
+    return {
+      startDate: new Date(startIST.getTime() - IST_OFFSET_MS),
+      endDate: new Date(endIST.getTime() - IST_OFFSET_MS),
+    };
+  }
+
+  const startIST = new Date(nowIST);
+  const endIST = new Date(nowIST);
+  if (filter === "7days") {
+    startIST.setDate(startIST.getDate() - 6);
+  } else {
+    startIST.setDate(startIST.getDate() - 29);
+  }
+  startIST.setHours(0, 0, 0, 0);
+  endIST.setHours(23, 59, 59, 999);
+
+  return {
+    startDate: new Date(startIST.getTime() - IST_OFFSET_MS),
+    endDate: new Date(endIST.getTime() - IST_OFFSET_MS),
+  };
+}
+
 function toDateLabel(date) {
-  return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+}
+
+function toDayKey(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 export async function GET(req) {
@@ -12,62 +59,39 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const filter = searchParams.get("filter") || searchParams.get("range") || "today";
 
-    const now = new Date();
-    let startDate = new Date();
+    const { startDate, endDate } = getRangeBounds(filter);
+    const query = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+      paymentStatus: "Paid",
+    };
 
-    if (filter === "today") {
-      startDate.setHours(0,0,0,0);
-    } else if (filter === "7days") {
-      startDate.setDate(now.getDate() - 7);
-    } else {
-      startDate.setDate(now.getDate() - 30);
-    }
-
-    console.log("START DATE:", startDate);
-
-    const allOrders = await Order.find({});
-    console.log("ALL DATABASE ORDERS:", allOrders.length);
-
-    const filteredOrders = allOrders.filter((order) => {
-      if (!order.createdAt) return false;
-      return new Date(order.createdAt) >= startDate;
-    });
-
-    console.log("FILTERED ORDERS:", filteredOrders.length);
-
-    const deliveredOrders = filteredOrders.filter(
-      order => order.status === "Delivered" || order.orderStatus === "Delivered" || order.trackingStatus === "Delivered"
-    );
+    const paidOrders = await Order.find(query);
 
     const dataMap = {};
     const cursor = new Date(startDate);
-    const endDate = new Date();
     
     while (cursor <= endDate) {
       const label = toDateLabel(cursor);
-      dataMap[label] = 0;
+      dataMap[toDayKey(cursor)] = { label, amount: 0 };
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    deliveredOrders.forEach(order => {
+    paidOrders.forEach(order => {
       if(order.createdAt) {
         const orderDate = new Date(order.createdAt);
-        const label = toDateLabel(orderDate);
-        if (dataMap[label] !== undefined) {
-           dataMap[label] += Number(order.totalAmount || 0);
+        const key = toDayKey(orderDate);
+        if (dataMap[key] !== undefined) {
+           dataMap[key].amount += Number(order.totalAmount || 0);
         }
       }
     });
 
-    const data = Object.keys(dataMap).map(label => ({
-      label,
-      amount: dataMap[label]
-    }));
+    const data = Object.values(dataMap);
 
-    const totalRevenue = deliveredOrders.reduce(
-      (sum, order) => sum + Number(order.totalAmount || 0),
-      0
-    );
+    const totalRevenue = paidOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
 
     return NextResponse.json({
       success: true,

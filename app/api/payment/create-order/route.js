@@ -5,18 +5,6 @@ dotenv.config();
 
 export async function POST(req) {
   try {
-    console.log("========== CREATE ORDER ==========");
-    console.log("RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID || "NOT FOUND");
-    console.log(
-      "RAZORPAY_KEY_SECRET:",
-      process.env.RAZORPAY_KEY_SECRET ? "Loaded ✅" : "Missing ❌"
-    );
-    console.log("Request Body:", req.body);
-    console.log("==================================");
-    console.log("KEY ID:", process.env.RAZORPAY_KEY_ID);
-    console.log("KEY SECRET:", process.env.RAZORPAY_KEY_SECRET ? "Loaded" : "Missing");
-    console.log("====================================");
-
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       return NextResponse.json(
         {
@@ -53,7 +41,7 @@ export async function POST(req) {
 
     return NextResponse.json(order);
   } catch (error) {
-    console.log("RAZORPAY ERROR:", error);
+    console.error("Razorpay Error:", error);
 
     return NextResponse.json(
       {

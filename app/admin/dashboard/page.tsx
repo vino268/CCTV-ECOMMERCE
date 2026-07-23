@@ -37,10 +37,12 @@ interface RevenueState {
 }
 
 interface OrderStatusDistribution {
-  pending: number;
+  ordered: number;
+  processing: number;
   shipped: number;
   delivered: number;
   cancelled: number;
+  pending?: number;
 }
 
 interface DashboardOverview {
@@ -103,8 +105,8 @@ function getLatestDataErrorMessage(status: number | null, resourceLabel: string)
 }
 
 const orderStatusStyles: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-700',
   Ordered: 'bg-blue-100 text-blue-700',
+  Processing: 'bg-orange-100 text-orange-700',
   Packed: 'bg-cyan-100 text-cyan-700',
   Shipped: 'bg-purple-100 text-purple-700',
   'Out for Delivery': 'bg-indigo-100 text-indigo-700',
@@ -125,7 +127,8 @@ export default function AdminDashboard() {
   });
   const [revenue, setRevenue] = useState<RevenueState>({ total: 0, data: [] });
   const [statusData, setStatusData] = useState<OrderStatusDistribution>({
-    pending: 0,
+    ordered: 0,
+    processing: 0,
     shipped: 0,
     delivered: 0,
     cancelled: 0,
@@ -261,7 +264,8 @@ export default function AdminDashboard() {
       }));
 
       setStatusData({
-        pending: Number(statusSource.pending || 0),
+        ordered: Number(statusSource.ordered ?? statusSource.pending ?? 0),
+        processing: Number(statusSource.processing || 0),
         shipped: Number(statusSource.shipped || 0),
         delivered: Number(statusSource.delivered || 0),
         cancelled: Number(statusSource.cancelled || 0),
