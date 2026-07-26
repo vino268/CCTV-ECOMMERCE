@@ -341,7 +341,8 @@ export default function CheckoutPage() {
   };
 
   const saveOrderAndRedirect = async (method: 'Online' | 'COD', paymentResponse?: any) => {
-    const { saveResponse, savedOrder } = await persistOrder(method, paymentResponse, 'Paid');
+    const paymentStatus = method === 'COD' ? 'Pending' : 'Paid';
+    const { saveResponse, savedOrder } = await persistOrder(method, paymentResponse, paymentStatus);
 
     if (!saveResponse.ok || !savedOrder?.success) {
       throw new Error(savedOrder?.message || 'Failed to save order');

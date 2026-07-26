@@ -1,6 +1,7 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 interface CancelOrderModalProps {
@@ -11,8 +12,17 @@ interface CancelOrderModalProps {
   confirmText?: string;
   processingText?: string;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: (payload: { reason: string; customReason: string }) => void;
 }
+
+const CANCEL_REASONS = [
+  'Ordered by mistake',
+  'Found a better price',
+  'Want to change product',
+  'Want to change delivery address',
+  'Delivery taking too long',
+  'Other',
+];
 
 export default function CancelOrderModal({
   open,
@@ -24,6 +34,18 @@ export default function CancelOrderModal({
   onOpenChange,
   onConfirm,
 }: CancelOrderModalProps) {
+  const [selectedReason, setSelectedReason] = useState(CANCEL_REASONS[0]);
+  const [customReason, setCustomReason] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedReason(CANCEL_REASONS[0]);
+      setCustomReason('');
+    }
+  }, [open]);
+
+  const isCustomReason = selectedReason === 'Other';
+
   return (
     <DialogPrimitive.Root
       open={open}
@@ -58,6 +80,34 @@ export default function CancelOrderModal({
             {description}
           </DialogPrimitive.Description>
 
+          <div className="mt-5 space-y-3">
+            <p className="text-sm font-medium text-gray-800">Why do you want to cancel this order?</p>
+            <div className="grid gap-2">
+              {CANCEL_REASONS.map((reason) => (
+                <label key={reason} className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="cancelReason"
+                    value={reason}
+                    checked={selectedReason === reason}
+                    onChange={() => setSelectedReason(reason)}
+                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>{reason}</span>
+                </label>
+              ))}
+            </div>
+
+            {isCustomReason && (
+              <textarea
+                value={customReason}
+                onChange={(event) => setCustomReason(event.target.value)}
+                placeholder="Tell us more..."
+                className="min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            )}
+          </div>
+
           <div className="mt-6 flex justify-end gap-3">
             <button
               type="button"
@@ -69,7 +119,7 @@ export default function CancelOrderModal({
             </button>
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={() => onConfirm({ reason: selectedReason, customReason: isCustomReason ? customReason : '' })}
               disabled={isProcessing}
               className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >

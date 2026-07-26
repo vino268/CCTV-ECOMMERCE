@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 
 interface DeletedOrder {
   _id: string;
+  orderId?: string;
   orderNumber?: string;
   customerName?: string;
   email?: string;
@@ -207,7 +208,7 @@ export default function AdminTrashPage() {
 
       let endpoint;
       if (pendingDelete.tab === 'deleted-orders') {
-        endpoint = buildApiUrl(`/api/admin/orders/permanent-delete/${pendingDelete.id}`);
+        endpoint = buildApiUrl(`/api/trash/orders/${pendingDelete.id}`);
       } else if (pendingDelete.tab === 'deleted-customers') {
         endpoint = buildApiUrl(`/api/trash/customers/${pendingDelete.id}`);
       } else {
@@ -467,7 +468,7 @@ export default function AdminTrashPage() {
                         aria-label={`Select order ${order.orderNumber || order._id}`}
                       />
                     </td>
-                    <td className="px-4 py-3 text-gray-900 font-medium">{order.orderNumber || order._id}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">{order.orderId || order.orderNumber || order._id}</td>
                     <td className="px-4 py-3 text-gray-700">{order.customerName || 'Customer'}</td>
                     <td className="px-4 py-3 text-gray-700">{order.email || '-'}</td>
                     <td className="px-4 py-3 text-gray-700">{formatDeletedDate(order.deletedAt)}</td>

@@ -39,7 +39,7 @@ export async function PUT(req, { params }) {
       email,
     };
 
-    const order = await Order.findOne({ _id: id, isDeleted: false });
+    const order = await Order.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!order) {
       return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 });
     }

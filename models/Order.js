@@ -4,6 +4,10 @@ if (mongoose.models.Order) {
   delete mongoose.models.Order;
 }
 
+const ORDER_STATUSES = ["Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancellation Requested", "Cancelled"];
+const PAYMENT_STATUSES = ["Pending", "Paid", "Refund Processing", "Refunded", "Refund Failed", "Unpaid", "Failed"];
+const REFUND_STATUSES = ["Not Applicable", "Not Initiated", "Processing", "Refunded", "Failed"];
+
 const OrderSchema = new mongoose.Schema({
   orderId: {
     type: String,
@@ -90,12 +94,13 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
+    enum: ["Online", "COD"],
     default: "COD",
   },
   paymentStatus: {
     type: String,
-    enum: ["Paid", "Unpaid", "Pending", "Refunded", "Failed"],
-    default: "Unpaid",
+    enum: PAYMENT_STATUSES,
+    default: "Pending",
   },
   razorpayOrderId: {
     type: String,
@@ -114,17 +119,17 @@ const OrderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["Pending", "Ordered", "Confirmed", "Packed", "Shipped", "OutForDelivery", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ORDER_STATUSES.concat(["Pending"]),
     default: "Ordered",
   },
   trackingStatus: {
     type: String,
-    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Cancellation Requested", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   status: {
     type: String,
-    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+    enum: ["Pending", "Ordered", "Packed", "Shipped", "Out for Delivery", "Cancellation Requested", "Delivered", "Cancelled"],
     default: "Ordered",
   },
   cancelledBy: {
@@ -188,6 +193,61 @@ const OrderSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  cancellationRequested: {
+    type: Boolean,
+    default: false,
+  },
+  cancellationReason: {
+    type: String,
+    default: "",
+  },
+  cancellationRequestedAt: {
+    type: Date,
+    default: null,
+  },
+  cancellationApprovedAt: {
+    type: Date,
+    default: null,
+  },
+  cancellationRejectedAt: {
+    type: Date,
+    default: null,
+  },
+  cancellationRejectionReason: {
+    type: String,
+    default: "",
+  },
+  statusBeforeCancellation: {
+    type: String,
+    default: "",
+  },
+  refundStatus: {
+    type: String,
+    enum: REFUND_STATUSES,
+    default: "Not Initiated",
+  },
+  razorpayRefundId: {
+    type: String,
+    default: "",
+    trim: true,
+  },
+  refundAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  refundInitiatedAt: {
+    type: Date,
+    default: null,
+  },
+  refundedAt: {
+    type: Date,
+    default: null,
+  },
+  refundFailureReason: {
+    type: String,
+    default: "",
+  },
   isDeleted: {
     type: Boolean,
     default: false,
@@ -218,13 +278,26 @@ function normalizeOrderStatus(value) {
 }
 
 OrderSchema.pre("validate", function ensureOrderId() {
+  this.paymentMethod = String(this.paymentMethod || "COD").trim() === "Online" ? "Online" : "COD";
+  const paymentStatus = String(this.paymentStatus || "").trim();
+  this.paymentStatus = PAYMENT_STATUSES.includes(paymentStatus)
+    ? paymentStatus
+    : (this.paymentMethod === "COD" ? "Pending" : "Paid");
+  if (this.paymentStatus === "Unpaid") {
+    this.paymentStatus = this.paymentMethod === "COD" ? "Pending" : "Paid";
+  }
+  const refundStatus = String(this.refundStatus || "").trim();
+  this.refundStatus = REFUND_STATUSES.includes(refundStatus)
+    ? refundStatus
+    : (this.paymentMethod === "Online" ? "Not Initiated" : "Not Applicable");
+
   if (!this.status || typeof this.status !== "string" || !this.status.trim()) {
     this.status = normalizeOrderStatus(this.orderStatus);
   }
 
-  if (this.orderStatus === "OutForDelivery") {
-    this.orderStatus = "Out for Delivery";
-  }
+  this.orderStatus = normalizeOrderStatus(this.orderStatus || this.status || this.trackingStatus);
+  this.trackingStatus = normalizeOrderStatus(this.trackingStatus || this.orderStatus || this.status);
+  this.status = normalizeOrderStatus(this.status || this.orderStatus || this.trackingStatus);
   if ((!this.items || this.items.length === 0) && this.products && this.products.length > 0) {
     this.items = this.products.map((item) => ({
       name: String(item?.productName || "").trim(),
@@ -271,6 +344,10 @@ OrderSchema.pre("validate", function ensureOrderId() {
 
   if (!String(this.orderId || "").trim()) {
     this.orderId = generateOrderId();
+  }
+
+  if (this.orderStatus === "Cancellation Requested") {
+    this.cancellationRequested = true;
   }
 });
 

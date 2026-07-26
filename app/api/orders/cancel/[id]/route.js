@@ -27,7 +27,7 @@ export async function PUT(req, { params }) {
       );
     }
 
-    const order = await Order.findOne({ _id: id, isDeleted: false }).select("_id orderNumber orderStatus status");
+    const order = await Order.findOne({ _id: id, isDeleted: { $ne: true } }).select("_id orderNumber orderStatus status");
     if (!order) {
       return NextResponse.json(
         { success: false, message: "Order not found" },
@@ -64,7 +64,7 @@ export async function PUT(req, { params }) {
 
     if (currentStatus === "Order Placed") {
       const updatedOrder = await Order.findOneAndUpdate(
-        { _id: id, isDeleted: false },
+        { _id: id, isDeleted: { $ne: true } },
         {
           $set: {
             status: "Cancelled",
@@ -100,7 +100,7 @@ export async function PUT(req, { params }) {
       }
 
       const updatedOrder = await Order.findOneAndUpdate(
-        { _id: id, isDeleted: false },
+        { _id: id, isDeleted: { $ne: true } },
         {
           $set: {
             cancelRequested: true,

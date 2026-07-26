@@ -31,6 +31,9 @@ export interface AccountOrder {
   trackingStatus?: string;
   status?: string;
   cancelRequested?: boolean;
+  cancellationRequested?: boolean;
+  cancellationReason?: string;
+  refundStatus?: string;
   createdAt: string;
 }
 
@@ -47,6 +50,7 @@ const statusBadgeStyles: Record<string, string> = {
   Packed: 'bg-blue-100 text-blue-800 border-blue-200',
   Shipped: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   'Out for Delivery': 'bg-orange-100 text-orange-800 border-orange-200',
+  'Cancellation Requested': 'bg-amber-100 text-amber-800 border-amber-200',
   Delivered: 'bg-green-100 text-green-800 border-green-200',
   Cancelled: 'bg-red-100 text-red-800 border-red-200',
 };
@@ -62,6 +66,7 @@ function normalizeOrderStatus(raw?: string) {
     outfordelivery: 'Out for Delivery',
     'out for delivery': 'Out for Delivery',
     out_for_delivery: 'Out for Delivery',
+    'cancellation requested': 'Cancellation Requested',
     delivered: 'Delivered',
     cancelled: 'Cancelled',
   };
@@ -99,13 +104,14 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const normalizedStatus = normalizeOrderStatus(order.status || order.trackingStatus || order.orderStatus);
   const isOrderPlaced = normalizedStatus === 'Ordered';
   const isPacked = normalizedStatus === 'Packed';
+  const isCancellationRequested = normalizedStatus === 'Cancellation Requested';
   const isAfterPacked =
     normalizedStatus === 'Shipped' ||
     normalizedStatus === 'Out for Delivery' ||
     normalizedStatus === 'Delivered';
 
   const canDirectCancel = isOrderPlaced || isPacked;
-  const canRequestCancel = false;
+  const canRequestCancel = isCancellationRequested;
   const showDisabledCancel = isAfterPacked;
   const showSupportActions = !isOrderPlaced;
 
@@ -118,6 +124,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
   const itemCount = (order.products || []).reduce((sum, p) => sum + (p.quantity || 0), 0);
   const paymentMethod = getPaymentMethodLabel(order.paymentMethod);
   const paymentStatus = String(order.paymentStatus || 'Unpaid').trim() || 'Unpaid';
+  const refundStatus = String(order.refundStatus || '').trim();
 
   const handleViewDetails = () => {
     if (!orderId) return;
@@ -165,6 +172,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
               <p className="text-lg font-bold text-gray-900">{formatINRCurrency(order.totalAmount)}</p>
               <p className="text-xs text-gray-500">Payment: {paymentStatus}</p>
               <p className="text-xs text-gray-500">Method: {paymentMethod}</p>
+              {refundStatus && <p className="text-xs text-gray-500">Refund: {refundStatus}</p>}
             </div>
           </div>
 
@@ -229,7 +237,7 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
               )}
             </Button>
 
-            {canDirectCancel && (
+            {canDirectCancel && !isCancellationRequested && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -272,9 +280,9 @@ export default function OrderCard({ order, isCancelling, onCancel }: OrderCardPr
               </Button>
             )}
 
-            {order.cancelRequested && normalizedStatus !== 'Cancelled' && (
+            {(order.cancelRequested || order.cancellationRequested || isCancellationRequested) && normalizedStatus !== 'Cancelled' && (
               <span className="inline-flex items-center rounded-md bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                Cancel Requested
+                Cancellation Requested
               </span>
             )}
 

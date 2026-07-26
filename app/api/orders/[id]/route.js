@@ -4,6 +4,8 @@ import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
 import { adminAuthError, verifyAdmin } from "@/app/api/admin/_helpers";
+import { authError, verifyUser } from "@/app/api/address/_helpers";
+import { canRequestCancellation, normalizeOrderStatus, normalizePaymentMethod, normalizePaymentStatus } from "@/lib/order-lifecycle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,20 +17,7 @@ const ADMIN_ALLOWED_STATUSES = [
   "Shipped",
   "Out for Delivery",
   "Delivered",
-  "Cancelled",
 ];
-
-function normalizePaymentMethod(value) {
-  const method = String(value || "COD").trim();
-  const normalized = method.toLowerCase();
-  if (/cod|cash[\s-\-]?on[\s-\-]?delivery/i.test(normalized)) {
-    return "COD";
-  }
-  if (/online|razorpay|upi|card|netbanking/i.test(normalized)) {
-    return "Online";
-  }
-  return method || "COD";
-}
 
 function normalizeIncomingStatus(status) {
   if (!status) return status;
@@ -73,14 +62,27 @@ function mapWorkflowStatus(status) {
 export async function GET(req, { params }) {
   try {
     await connectDB();
+    const auth = await verifyUser(req);
+    if (!auth.ok) return authError(auth);
+
     const { id } = await params;
-    const order = await Order.findOne({ _id: id, isDeleted: false });
+    const order = await Order.findOne({ _id: id, isDeleted: { $ne: true } });
 
     if (!order) {
       return NextResponse.json(
         { error: "Order not found" },
         { status: 404 }
       );
+    }
+
+    const ownerId = String(order.userId || "").trim();
+    const ownerEmail = String(order.email || order?.user?.email || "").trim().toLowerCase();
+    const requesterId = String(auth.userId || auth.payload?.id || "").trim();
+    const requesterEmail = String(auth.email || auth.payload?.email || "").trim().toLowerCase();
+    const isOwner = (ownerId && ownerId === requesterId) || (ownerEmail && ownerEmail === requesterEmail);
+
+    if (!isOwner) {
+      return NextResponse.json({ error: "Order does not belong to this user" }, { status: 403 });
     }
 
     return NextResponse.json({
@@ -104,9 +106,27 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const body = await req.json();
 
-    const order = await Order.findOne({ _id: id, isDeleted: false });
+    const order = await Order.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    if (body.orderStatus !== undefined || body.status !== undefined || body.paymentStatus !== undefined) {
+      const auth = await verifyAdmin(req);
+      if (!auth.ok) return adminAuthError(auth);
+    } else {
+      const auth = await verifyUser(req);
+      if (!auth.ok) return authError(auth);
+
+      const ownerId = String(order.userId || "").trim();
+      const ownerEmail = String(order.email || order?.user?.email || "").trim().toLowerCase();
+      const requesterId = String(auth.userId || auth.payload?.id || "").trim();
+      const requesterEmail = String(auth.email || auth.payload?.email || "").trim().toLowerCase();
+      const isOwner = (ownerId && ownerId === requesterId) || (ownerEmail && ownerEmail === requesterEmail);
+
+      if (!isOwner) {
+        return NextResponse.json({ error: "Order does not belong to this user" }, { status: 403 });
+      }
     }
 
     // ── Admin: status / payment updates (no time restriction) ──────────────
@@ -116,6 +136,13 @@ export async function PUT(req, { params }) {
       if (!ADMIN_ALLOWED_STATUSES.includes(nextStatus)) {
         return NextResponse.json(
           { error: "Invalid order status" },
+          { status: 400 }
+        );
+      }
+
+      if (normalizeOrderStatus(order.orderStatus || order.status || order.trackingStatus) === "Cancellation Requested") {
+        return NextResponse.json(
+          { error: "Cancellation requests must be approved or rejected separately" },
           { status: 400 }
         );
       }
@@ -158,6 +185,9 @@ export async function PUT(req, { params }) {
           if (!order.shippedAt) order.shippedAt = now;
           order.outForDeliveryAt = order.outForDeliveryAt || now;
           order.deliveredAt = now;
+          if (normalizePaymentMethod(order.paymentMethod) === "COD") {
+            order.paymentStatus = "Paid";
+          }
           break;
         case "Cancelled":
           order.cancelledAt = now;
@@ -196,7 +226,7 @@ export async function PUT(req, { params }) {
     }
 
     if (body.paymentStatus !== undefined) {
-      order.paymentStatus = body.paymentStatus;
+      order.paymentStatus = normalizePaymentStatus(body.paymentStatus, order.paymentMethod);
       await order.save();
       return NextResponse.json({ success: true, order });
     }
@@ -238,7 +268,7 @@ export async function DELETE(req, { params }) {
     const { id } = await params;
 
     const order = await Order.findOneAndUpdate(
-      { _id: id, isDeleted: false },
+      { _id: id, isDeleted: { $ne: true } },
       {
         $set: {
           isDeleted: true,

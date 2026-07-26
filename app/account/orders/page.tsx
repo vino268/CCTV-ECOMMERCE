@@ -29,6 +29,7 @@ export default function AccountOrdersPage() {
     if (value === 'packed' || value === 'confirmed') return 'Packed';
     if (value === 'shipped') return 'Shipped';
     if (value === 'outfordelivery' || value === 'out for delivery' || value === 'out_for_delivery') return 'Out for Delivery';
+    if (value === 'cancellation requested') return 'Cancellation Requested';
     if (value === 'delivered') return 'Delivered';
     if (value === 'cancelled') return 'Cancelled';
     return 'Ordered';
@@ -180,7 +181,7 @@ export default function AccountOrdersPage() {
     setCancelModalOrderId(normalizedOrderId);
   };
 
-  const handleConfirmCancelOrder = async () => {
+  const handleConfirmCancelOrder = async (payload: { reason: string; customReason: string }) => {
     const normalizedOrderId = String(cancelModalOrderId || '').trim();
     if (!normalizedOrderId) {
       console.error('❌ Order ID missing before cancel request');
@@ -200,7 +201,11 @@ export default function AccountOrdersPage() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: normalizedOrderId }),
+        body: JSON.stringify({
+          orderId: normalizedOrderId,
+          reason: payload.reason,
+          customReason: payload.customReason,
+        }),
       });
 
       console.log('📥 Response status:', res.status);
@@ -220,6 +225,12 @@ export default function AccountOrdersPage() {
           (order._id || order.id) === normalizedOrderId ? { ...order, ...data.order } : order
         )
       );
+      const uid = String(user?._id || '');
+      const email = String(user?.email || '');
+      await fetchOrders(uid, email, { silent: true });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('orders-changed'));
+      }
       showSuccess(data.message || 'Order cancelled successfully');
     } catch (err: any) {
       const message = err.message || 'Failed to cancel order';

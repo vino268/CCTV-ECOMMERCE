@@ -4,14 +4,16 @@ import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
 import Notification from "@/models/Notification";
 import mongoose from "mongoose";
+import { verifyAdmin, adminAuthError } from "@/app/api/admin/_helpers";
 
 const ALLOWED_TRANSITIONS = {
-  Pending: ["Ordered", "Cancelled"],
-  Ordered: ["Packed", "Cancelled"],
-  Packed: ["Shipped", "Cancelled"],
+  Pending: ["Ordered"],
+  Ordered: ["Packed"],
+  Packed: ["Shipped"],
   Shipped: ["Out for Delivery"],
   "Out for Delivery": ["Delivered"],
   Delivered: [],
+  "Cancellation Requested": [],
   Cancelled: [],
 };
 
@@ -35,6 +37,9 @@ function normalizeIncomingStatus(status) {
 // PATCH /api/admin/orders/[id]/status
 export async function PATCH(req, { params }) {
   try {
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) return adminAuthError(auth);
+
     await connectDB();
     const { id } = await params;
     const { status, trackingNumber, estimatedDelivery } = await req.json();
@@ -56,6 +61,13 @@ export async function PATCH(req, { params }) {
     }
 
     const currentStatus = order.trackingStatus || order.orderStatus;
+    if (currentStatus === "Cancellation Requested" || currentStatus === "Cancelled") {
+      return NextResponse.json(
+        { error: "Cancellation requests must be approved or rejected separately" },
+        { status: 400 }
+      );
+    }
+
     const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
 
     if (!allowed.includes(normalizedStatus)) {

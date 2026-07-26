@@ -24,7 +24,7 @@ export async function GET(_req, { params }) {
     }
 
     const orders = await Order.find({
-      isDeleted: false,
+      isDeleted: { $ne: true },
       $or: [
         { email: normalizedEmail },
         { 'user.email': normalizedEmail },

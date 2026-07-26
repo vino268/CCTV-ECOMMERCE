@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
+const ORDER_STATUSES = ["Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancellation Requested", "Cancelled"];
+const PAYMENT_STATUSES = ["Pending", "Paid", "Refund Processing", "Refunded", "Refund Failed", "Unpaid", "Failed"];
+const REFUND_STATUSES = ["Not Applicable", "Not Initiated", "Processing", "Refunded", "Failed"];
+
 function toObjectId(value) {
   if (!value) return undefined;
   return mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : undefined;
@@ -47,7 +51,7 @@ const orderModelSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Ordered", "Packed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"],
+      enum: ["Ordered", "Packed", "Shipped", "Out for Delivery", "Cancellation Requested", "Delivered", "Cancelled"],
       default: "Ordered",
       trim: true,
     },
@@ -130,11 +134,13 @@ const orderModelSchema = new Schema(
     },
     paymentMethod: {
       type: String,
+      enum: ["Online", "COD"],
       default: "COD",
     },
     paymentStatus: {
       type: String,
-      default: "Unpaid",
+      enum: PAYMENT_STATUSES,
+      default: "Pending",
     },
     razorpayOrderId: {
       type: String,
@@ -153,6 +159,7 @@ const orderModelSchema = new Schema(
     },
     orderStatus: {
       type: String,
+      enum: ORDER_STATUSES.concat(["Pending"]),
       default: "Ordered",
     },
     trackingStatus: {
@@ -186,6 +193,61 @@ const orderModelSchema = new Schema(
     cancelRequested: {
       type: Boolean,
       default: false,
+    },
+    cancellationRequested: {
+      type: Boolean,
+      default: false,
+    },
+    cancellationReason: {
+      type: String,
+      default: "",
+    },
+    cancellationRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    cancellationApprovedAt: {
+      type: Date,
+      default: null,
+    },
+    cancellationRejectedAt: {
+      type: Date,
+      default: null,
+    },
+    cancellationRejectionReason: {
+      type: String,
+      default: "",
+    },
+    statusBeforeCancellation: {
+      type: String,
+      default: "",
+    },
+    refundStatus: {
+      type: String,
+      enum: REFUND_STATUSES,
+      default: "Not Initiated",
+    },
+    razorpayRefundId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    refundAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    refundInitiatedAt: {
+      type: Date,
+      default: null,
+    },
+    refundedAt: {
+      type: Date,
+      default: null,
+    },
+    refundFailureReason: {
+      type: String,
+      default: "",
     },
     cancelledAt: {
       type: Date,
@@ -246,6 +308,43 @@ orderModelSchema.pre("validate", function preValidate() {
 
   if (!this.totalAmount || this.totalAmount <= 0) {
     this.totalAmount = Number(this.total || 0);
+  }
+
+  this.paymentMethod = String(this.paymentMethod || "COD").trim() === "Online" ? "Online" : "COD";
+  const paymentStatus = String(this.paymentStatus || "").trim();
+  this.paymentStatus = PAYMENT_STATUSES.includes(paymentStatus)
+    ? paymentStatus
+    : (this.paymentMethod === "COD" ? "Pending" : "Paid");
+  if (this.paymentStatus === "Unpaid") {
+    this.paymentStatus = this.paymentMethod === "COD" ? "Pending" : "Paid";
+  }
+  const refundStatus = String(this.refundStatus || "").trim();
+  this.refundStatus = REFUND_STATUSES.includes(refundStatus)
+    ? refundStatus
+    : (this.paymentMethod === "Online" ? "Not Initiated" : "Not Applicable");
+
+  const orderStatusRaw = String(this.orderStatus || this.status || this.trackingStatus || "").trim();
+  const orderStatusLower = orderStatusRaw.toLowerCase();
+  if (!orderStatusRaw) {
+    this.orderStatus = "Ordered";
+  } else if (orderStatusLower === "confirmed") {
+    this.orderStatus = "Packed";
+  } else if (orderStatusLower === "outfordelivery" || orderStatusLower === "out for delivery" || orderStatusLower === "out_for_delivery") {
+    this.orderStatus = "Out for Delivery";
+  } else if (orderStatusLower === "cancellation requested" || orderStatusLower === "cancellationrequested") {
+    this.orderStatus = "Cancellation Requested";
+  } else if (orderStatusLower === "cancelled" || orderStatusLower === "canceled") {
+    this.orderStatus = "Cancelled";
+  } else if (ORDER_STATUSES.includes(orderStatusRaw)) {
+    this.orderStatus = orderStatusRaw;
+  } else {
+    this.orderStatus = "Ordered";
+  }
+
+  this.status = this.orderStatus;
+  this.trackingStatus = this.orderStatus;
+  if (this.orderStatus === "Cancellation Requested") {
+    this.cancellationRequested = true;
   }
 
   if ((!this.items || this.items.length === 0) && this.products && this.products.length > 0) {

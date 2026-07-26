@@ -54,11 +54,24 @@ interface Order {
   products: OrderProduct[];
   totalAmount: number;
   paymentMethod: string;
-  paymentStatus: 'Paid' | 'Unpaid' | 'Refunded' | string;
+  paymentStatus: 'Pending' | 'Paid' | 'Refund Processing' | 'Refunded' | 'Refund Failed' | 'Unpaid' | 'Failed' | string;
+  razorpayPaymentId?: string;
   status?: string;
-  orderStatus: 'Ordered' | 'Shipped' | 'Delivered' | 'Cancelled' | string;
+  orderStatus: 'Ordered' | 'Packed' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancellation Requested' | 'Cancelled' | string;
   trackingStatus?: string;
   cancelledBy?: 'USER' | 'ADMIN' | string | null;
+  cancellationRequested?: boolean;
+  cancellationReason?: string;
+  cancellationRequestedAt?: string;
+  cancellationApprovedAt?: string;
+  cancellationRejectedAt?: string;
+  cancellationRejectionReason?: string;
+  statusBeforeCancellation?: string;
+  refundStatus?: 'Not Applicable' | 'Not Initiated' | 'Processing' | 'Refunded' | 'Failed' | string;
+  razorpayRefundId?: string;
+  refundAmount?: number;
+  refundInitiatedAt?: string;
+  refundedAt?: string;
   deliveryInfo?: DeliveryInfo;
   createdAt: string;
 }
@@ -72,7 +85,7 @@ interface OrdersFilters {
   maxPrice: string;
 }
 
-const ORDER_STATUSES = ['Pending', 'Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'] as const;
+const ORDER_STATUSES = ['Pending', 'Ordered', 'Packed', 'Shipped', 'Out for Delivery', 'Cancellation Requested', 'Delivered', 'Cancelled'] as const;
 const ORDERS_PER_PAGE = 10;
 
 const DEFAULT_FILTERS: OrdersFilters = {
@@ -90,6 +103,7 @@ const statusStyles: Record<string, string> = {
   Packed: 'bg-cyan-100 text-cyan-800',
   Shipped: 'bg-blue-100 text-blue-800',
   'Out for Delivery': 'bg-indigo-100 text-indigo-800',
+  'Cancellation Requested': 'bg-amber-100 text-amber-800',
   Delivered: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
 };
@@ -98,8 +112,10 @@ const paymentStyles: Record<string, string> = {
   Paid: 'bg-green-100 text-green-800',
   Pending: 'bg-yellow-100 text-yellow-800',
   Unpaid: 'bg-red-100 text-red-800',
+  'Refund Processing': 'bg-amber-100 text-amber-800',
   Refunded: 'bg-gray-100 text-gray-800',
   Failed: 'bg-rose-100 text-rose-800',
+  'Refund Failed': 'bg-rose-100 text-rose-800',
 };
 
 function getPaymentMethodLabel(value?: string) {
@@ -119,8 +135,17 @@ function getDisplayStatus(order: Order): string {
   if (status === 'packed') return 'Packed';
   if (status === 'shipped') return 'Shipped';
   if (status === 'delivered') return 'Delivered';
+  if (status === 'cancellation requested') return 'Cancellation Requested';
   if (status === 'cancelled') return 'Cancelled';
   return 'Ordered';
+}
+
+function getRefundRequiredLabel(order: Order) {
+  const paymentMethod = getPaymentMethodLabel(order.paymentMethod);
+  const paymentStatus = String(order.paymentStatus || '').trim();
+  if (paymentMethod === 'COD' && paymentStatus !== 'Paid') return 'No';
+  if (paymentMethod === 'Online' && paymentStatus === 'Paid') return 'Yes';
+  return order.refundStatus === 'Not Applicable' ? 'No' : 'Yes';
 }
 
 function getCustomerDisplayName(order: Order): string {
@@ -171,7 +196,7 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/orders', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/admin/orders', { cache: 'no-store', credentials: 'include' });
       const data = await parseResponseBody<any>(res);
 
       if (!res.ok) {
@@ -304,6 +329,9 @@ export default function AdminOrdersPage() {
   const confirmCancelOrder = async () => {
     if (!cancelOrderId) return;
 
+    const cancelTargetOrder = orders.find((order) => order._id === cancelOrderId) || null;
+    const isPaidOnlineCancel = getPaymentMethodLabel(cancelTargetOrder?.paymentMethod) === 'Online' && String(cancelTargetOrder?.paymentStatus || '').trim() === 'Paid';
+
     setShowCancelConfirm(false);
     try {
       setCancellingId(cancelOrderId);
@@ -311,25 +339,90 @@ export default function AdminOrdersPage() {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Cancelled', source: 'admin' }),
+        body: JSON.stringify({ action: 'approve', reason: 'Cancelled from admin orders page', orderId: cancelTargetOrder?.orderId || cancelTargetOrder?.orderNumber || cancelOrderId }),
       });
-      const data = await parseResponseBody<any>(res);
+
+      let data: any = {};
+      try {
+        data = await parseResponseBody<any>(res);
+      } catch (error) {
+        data = {};
+      }
+
+      const errorMessage = data?.message || data?.error || (isPaidOnlineCancel ? 'Refund could not be initiated' : 'Failed to cancel order');
+      console.error('Cancel response:', data);
 
       if (!res.ok) {
-        console.error('❌ Cancel failed:', data.error || data.message);
-        setMessage({ type: 'error', text: data.error || data.message || 'Failed to cancel order' });
+        console.error('❌ Cancel failed:', errorMessage);
+        setMessage({ type: 'error', text: errorMessage });
         return;
       }
 
-      setMessage({ type: 'success', text: 'Order cancelled successfully' });
+      setMessage({ type: 'success', text: data?.message || (isPaidOnlineCancel ? 'Order cancelled. Refund initiated successfully.' : 'Order cancelled successfully') });
       await fetchOrders();
       notifyDashboardCountsChanged();
     } catch (error) {
       console.error('❌ Error cancelling order:', error);
-      setMessage({ type: 'error', text: 'Failed to cancel order' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to cancel order' });
     } finally {
       setCancellingId(null);
       setCancelOrderId(null);
+    }
+  };
+
+  const handleApproveCancellation = async (orderId: string, reason?: string) => {
+    try {
+      setUpdatingId(orderId);
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${orderId}/cancel`), {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', reason: reason || '' }),
+      });
+      const data = await parseResponseBody<any>(res);
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || data.message || 'Failed to approve cancellation' });
+        return;
+      }
+      setMessage({ type: 'success', text: data.message || 'Cancellation approved' });
+      await fetchOrders();
+      notifyDashboardCountsChanged();
+      if (selectedOrder?._id === orderId) {
+        setSelectedOrder(null);
+      }
+    } catch (error) {
+      console.error('Error approving cancellation:', error);
+      setMessage({ type: 'error', text: 'Failed to approve cancellation' });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleRejectCancellation = async (orderId: string, reason?: string) => {
+    try {
+      setUpdatingId(orderId);
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${orderId}/cancel`), {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', reason: reason || '' }),
+      });
+      const data = await parseResponseBody<any>(res);
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || data.message || 'Failed to reject cancellation' });
+        return;
+      }
+      setMessage({ type: 'success', text: data.message || 'Cancellation request rejected' });
+      await fetchOrders();
+      notifyDashboardCountsChanged();
+      if (selectedOrder?._id === orderId) {
+        setSelectedOrder(null);
+      }
+    } catch (error) {
+      console.error('Error rejecting cancellation:', error);
+      setMessage({ type: 'error', text: 'Failed to reject cancellation' });
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -344,29 +437,34 @@ export default function AdminOrdersPage() {
     try {
       setDeletingId(selectedId);
       setMessage(null);
+      const order = orders.find((item) => item._id === selectedId) || null;
+      console.log('Deleting order:', {
+        _id: order?._id,
+        orderId: order?.orderId,
+      });
+
       const orderId = selectedId;
-      const res = await fetch(`/api/orders/${orderId}`, { 
-        method: 'DELETE', 
+      const res = await fetch(buildApiUrl(`/api/admin/orders/${orderId}`), {
+        method: 'DELETE',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await parseResponseBody<any>(res);
 
       if (!res.ok || !data.success) {
-        setMessage({ type: 'error', text: data.error || data.message || 'Failed to delete order' });
+        setMessage({ type: 'error', text: data.message || data.error || 'Failed to delete order' });
         return;
       }
 
-      setOrders((prev) => prev.filter((order) => order._id !== orderId));
       setShowDeleteModal(false);
       setSelectedId(null);
-      setMessage(null);
-      toast.success('Order deleted successfully');
+      setMessage({ type: 'success', text: data.message || 'Order moved to Trash successfully' });
+      toast.success(data.message || 'Order moved to Trash successfully');
       await fetchOrders();
       notifyDashboardCountsChanged();
     } catch (error) {
       console.error('Error deleting order:', error);
-      setMessage({ type: 'error', text: 'Failed to delete order' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to delete order' });
     } finally {
       setDeletingId(null);
     }
@@ -427,6 +525,7 @@ export default function AdminOrdersPage() {
             <option value="Packed">Packed</option>
             <option value="Shipped">Shipped</option>
             <option value="Out for Delivery">Out for Delivery</option>
+            <option value="Cancellation Requested">Cancellation Requested</option>
             <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </select>
@@ -459,7 +558,8 @@ export default function AdminOrdersPage() {
             {paginatedOrders.map((order) => {
               const displayStatus = getDisplayStatus(order);
               const isDelivered = displayStatus === 'Delivered';
-              const canCancel = displayStatus === 'Pending' || displayStatus === 'Ordered';
+                      const canCancel = displayStatus === 'Pending' || displayStatus === 'Ordered' || displayStatus === 'Packed';
+                      const isCancellationRequested = displayStatus === 'Cancellation Requested';
 
               return (
                 <div key={order._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-5">
@@ -502,7 +602,7 @@ export default function AdminOrdersPage() {
                       <select
                         value={displayStatus}
                         onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                        disabled={updatingId === order._id}
+                        disabled={updatingId === order._id || isCancellationRequested || displayStatus === 'Cancelled'}
                         className="h-8 rounded-md border border-gray-300 bg-white px-2.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         {ORDER_STATUSES.map((status) => (
@@ -510,7 +610,7 @@ export default function AdminOrdersPage() {
                         ))}
                       </select>
 
-                      {!isDelivered && (
+                      {!isDelivered && !isCancellationRequested && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -526,6 +626,38 @@ export default function AdminOrdersPage() {
                           {cancellingId === order._id ? 'Cancelling...' : canCancel ? 'Cancel' : 'Locked'}
                         </Button>
                       )}
+
+                        {isCancellationRequested && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-8 rounded-md bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                              onClick={() => handleApproveCancellation(order._id, order.cancellationReason || '')}
+                              disabled={updatingId === order._id}
+                            >
+                              Approve Cancellation
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-md px-3 text-xs"
+                              onClick={() => {
+                                setSelectedOrder(order);
+                              }}
+                              disabled={updatingId === order._id}
+                            >
+                              View Request
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-8 rounded-md bg-rose-600 px-3 text-xs text-white hover:bg-rose-700"
+                              onClick={() => handleRejectCancellation(order._id, order.cancellationRejectionReason || '')}
+                              disabled={updatingId === order._id}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
 
                       <button
                         type="button"
@@ -564,8 +696,46 @@ export default function AdminOrdersPage() {
               </p>
               <p className="text-sm text-gray-700">Payment Status: {selectedOrder.paymentStatus || '-'}</p>
               <p className="text-sm text-gray-700">Payment Method: {getPaymentMethodLabel(selectedOrder.paymentMethod)}</p>
+              <p className="text-sm text-gray-700">Refund Required: {getRefundRequiredLabel(selectedOrder)}</p>
+              <p className="text-sm text-gray-700">Refund Status: {selectedOrder.refundStatus || '-'}</p>
+              <p className="text-sm text-gray-700">Refund Amount: {selectedOrder.refundAmount ? formatINRCurrency(selectedOrder.refundAmount) : '-'}</p>
+              <p className="text-sm text-gray-700">Razorpay Payment ID: {selectedOrder.razorpayPaymentId || '-'}</p>
+              <p className="text-sm text-gray-700">Razorpay Refund ID: {selectedOrder.razorpayRefundId || '-'}</p>
+              <p className="text-sm text-gray-700">Cancellation Status: {selectedOrder.orderStatus || '-'}</p>
+              <p className="text-sm text-gray-700">Cancellation Reason: {selectedOrder.cancellationReason || '-'}</p>
+              <p className="text-sm text-gray-700">Cancellation Requested At: {selectedOrder.cancellationRequestedAt ? new Date(selectedOrder.cancellationRequestedAt).toLocaleString() : '-'}</p>
+              <p className="text-sm text-gray-700">Cancellation Approved At: {selectedOrder.cancellationApprovedAt ? new Date(selectedOrder.cancellationApprovedAt).toLocaleString() : '-'}</p>
+              <p className="text-sm text-gray-700">Cancellation Rejected At: {selectedOrder.cancellationRejectedAt ? new Date(selectedOrder.cancellationRejectedAt).toLocaleString() : '-'}</p>
+              <p className="text-sm text-gray-700">Rejected Reason: {selectedOrder.cancellationRejectionReason || '-'}</p>
+              <p className="text-sm text-gray-700">Refund Initiated At: {selectedOrder.refundInitiatedAt ? new Date(selectedOrder.refundInitiatedAt).toLocaleString() : '-'}</p>
+              <p className="text-sm text-gray-700">Refunded At: {selectedOrder.refundedAt ? new Date(selectedOrder.refundedAt).toLocaleString() : '-'}</p>
               <p className="text-sm text-gray-700">Order Date &amp; Time: {new Date(selectedOrder.createdAt).toLocaleString()}</p>
               <p className="text-sm text-gray-700 mt-3 font-semibold">Total: {formatINRCurrency(selectedOrder.totalAmount)}</p>
+
+              {getDisplayStatus(selectedOrder) === 'Cancellation Requested' && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                  <div className="text-sm font-semibold text-amber-900">Cancellation Requested</div>
+                  <div className="text-sm text-amber-800">Reason: {selectedOrder.cancellationReason || 'No reason provided'}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApproveCancellation(selectedOrder._id, selectedOrder.cancellationReason || '')}
+                      className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm text-white hover:bg-emerald-700 disabled:opacity-60"
+                      disabled={updatingId === selectedOrder._id}
+                    >
+                      Approve Cancellation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectCancellation(selectedOrder._id, selectedOrder.cancellationRejectionReason || '')}
+                      className="inline-flex h-9 items-center gap-1 rounded-md bg-rose-600 px-3 text-sm text-white hover:bg-rose-700 disabled:opacity-60"
+                      disabled={updatingId === selectedOrder._id}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -613,9 +783,23 @@ export default function AdminOrdersPage() {
 
       <ConfirmModal
         open={showCancelConfirm}
-        title="Cancel Order"
-        description="Canceling this order will keep it in the system but mark it as cancelled. Do you want to continue?"
-        confirmLabel="Cancel Order"
+        title={(() => {
+          const cancelTargetOrder = orders.find((order) => order._id === cancelOrderId) || null;
+          const isPaidOnlineCancel = getPaymentMethodLabel(cancelTargetOrder?.paymentMethod) === 'Online' && String(cancelTargetOrder?.paymentStatus || '').trim() === 'Paid';
+          return isPaidOnlineCancel ? 'Cancel & Refund Order' : 'Cancel Order';
+        })()}
+        description={(() => {
+          const cancelTargetOrder = orders.find((order) => order._id === cancelOrderId) || null;
+          const isPaidOnlineCancel = getPaymentMethodLabel(cancelTargetOrder?.paymentMethod) === 'Online' && String(cancelTargetOrder?.paymentStatus || '').trim() === 'Paid';
+          return isPaidOnlineCancel
+            ? 'This paid online order will be cancelled and a refund will be initiated through Razorpay. Do you want to continue?'
+            : 'This will cancel the order using the refund workflow when required. Do you want to continue?';
+        })()}
+        confirmLabel={(() => {
+          const cancelTargetOrder = orders.find((order) => order._id === cancelOrderId) || null;
+          const isPaidOnlineCancel = getPaymentMethodLabel(cancelTargetOrder?.paymentMethod) === 'Online' && String(cancelTargetOrder?.paymentStatus || '').trim() === 'Paid';
+          return isPaidOnlineCancel ? 'Confirm Cancel & Refund' : 'Cancel Order';
+        })()}
         cancelLabel="Keep Order"
         isLoading={Boolean(cancellingId)}
         onOpenChange={(open) => {

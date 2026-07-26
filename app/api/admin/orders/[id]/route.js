@@ -6,6 +6,26 @@ import { verifyAdmin, adminAuthError } from "@/app/api/admin/_helpers";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+export async function GET(req, { params }) {
+  try {
+    const auth = await verifyAdmin(req);
+    if (!auth.ok) return adminAuthError(auth);
+
+    await connectDB();
+    const { id } = await params;
+
+    const order = await Order.findOne({ _id: id, isDeleted: { $ne: true } });
+    if (!order) {
+      return NextResponse.json({ success: false, message: "Order not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, order });
+  } catch (error) {
+    console.error("GET /api/admin/orders/[id] error:", error);
+    return NextResponse.json({ success: false, message: "Failed to fetch order" }, { status: 500 });
+  }
+}
+
 async function deleteOrder(req, { params }) {
   try {
     const auth = await verifyAdmin(req);
@@ -15,25 +35,25 @@ async function deleteOrder(req, { params }) {
 
     const { id } = await params;
 
-    const deletedOrder = await Order.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      {
-        $set: {
-          isDeleted: true,
-          deletedAt: new Date(),
-        },
-      },
-      { new: true }
-    );
+    const order = await Order.findById(id);
 
-    if (!deletedOrder) {
+    if (!order || order.isDeleted === true) {
       return NextResponse.json(
         { success: false, message: "Order not found" },
         { status: 404 }
       );
     }
 
-    console.log(`[admin/order-delete] Order ${deletedOrder.orderNumber || id} moved to trash.`);
+    console.log("Deleting order:", {
+      _id: String(order._id),
+      orderId: String(order.orderId || ""),
+    });
+
+    order.isDeleted = true;
+    order.deletedAt = new Date();
+    await order.save();
+
+    console.log(`[admin/order-delete] Order ${order.orderNumber || id} moved to trash.`);
 
     return NextResponse.json({
       success: true,

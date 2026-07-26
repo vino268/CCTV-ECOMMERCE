@@ -38,7 +38,7 @@ export async function GET(req) {
     }
 
     const orders = await Order.find({
-      isDeleted: false,
+      isDeleted: { $ne: true },
       email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
     }).sort({ createdAt: -1 });
 

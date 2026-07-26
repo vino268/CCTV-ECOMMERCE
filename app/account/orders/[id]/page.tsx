@@ -67,6 +67,10 @@ interface Order {
   totalAmount: number;
   paymentMethod?: string;
   paymentStatus?: string;
+  refundStatus?: string;
+  refundAmount?: number;
+  refundInitiatedAt?: string;
+  refundedAt?: string;
   orderStatus: string;
   trackingStatus: string;
   createdAt: string;
@@ -96,6 +100,7 @@ const statusColorMap: Record<string, string> = {
   Packed: 'bg-blue-100 text-blue-800',
   Shipped: 'bg-purple-100 text-purple-800',
   'Out for Delivery': 'bg-orange-100 text-orange-800',
+  'Cancellation Requested': 'bg-amber-100 text-amber-800',
   Delivered: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
 };
@@ -106,6 +111,7 @@ const statusLabelMap: Record<string, string> = {
   Packed: 'Packed',
   Shipped: 'Shipped',
   'Out for Delivery': 'Out for Delivery',
+  'Cancellation Requested': 'Cancellation Requested',
   Delivered: 'Delivered',
   Cancelled: 'Cancelled',
 };
@@ -117,6 +123,7 @@ function normalizeStatus(status?: string) {
   if (value === 'packed' || value === 'confirmed') return 'Packed';
   if (value === 'shipped') return 'Shipped';
   if (value === 'outfordelivery' || value === 'out for delivery' || value === 'out_for_delivery') return 'Out for Delivery';
+  if (value === 'cancellation requested') return 'Cancellation Requested';
   if (value === 'delivered') return 'Delivered';
   if (value === 'cancelled') return 'Cancelled';
   return 'Ordered';
@@ -252,6 +259,9 @@ export default function OrderDetailsPage() {
     () => normalizeStatus(order?.status || order?.trackingStatus || order?.orderStatus),
     [order]
   );
+  const paymentMethodLabel = getPaymentMethodLabel(order?.paymentMethod);
+  const paymentStatusLabel = String(order?.paymentStatus || 'Pending').trim() || 'Pending';
+  const refundStatusLabel = String(order?.refundStatus || '').trim();
 
   const displayOrderId = order?.orderId || order?.orderNumber || order?._id;
   const normalizedItems: OrderItem[] = (order?.items && order.items.length > 0)
@@ -287,6 +297,7 @@ export default function OrderDetailsPage() {
   const statusIndex = steps.indexOf(currentStatus);
   const canCancel = currentStatus === 'Ordered' || currentStatus === 'Packed';
   const isEditable = currentStatus === 'Ordered';
+  const isCancellationRequested = currentStatus === 'Cancellation Requested';
 
   useEffect(() => {
     if (!order) return;
@@ -313,7 +324,7 @@ export default function OrderDetailsPage() {
     setShowCancelModal(true);
   };
 
-  const handleConfirmCancelOrder = async () => {
+  const handleConfirmCancelOrder = async (payload: { reason: string; customReason: string }) => {
     if (!order) return;
 
     const cancelOrderId = String(order._id || order.id || '').trim();
@@ -334,7 +345,11 @@ export default function OrderDetailsPage() {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: cancelOrderId }),
+        body: JSON.stringify({
+          orderId: cancelOrderId,
+          reason: payload.reason,
+          customReason: payload.customReason,
+        }),
       });
       const data = await parseResponseBody<any>(res);
 
@@ -343,6 +358,9 @@ export default function OrderDetailsPage() {
       }
 
       await fetchOrder();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('orders-changed'));
+      }
       setToast({ type: 'success', message: 'Order cancelled successfully' });
     } catch (err: any) {
       const message = err.message || 'Failed to cancel order';
@@ -535,8 +553,9 @@ export default function OrderDetailsPage() {
                   year: 'numeric',
                 })}
               </p>
-              <p className="text-sm text-gray-500 mt-1">Payment: {order.paymentStatus || 'Unpaid'}</p>
-              <p className="text-sm text-gray-500 mt-1">Method: {getPaymentMethodLabel(order.paymentMethod)}</p>
+              <p className="text-sm text-gray-500 mt-1">Payment: {paymentStatusLabel}</p>
+              <p className="text-sm text-gray-500 mt-1">Method: {paymentMethodLabel}</p>
+              {refundStatusLabel && <p className="text-sm text-gray-500 mt-1">Refund: {refundStatusLabel}</p>}
             </div>
 
             <span
@@ -553,7 +572,7 @@ export default function OrderDetailsPage() {
           <h2 className="font-semibold text-gray-900 mb-4">Order Timeline</h2>
           <div className="space-y-4">
             {steps.map((step, idx) => {
-              const done = idx <= statusIndex && currentStatus !== 'Cancelled';
+              const done = idx <= statusIndex && currentStatus !== 'Cancelled' && !isCancellationRequested;
               const isCurrentCancelled = currentStatus === 'Cancelled' && step === 'Ordered';
 
               return (
@@ -575,7 +594,18 @@ export default function OrderDetailsPage() {
                 </div>
               );
             })}
-            {currentStatus === 'Cancelled' && (
+            {isCancellationRequested && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <p className="font-semibold">Cancellation Requested</p>
+                <p className="mt-1">Your cancellation request has been sent to TN Automation.</p>
+                {paymentMethodLabel === 'Online' ? (
+                  <p className="mt-1">Refund: Waiting for cancellation approval</p>
+                ) : (
+                  <p className="mt-1">No payment has been collected.</p>
+                )}
+              </div>
+            )}
+            {currentStatus === 'Cancelled' && !isCancellationRequested && (
               <div className="text-sm text-red-600 font-medium">Order has been cancelled.</div>
             )}
           </div>
@@ -716,12 +746,18 @@ export default function OrderDetailsPage() {
 
         <section className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex flex-wrap gap-2">
-            {canCancel && (
+            {canCancel && !isCancellationRequested && (
               <Button variant="destructive" onClick={handleCancelOrder} disabled={cancelling}>
                 <>
                   <Ban className="w-4 h-4 mr-1.5" />
                   Cancel Order
                 </>
+              </Button>
+            )}
+            {isCancellationRequested && (
+              <Button variant="outline" disabled>
+                <Ban className="w-4 h-4 mr-1.5" />
+                Cancellation Requested
               </Button>
             )}
             <Button variant="outline" onClick={handleDownloadInvoice}>

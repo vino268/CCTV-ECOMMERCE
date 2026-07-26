@@ -79,7 +79,7 @@ export async function GET(req) {
     const userId = String(searchParams.get("userId") || "").trim();
     const email = String(searchParams.get("email") || "").trim().toLowerCase();
 
-    const query = { isDeleted: false };
+    const query = { isDeleted: { $ne: true } };
 
     if (userId) {
       query.userId = userId;
@@ -261,7 +261,7 @@ export async function POST(req) {
     if (paymentMethod === "COD") {
       const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000);
       const existingOrder = await Order.findOne({
-        isDeleted: false,
+        isDeleted: { $ne: true },
         createdAt: { $gte: duplicateWindowStart },
         email: user.email,
         userId: toTrimmed(auth.userId),
