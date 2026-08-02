@@ -55,12 +55,14 @@ export async function GET(req) {
     const range = searchParams.get("range") || "7d";
     const { start, end, previousStart, previousEnd } = getDateRange(range);
 
+    const activeOrderMatch = { isDeleted: { $ne: true } };
+
     const [totalProducts, totalOrders, totalCustomers, totalRevenueAggregate] = await Promise.all([
       Product.countDocuments(),
-      Order.countDocuments(),
+      Order.countDocuments(activeOrderMatch),
       User.countDocuments({ role: "user" }),
       Order.aggregate([
-        { $match: { orderStatus: { $ne: "Cancelled" } } },
+        { $match: { ...activeOrderMatch, orderStatus: { $ne: "Cancelled" } } },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },
       ]),
     ]);
@@ -68,16 +70,16 @@ export async function GET(req) {
     const [productCurrent, productPrevious, orderCurrent, orderPrevious, customerCurrent, customerPrevious, revenueCurrentAgg, revenuePreviousAgg] = await Promise.all([
       Product.countDocuments({ createdAt: { $gte: start, $lte: end } }),
       Product.countDocuments({ createdAt: { $gte: previousStart, $lt: previousEnd } }),
-      Order.countDocuments({ createdAt: { $gte: start, $lte: end } }),
-      Order.countDocuments({ createdAt: { $gte: previousStart, $lt: previousEnd } }),
+      Order.countDocuments({ createdAt: { $gte: start, $lte: end }, ...activeOrderMatch }),
+      Order.countDocuments({ createdAt: { $gte: previousStart, $lt: previousEnd }, ...activeOrderMatch }),
       User.countDocuments({ role: "user", createdAt: { $gte: start, $lte: end } }),
       User.countDocuments({ role: "user", createdAt: { $gte: previousStart, $lt: previousEnd } }),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lte: end }, orderStatus: { $ne: "Cancelled" } } },
+        { $match: { createdAt: { $gte: start, $lte: end }, ...activeOrderMatch, orderStatus: { $ne: "Cancelled" } } },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },
       ]),
       Order.aggregate([
-        { $match: { createdAt: { $gte: previousStart, $lt: previousEnd }, orderStatus: { $ne: "Cancelled" } } },
+        { $match: { createdAt: { $gte: previousStart, $lt: previousEnd }, ...activeOrderMatch, orderStatus: { $ne: "Cancelled" } } },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },
       ]),
     ]);
@@ -86,7 +88,7 @@ export async function GET(req) {
     const revenuePrevious = revenuePreviousAgg[0]?.total || 0;
 
     const dailyRevenueAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, orderStatus: { $ne: "Cancelled" } } },
+      { $match: { createdAt: { $gte: start, $lte: end }, orderStatus: { $ne: "Cancelled" }, isDeleted: { $ne: true } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -110,7 +112,7 @@ export async function GET(req) {
     }
 
     const statusAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $match: { createdAt: { $gte: start, $lte: end }, isDeleted: { $ne: true } } },
       { $group: { _id: "$orderStatus", count: { $sum: 1 } } },
     ]);
 
@@ -129,7 +131,7 @@ export async function GET(req) {
     const ordersStatus = Object.entries(statusAccumulator).map(([status, count]) => ({ status, count }));
 
     const [latestOrders, latestCustomers] = await Promise.all([
-      Order.find().sort({ createdAt: -1 }).limit(5).select("orderNumber customerName totalAmount orderStatus createdAt email"),
+      Order.find({ isDeleted: { $ne: true } }).sort({ createdAt: -1 }).limit(5).select("orderNumber customerName totalAmount orderStatus createdAt email"),
       User.find({ role: "user" }).sort({ createdAt: -1 }).limit(5).select("name email createdAt"),
     ]);
 

@@ -64,10 +64,15 @@ export async function GET(req) {
       },
     };
 
+    const activeOrderQuery = {
+      ...dateQuery,
+      isDeleted: { $ne: true },
+    };
+
     const [allOrders, paidOrders] = await Promise.all([
-      Order.find(dateQuery),
+      Order.find(activeOrderQuery),
       Order.find({
-        ...dateQuery,
+        ...activeOrderQuery,
         paymentStatus: "Paid",
       }),
     ]);

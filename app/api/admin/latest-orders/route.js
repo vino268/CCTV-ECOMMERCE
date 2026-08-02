@@ -8,7 +8,7 @@ export async function GET(req) {
 
     console.log("LatestOrders: Fetching latest 5 orders");
 
-    const orders = await Order.find()
+    const orders = await Order.find({ isDeleted: { $ne: true } })
       .sort({ createdAt: -1 })
       .limit(5)
       .select("orderId orderNumber customerName totalAmount orderStatus createdAt email")

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/mongodb';
 import Order from '@/models/Order';
 import AdminLog from '@/models/AdminLog';
@@ -14,16 +15,21 @@ export async function DELETE(req, { params }) {
     if (!auth.ok) return adminAuthError(auth);
 
     await connectDB();
-    const id = params.id;
+    const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ success: false, message: 'Invalid order ID.' }, { status: 400 });
+    }
+
     const deletedOrder = await Order.findByIdAndDelete(id);
-    if (!deletedOrder) return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+    if (!deletedOrder) return NextResponse.json({ success: false, message: 'Order not found.' }, { status: 404 });
 
     const adminRec = await Admin.findById(auth.adminId).select('name').catch(() => null);
     await AdminLog.create({ adminName: adminRec?.name || String(auth.adminId), type: 'trash', action: 'order_permanent_delete', message: `Order permanently deleted: ${deletedOrder._id}`, details: String(deletedOrder._id) });
 
-    return NextResponse.json({ success: true, message: 'Order permanently deleted' });
+    return NextResponse.json({ success: true, message: 'Order permanently deleted.' });
   } catch (error) {
     console.error('DELETE /api/trash/orders/[id] error:', error);
-    return NextResponse.json({ success: false, message: 'Failed to permanently delete order' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Failed to permanently delete order.' }, { status: 500 });
   }
 }

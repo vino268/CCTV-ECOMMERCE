@@ -65,6 +65,7 @@ export async function GET(req) {
         $gte: startDate,
         $lte: endDate,
       },
+      isDeleted: { $ne: true },
       paymentStatus: "Paid",
     };
 

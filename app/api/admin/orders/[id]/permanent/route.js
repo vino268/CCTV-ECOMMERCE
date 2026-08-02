@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import AdminLog from "@/models/AdminLog";
@@ -15,11 +16,18 @@ export async function DELETE(req, { params }) {
     await connectDB();
     const { id } = await params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid order ID." },
+        { status: 400 }
+      );
+    }
+
     const order = await Order.findOne({ _id: id, isDeleted: true });
 
     if (!order) {
       return NextResponse.json(
-        { success: false, message: "Order not found" },
+        { success: false, message: "Order not found." },
         { status: 404 }
       );
     }
@@ -37,12 +45,12 @@ export async function DELETE(req, { params }) {
 
     return NextResponse.json({
       success: true,
-      message: "Order permanently deleted"
+      message: "Order permanently deleted."
     });
   } catch (error) {
     console.error("PERMANENT DELETE ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Permanent delete failed" },
+      { success: false, message: "Permanent delete failed." },
       { status: 500 }
     );
   }

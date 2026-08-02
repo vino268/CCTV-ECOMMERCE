@@ -242,7 +242,7 @@ export default function AdminTrashPage() {
         window.dispatchEvent(new CustomEvent('orders-changed'));
       } catch (e) {}
 
-      toast.success(data.message || 'Order permanently deleted');
+      toast.success(data.message || 'Order permanently deleted.');
     } catch (error: any) {
       console.log(error);
       if (error?.message) {
